@@ -15,24 +15,35 @@ export async function createUserWithAuth(
   try {
     const supabase = await createClient()
 
-    // Create user using RPC function directly in the users table
-    const { data, error: rpcError } = await supabase.rpc('create_new_user', {
-      p_name: userData.name,
-      p_email: email,
-      p_password: password,
-      p_role: userData.role,
-      p_area: userData.area || 'Arte',
-    })
+    // Hash password using the same function as login
+    const { data: hashResult, error: hashError } = await supabase.rpc(
+      'hash_password',
+      { password }
+    )
 
-    if (rpcError) {
-      throw new Error(`Erro ao criar usuário: ${rpcError.message}`)
+    if (hashError) {
+      throw new Error(`Erro ao processar senha: ${hashError.message}`)
     }
 
-    if (!data?.success) {
-      throw new Error(data?.message || 'Erro ao criar usuário')
+    // Create user in users table
+    const { data: newUser, error: dbError } = await supabase
+      .from('users')
+      .insert({
+        email,
+        name: userData.name,
+        role: userData.role,
+        area: userData.area || 'Arte',
+        status: userData.status,
+        password_hash: hashResult,
+      })
+      .select()
+      .single()
+
+    if (dbError) {
+      throw new Error(`Erro ao criar usuário: ${dbError.message}`)
     }
 
-    return { success: true, userId: data.user_id }
+    return { success: true, userId: newUser.id }
   } catch (error) {
     console.error('[v0] Error creating user:', error)
     throw error

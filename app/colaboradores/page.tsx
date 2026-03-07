@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
 import { CollaboratorsTable } from '@/components/collaborators/collaborators-table'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Plus } from 'lucide-react'
 
 function CollaboratorsSkeleton() {
   return (
@@ -35,22 +36,26 @@ function CollaboratorsSkeleton() {
 export default function ColaboradoresPage() {
   return (
     <ProtectedRoute>
-      <ModuleAccessWrapper moduleName="usuarios" moduleDisplayName="Usuários">
-        <AppShell>
-          <div className="space-y-6">
-            {/* Page header */}
+      <AppShell>
+        <div className="space-y-6">
+          {/* Page header */}
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Colaboradores</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">Gerencie a equipe da agência</p>
+              <p className="text-muted-foreground">Gerencie a equipe da agência</p>
             </div>
-
-            {/* Content */}
-            <Suspense fallback={<CollaboratorsSkeleton />}>
-              <CollaboratorsTable />
-            </Suspense>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Colaborador
+            </Button>
           </div>
-        </AppShell>
-      </ModuleAccessWrapper>
+
+          {/* Content */}
+          <Suspense fallback={<CollaboratorsSkeleton />}>
+            <CollaboratorsTable />
+          </Suspense>
+        </div>
+      </AppShell>
     </ProtectedRoute>
   )
 }

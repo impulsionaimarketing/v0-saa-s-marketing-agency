@@ -1,8 +1,7 @@
 'use client'
 
-import React from "react"
-import Image from 'next/image'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
@@ -19,52 +18,29 @@ import {
   Menu,
   X,
   CreditCard,
-  Lock,
-  CheckSquare,
-  Calendar,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { useModuleAccess } from '@/lib/hooks/use-module-access'
 
-interface MenuItem {
-  name: string
-  href: string
-  icon: React.ComponentType<{ className?: string }>
-  moduleName?: string
-}
-
-const menuItems: MenuItem[] = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, moduleName: 'dashboard' },
-  { name: 'Clientes', href: '/clientes', icon: Users, moduleName: 'clientes' },
-  { name: 'Onboarding', href: '/onboarding', icon: CheckSquare, moduleName: 'clientes' },
-  { name: 'Cobranças', href: '/cobrancas', icon: CreditCard, moduleName: 'cobrancas' },
-  { name: 'Cronograma Mensal', href: '/cronograma', icon: Calendar, moduleName: 'clientes' },
-  { name: 'Demandas', href: '/demandas', icon: ClipboardList, moduleName: 'demandas' },
-  { name: 'Produção', href: '/producao', icon: Film, moduleName: 'producoes' },
-  { name: 'Tráfego Pago', href: '/trafego', icon: Target, moduleName: 'campanhas' },
-  { name: 'Relatórios', href: '/relatorios', icon: FileText, moduleName: 'relatorios' },
-  { name: 'Colaboradores', href: '/colaboradores', icon: UserCircle, moduleName: 'usuarios' },
-  { name: 'Alertas', href: '/alertas', icon: AlertTriangle, moduleName: 'alertas' },
-  { name: 'Configurações', href: '/configuracoes', icon: Settings, moduleName: 'configuracoes' },
+const menuItems = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Clientes', href: '/clientes', icon: Users },
+  { name: 'Cobranças', href: '/cobrancas', icon: CreditCard },
+  { name: 'Demandas', href: '/demandas', icon: ClipboardList },
+  { name: 'Produção', href: '/producao', icon: Film },
+  { name: 'Tráfego Pago', href: '/trafego', icon: Target },
+  { name: 'Relatórios', href: '/relatorios', icon: FileText },
+  { name: 'Colaboradores', href: '/colaboradores', icon: UserCircle },
+  { name: 'Alertas', href: '/alertas', icon: AlertTriangle },
+  { name: 'Configurações', href: '/configuracoes', icon: Settings },
 ]
 
-interface SidebarProps {
-  mobileOpen: boolean
-  setMobileOpen: (open: boolean) => void
-}
-
-function SidebarMenuItemContent({ item }: { item: MenuItem }) {
-  const { isBlocked } = useModuleAccess(item.moduleName || '')
-
-  return isBlocked ? <Lock className="h-4 w-4 text-red-500" /> : null
-}
-
-export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
+export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
@@ -75,20 +51,26 @@ export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
       )}>
         {!collapsed && (
           <Link href="/" className="flex items-center" onClick={() => setMobileOpen(false)}>
-            <Image 
-              src="https://impulsionaimarketing.com.br/wp-content/uploads/2026/02/Impulsionai-4-1.png" 
-              alt="Impulsionaí" 
-              width={150}
-              height={60}
-              className="h-auto w-32"
+            <Image
+              src="https://impulsionaimarketing.com.br/wp-content/uploads/2026/02/Impulsionai-4.png"
+              alt="Impulsionaí Marketing"
+              width={220}
+              height={80}
+              className="h-auto w-full object-contain"
+              priority
             />
           </Link>
         )}
         {collapsed && (
-          <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center justify-center">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-white">I</span>
-            </div>
+          <Link href="/" onClick={() => setMobileOpen(false)}>
+            <Image
+              src="https://impulsionaimarketing.com.br/wp-content/uploads/2026/02/Impulsionai-4.png"
+              alt="Impulsionaí Marketing"
+              width={40}
+              height={40}
+              className="h-10 w-10 object-contain"
+              priority
+            />
           </Link>
         )}
       </div>
@@ -114,12 +96,7 @@ export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
               title={collapsed ? item.name : undefined}
             >
               <item.icon className={cn('h-5 w-5 shrink-0', isActive && 'text-primary')} />
-              {!collapsed && (
-                <>
-                  <span className="flex-1">{item.name}</span>
-                  {item.moduleName && <SidebarMenuItemContent item={item} />}
-                </>
-              )}
+              {!collapsed && <span>{item.name}</span>}
             </Link>
           )
         })}
@@ -158,6 +135,11 @@ export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
 
       {/* Mobile Sidebar */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" className="lg:hidden fixed left-4 top-20 z-40">
+            <Menu className="h-5 w-5" />
+          </Button>
+        </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SidebarContent />
         </SheetContent>

@@ -1,7 +1,6 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
 
 export interface Demand {
   id: string
@@ -24,8 +23,6 @@ export async function getDemands(filters?: {
   area?: string
   status?: string
   responsible_id?: string
-  current_user_id?: string
-  current_user_role?: string
 }): Promise<Demand[]> {
   try {
     const supabase = await createClient()
@@ -40,13 +37,7 @@ export async function getDemands(filters?: {
 
     let demands = data || []
 
-    // Filter by user role: Colaboradores only see their own tasks
-    if (filters?.current_user_role === 'Colaborador' && filters?.current_user_id) {
-      console.log('[v0] Filtering demands for Colaborador:', filters.current_user_id)
-      demands = demands.filter((d: Demand) => d.responsible_id === filters.current_user_id)
-    }
-
-    // Apply other filters client-side
+    // Apply filters client-side
     if (filters?.client_id) {
       demands = demands.filter((d: Demand) => d.client_id === filters.client_id)
     }
@@ -119,9 +110,6 @@ export async function createDemand(data: Partial<Demand>): Promise<Demand | null
       throw new Error(error.message)
     }
 
-    // Send webhook notification
-    await sendWebhookNotification('demand.created', demand)
-
     return demand
   } catch (error) {
     console.error("[v0] Error creating demand:", error)
@@ -150,47 +138,11 @@ export async function updateDemand(id: string, data: Partial<Demand>): Promise<D
       throw new Error(error.message)
     }
 
-    // Check if there's a production linked to this demand
-    const { data: linkedProduction } = await supabase
-      .from('productions')
-      .select('id')
-      .eq('demand_id', id)
-      .single()
-
-    // If there's a linked production, sync the changes
-    if (linkedProduction) {
-      console.log('[v0] Syncing demand changes to linked production:', linkedProduction.id)
-      await supabase
-        .from('productions')
-        .update({
-          responsible_id: data.responsible_id,
-          status: mapDemandStatusToProductionStatus(data.status),
-          post_date: data.deadline,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', linkedProduction.id)
-    }
-
-    // Send webhook notification
-    await sendWebhookNotification('demand.updated', { id, ...demand })
-
     return demand
   } catch (error) {
     console.error("[v0] Error updating demand:", error)
     throw error
   }
-}
-
-// Helper function to map demand status to production status
-function mapDemandStatusToProductionStatus(demandStatus?: string): string {
-  const statusMap: Record<string, string> = {
-    'A Fazer': 'Planejamento',
-    'Em Produção': 'Produção',
-    'Em Revisão': 'Revisão',
-    'Aprovado': 'Aprovado',
-    'Publicado': 'Publicado'
-  }
-  return demandStatus ? (statusMap[demandStatus] || 'Planejamento') : 'Planejamento'
 }
 
 export async function updateDemandStatus(id: string, status: Demand["status"]): Promise<Demand | null> {
@@ -206,9 +158,6 @@ export async function updateDemandStatus(id: string, status: Demand["status"]): 
       console.error("[v0] Error updating demand status:", error)
       throw new Error(error.message)
     }
-
-    // Send webhook notification
-    await sendWebhookNotification('demand.status_changed', { id, status, ...demand })
 
     return demand
   } catch (error) {
@@ -227,9 +176,6 @@ export async function deleteDemand(id: string): Promise<void> {
       console.error("[v0] Error deleting demand:", error)
       throw new Error(error.message)
     }
-
-    // Send webhook notification
-    await sendWebhookNotification('demand.deleted', { id })
   } catch (error) {
     console.error("[v0] Error deleting demand:", error)
     throw error

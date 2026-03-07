@@ -27,18 +27,13 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const [currentRole, setCurrentRole] = useState<UserRole>('Admin')
-  const [mobileOpen, setMobileOpen] = useState(false)
 
   return (
     <AppContext.Provider value={{ currentRole, setCurrentRole }}>
       <div className="min-h-screen bg-background">
-        <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
+        <Sidebar />
         <div className="lg:pl-64 transition-all duration-300">
-          <Topbar
-            currentRole={currentRole}
-            onRoleChange={setCurrentRole}
-            onMenuClick={() => setMobileOpen(true)}
-          />
+          <Topbar currentRole={currentRole} onRoleChange={setCurrentRole} />
           <main className="p-3 sm:p-4 md:p-6">
             {children}
           </main>

@@ -5,13 +5,6 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'impulsionaimarketing.com.br',
-        pathname: '/**',
-      },
-    ],
   },
 }
 

@@ -80,7 +80,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
           description: formData.description || null,
           client_id: formData.client_id,
           area: formData.area as Demand['area'],
-          responsible_id: (formData.responsible_id && formData.responsible_id !== 'none') ? formData.responsible_id : null,
+          responsible_id: formData.responsible_id || null,
           deadline: formData.deadline || null,
           status: formData.status as Demand['status'],
           priority: formData.priority as Demand['priority'],
@@ -113,9 +113,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
     })
   }
 
-  const filteredUsers = users.filter(u => 
-    u.area === formData.area || !u.area || u.area === 'Administração'
-  )
+  const filteredUsers = users.filter(u => u.area === formData.area || !u.area)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -127,16 +125,16 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="w-[95vw] sm:max-w-[500px] bg-card border-border p-4 sm:p-6">
+      <DialogContent className="sm:max-w-[500px] bg-card border-border">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">{demand ? 'Editar Demanda' : 'Nova Demanda'}</DialogTitle>
-            <DialogDescription className="text-xs sm:text-sm">
+            <DialogTitle>{demand ? 'Editar Demanda' : 'Nova Demanda'}</DialogTitle>
+            <DialogDescription>
               {demand ? 'Atualize as informações da demanda.' : 'Preencha os dados da nova demanda.'}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="grid gap-3 sm:gap-4 py-4">
+          <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="name">Título da Demanda</Label>
               <Input
@@ -180,7 +178,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="area">Área</Label>
                 <Select
@@ -220,7 +218,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="deadline">Prazo</Label>
                 <Input
@@ -273,11 +271,11 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
             )}
           </div>
 
-          <DialogFooter className="gap-2 flex-col sm:flex-row">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isPending || !formData.client_id} className="w-full sm:w-auto">
+            <Button type="submit" disabled={isPending || !formData.client_id}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {demand ? 'Salvar' : 'Criar Demanda'}
             </Button>
