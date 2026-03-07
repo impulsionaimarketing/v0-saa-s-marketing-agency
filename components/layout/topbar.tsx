@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, Bell, LogOut, Menu } from 'lucide-react'
+import { Search, Bell, LogOut } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,10 +21,9 @@ import { clearAuthCookie } from '@/lib/auth/cookies'
 interface TopbarProps {
   onRoleChange?: (role: string) => void
   currentRole?: string
-  onMenuClick?: () => void
 }
 
-export function Topbar({ onRoleChange, currentRole, onMenuClick }: TopbarProps) {
+export function Topbar({ onRoleChange, currentRole }: TopbarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,14 +56,6 @@ export function Topbar({ onRoleChange, currentRole, onMenuClick }: TopbarProps) 
 
   return (
     <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 sm:px-6 gap-2 sm:gap-4">
-      {/* Mobile menu button */}
-      {onMenuClick && (
-        <Button variant="ghost" size="icon" className="lg:hidden shrink-0" onClick={onMenuClick}>
-          <Menu className="h-5 w-5" />
-          <span className="sr-only">Abrir menu</span>
-        </Button>
-      )}
-
       {/* Search */}
       <div className="hidden sm:flex items-center gap-4 flex-1 max-w-md">
         <div className="relative w-full">

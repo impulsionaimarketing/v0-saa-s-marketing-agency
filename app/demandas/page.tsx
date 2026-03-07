@@ -1,9 +1,11 @@
 import { Suspense } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
 import { DemandsKanban } from '@/components/demands/demands-kanban'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Plus } from 'lucide-react'
 
 function KanbanSkeleton() {
   return (
@@ -25,22 +27,26 @@ function KanbanSkeleton() {
 export default function DemandasPage() {
   return (
     <ProtectedRoute>
-      <ModuleAccessWrapper moduleName="demandas" moduleDisplayName="Demandas">
-        <AppShell>
-          <div className="space-y-6">
-            {/* Page header */}
+      <AppShell>
+        <div className="space-y-6">
+          {/* Page header */}
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Demandas</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">Gerencie as demandas da agência</p>
+              <p className="text-muted-foreground">Gerencie as demandas da agência</p>
             </div>
-
-            {/* Kanban board */}
-            <Suspense fallback={<KanbanSkeleton />}>
-              <DemandsKanban />
-            </Suspense>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Demanda
+            </Button>
           </div>
-        </AppShell>
-      </ModuleAccessWrapper>
+
+          {/* Kanban board */}
+          <Suspense fallback={<KanbanSkeleton />}>
+            <DemandsKanban />
+          </Suspense>
+        </div>
+      </AppShell>
     </ProtectedRoute>
   )
 }

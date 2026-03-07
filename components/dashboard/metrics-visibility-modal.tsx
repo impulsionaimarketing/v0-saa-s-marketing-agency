@@ -70,18 +70,18 @@ export function MetricsVisibilityModal({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="w-[95vw] max-w-md p-4 sm:p-6">
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
+          <DialogTitle className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
             Personalizar Visualização
           </DialogTitle>
-          <DialogDescription className="text-xs sm:text-sm">
+          <DialogDescription>
             Selecione quais métricas deseja exibir na tabela
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-4">
           {/* Metrics selection */}
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {Object.entries(metricsConfig).map(([key, metric]) => (
@@ -114,14 +114,13 @@ export function MetricsVisibilityModal({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 flex-col sm:flex-row">
-          <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
             Cancelar
           </Button>
           <Button 
             onClick={handleSave}
             disabled={!viewName.trim() || isSaving}
-            className="w-full sm:w-auto"
           >
             {isSaving ? 'Salvando...' : 'Salvar Visualização'}
           </Button>

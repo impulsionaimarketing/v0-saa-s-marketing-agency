@@ -8,7 +8,6 @@ export interface AuthUser {
   role: string
   area?: string
   name: string
-  modules_access?: string[]
 }
 
 export function useAuth() {

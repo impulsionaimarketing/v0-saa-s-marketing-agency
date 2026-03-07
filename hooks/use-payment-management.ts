@@ -1,15 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-
-export interface Payment {
-  id: string
-  client_id: string
-  due_date: string
-  amount: number
-  is_paid: boolean
-  paid_date: string | null
-}
+import { getPayments, generatePaymentsForClient, togglePayment as togglePaymentInDB } from '@/lib/data/payments'
+import type { Payment } from '@/lib/data/payments'
 
 const PAYMENTS_STORAGE_KEY = 'client_payments'
 
@@ -34,10 +27,12 @@ export function usePaymentManagement(
         return
       }
 
-      // Generate payments and store in localStorage
-      const generated = generatePaymentSchedule(clientId, frequencyType, startDate, endDate, amount)
-      setPayments(generated)
-      savePaymentsToLocalStorage(generated)
+      // Generate payments if they don't exist
+      await generatePaymentsForClient(clientId, frequencyType, startDate, endDate, amount)
+
+      // Fetch payments from database
+      const dbPayments = await getPayments(clientId)
+      setPayments(dbPayments)
       setIsLoaded(true)
     } catch (error) {
       console.error('[v0] Error loading payments:', error)
@@ -129,6 +124,9 @@ export function usePaymentManagement(
     if (!payment) return
 
     try {
+      // Try to update in database first
+      await togglePaymentInDB(paymentId, !payment.is_paid)
+
       // Update local state
       const updated = payments.map((p) =>
         p.id === paymentId

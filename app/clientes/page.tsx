@@ -1,10 +1,11 @@
 import { Suspense } from 'react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
-import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
 import { ClientsTable } from '@/components/clients/clients-table'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Plus } from 'lucide-react'
 
 function ClientsTableSkeleton() {
   return (
@@ -24,22 +25,26 @@ function ClientsTableSkeleton() {
 export default function ClientesPage() {
   return (
     <ProtectedRoute>
-      <ModuleAccessWrapper moduleName="clientes" moduleDisplayName="Clientes">
-        <AppShell>
-          <div className="space-y-6">
-            {/* Page header */}
+      <AppShell>
+        <div className="space-y-6">
+          {/* Page header */}
+          <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Clientes</h1>
-              <p className="text-muted-foreground text-sm sm:text-base">Gerencie os clientes da agência</p>
+              <p className="text-muted-foreground">Gerencie os clientes da agência</p>
             </div>
-
-            {/* Clients table */}
-            <Suspense fallback={<ClientsTableSkeleton />}>
-              <ClientsTable />
-            </Suspense>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Cliente
+            </Button>
           </div>
-        </AppShell>
-      </ModuleAccessWrapper>
+
+          {/* Clients table */}
+          <Suspense fallback={<ClientsTableSkeleton />}>
+            <ClientsTable />
+          </Suspense>
+        </div>
+      </AppShell>
     </ProtectedRoute>
   )
 }

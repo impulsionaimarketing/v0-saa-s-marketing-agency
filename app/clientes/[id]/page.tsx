@@ -1,31 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
-import { AppShell } from '@/components/layout/app-shell'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft } from 'lucide-react'
-import { demands, productions, campaigns, reports } from '@/lib/mock-data'
 import { TableCell } from "@/components/ui/table"
 import { TableBody } from "@/components/ui/table"
 import { TableHead } from "@/components/ui/table"
 import { TableRow } from "@/components/ui/table"
 import { TableHeader } from "@/components/ui/table"
 import { Table } from "@/components/ui/table"
+import { use } from 'react'
+import Link from 'next/link'
+import { AppShell } from '@/components/layout/app-shell'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PaymentManagement } from '@/components/clients/payment-management'
 import { usePaymentManagement } from '@/hooks/use-payment-management'
-import { ClientOnboardingTab } from '@/components/clients/client-onboarding-tab'
-import { ClientMonthlyPlanTab } from '@/components/clients/client-monthly-plan-tab'
-import { ClientMonthlyScheduleTab } from '@/components/clients/client-monthly-schedule-tab'
-import { Building2, User, Target, Palette, Video, Megaphone, MessageSquare, DollarSign } from 'lucide-react'
+import { ArrowLeft, Building2, User, Target, Palette, Video, Megaphone, MessageSquare, DollarSign } from 'lucide-react'
+import { clients, demands, productions, campaigns, reports } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 
-// Color constants
 const statusColors = {
   Ativo: 'bg-success/10 text-success border-success/20',
   Pausado: 'bg-warning/10 text-warning border-warning/20',
@@ -60,90 +53,41 @@ const performanceColors = {
   red: 'bg-destructive/10 text-destructive',
 }
 
-export default function ClientDetailPage() {
-  const params = useParams()
-  const clientName = params.id as string
-  const [client, setClient] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const clientDemands = demands.filter((demand) => demand.clientId === clientName)
-  const clientProductions = productions.filter((production) => production.clientId === clientName)
-  const clientCampaigns = campaigns.filter((campaign) => campaign.clientId === clientName)
-  const clientReports = reports.filter((report) => report.clientId === clientName)
+export default function ClientDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
+  const client = clients.find((c) => c.id === id)
 
-  useEffect(() => {
-    async function loadClient() {
-      try {
-        setIsLoading(true)
-        setError(null)
-        
-        const response = await fetch(`/api/clients/search?name=${encodeURIComponent(clientName)}`, { 
-          cache: 'no-store',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        })
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Cliente não encontrado')
-        }
-        
-        const data = await response.json()
-        setClient(data)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Erro ao carregar cliente'
-        setError(message)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (clientName) {
-      loadClient()
-    }
-  }, [clientName])
-
-  if (isLoading) {
-    return (
-      <AppShell>
-        <div className="space-y-6">
-          <Skeleton className="h-12 w-96" />
-          <Skeleton className="h-96 w-full" />
-        </div>
-      </AppShell>
-    )
-  }
-
-  if (error || !client) {
+  if (!client) {
     return (
       <AppShell>
         <div className="flex flex-col items-center justify-center h-96">
-          <p className="text-muted-foreground mb-4">{error || 'Cliente não encontrado'}</p>
+          <p className="text-muted-foreground">Cliente não encontrado</p>
           <Link href="/clientes">
-            <Button variant="outline" className="gap-2 bg-transparent">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar para clientes
-            </Button>
+            <Button variant="link">Voltar para clientes</Button>
           </Link>
         </div>
       </AppShell>
     )
   }
+
+  const clientDemands = demands.filter((d) => d.clientId === id)
+  const clientProductions = productions.filter((p) => p.clientId === id)
+  const clientCampaigns = campaigns.filter((c) => c.clientId === id)
+  const clientReports = reports.filter((r) => r.clientId === id)
 
   return (
     <AppShell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex items-center gap-4">
           <Link href="/clientes">
-            <Button variant="ghost" size="icon" className="shrink-0 mt-1">
+            <Button variant="ghost" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <h1 className="text-xl sm:text-2xl font-bold">{client.name}</h1>
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold">{client.name}</h1>
               <Badge variant="outline" className={cn(statusColors[client.contractStatus])}>
                 {client.contractStatus}
               </Badge>
@@ -154,154 +98,136 @@ export default function ClientDetailPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="dados" className="space-y-6">
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-thin">
-            <TabsList className="bg-secondary inline-flex w-max sm:w-auto gap-0.5">
-              <TabsTrigger value="dados" className="text-xs sm:text-sm px-2 sm:px-3">Dados</TabsTrigger>
-              <TabsTrigger value="onboarding" className="text-xs sm:text-sm px-2 sm:px-3">Onboarding</TabsTrigger>
-              <TabsTrigger value="planejamento" className="text-xs sm:text-sm px-2 sm:px-3">Planejamento</TabsTrigger>
-              <TabsTrigger value="cronograma" className="text-xs sm:text-sm px-2 sm:px-3">Cronograma</TabsTrigger>
-              <TabsTrigger value="pagamento" className="text-xs sm:text-sm px-2 sm:px-3">Pagamento</TabsTrigger>
-              <TabsTrigger value="cobranças" className="text-xs sm:text-sm px-2 sm:px-3">Cobranças</TabsTrigger>
-              <TabsTrigger value="estrategia" className="text-xs sm:text-sm px-2 sm:px-3">Estratégia</TabsTrigger>
-              <TabsTrigger value="demandas" className="text-xs sm:text-sm px-2 sm:px-3">Demandas</TabsTrigger>
-              <TabsTrigger value="producao" className="text-xs sm:text-sm px-2 sm:px-3">Produção</TabsTrigger>
-              <TabsTrigger value="trafego" className="text-xs sm:text-sm px-2 sm:px-3">Tráfego</TabsTrigger>
-              <TabsTrigger value="relatorios" className="text-xs sm:text-sm px-2 sm:px-3">Relatórios</TabsTrigger>
-            </TabsList>
-          </div>
+          <TabsList className="bg-secondary">
+            <TabsTrigger value="dados">Dados Gerais</TabsTrigger>
+            <TabsTrigger value="pagamento">Pagamento</TabsTrigger>
+            <TabsTrigger value="cobranças">Cobranças</TabsTrigger>
+            <TabsTrigger value="estrategia">Estratégia</TabsTrigger>
+            <TabsTrigger value="demandas">Demandas</TabsTrigger>
+            <TabsTrigger value="producao">Produção</TabsTrigger>
+            <TabsTrigger value="trafego">Tráfego Pago</TabsTrigger>
+            <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
+          </TabsList>
 
           {/* Dados Gerais */}
           <TabsContent value="dados" className="space-y-6">
-            {/* Informações básicas */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Informações da Empresa
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Tipo de Cliente</p>
-                    <p className="font-medium">{client.type}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Tipo de Campanha</p>
-                    <p className="font-medium">{client.campaignType}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Plano Contratado</p>
-                    <p className="font-medium">{client.plan}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Valor do Serviço</p>
-                    <p className="font-medium">R$ {client.value.toLocaleString('pt-BR')}/mês</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Data de Renovação</p>
-                    <p className="font-medium">{new Date(client.renewalDate).toLocaleDateString('pt-BR')}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Contas e IDs */}
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Contas e Integrações
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Grupo WhatsApp</p>
-                  <p className="font-medium">{client.whatsappGroup.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{client.whatsappGroup.id}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Conta de Anúncios</p>
-                  <p className="font-medium">{client.adAccount.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{client.adAccount.id}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Business Manager ID</p>
-                    <p className="text-xs font-mono">{client.businessManagerId}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Google Ads ID</p>
-                    <p className="text-xs font-mono">{client.googleAdsId}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Responsáveis */}
-            <Card className="bg-card border-border md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Responsáveis por Área
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-3/10">
-                      <Palette className="h-5 w-5 text-chart-3" />
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Informações básicas */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Building2 className="h-5 w-5" />
+                    Informações da Empresa
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Tipo de Cliente</p>
+                      <p className="font-medium">{client.type}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Arte</p>
-                      <p className="font-medium text-sm">{client.responsibles.arte}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-2/10">
-                      <Video className="h-5 w-5 text-chart-2" />
+                      <p className="text-sm text-muted-foreground">Tipo de Campanha</p>
+                      <p className="font-medium">{client.campaignType}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Vídeo</p>
-                      <p className="font-medium text-sm">{client.responsibles.video}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                      <Target className="h-5 w-5 text-primary" />
+                      <p className="text-sm text-muted-foreground">Plano Contratado</p>
+                      <p className="font-medium">{client.plan}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Tráfego</p>
-                      <p className="font-medium text-sm">{client.responsibles.trafego}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-lg border border-border p-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-4/10">
-                      <MessageSquare className="h-5 w-5 text-chart-4" />
+                      <p className="text-sm text-muted-foreground">Valor do Serviço</p>
+                      <p className="font-medium">R$ {client.value.toLocaleString('pt-BR')}/mês</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground">Comunicação</p>
-                      <p className="font-medium text-sm">{client.responsibles.comunicacao}</p>
+                      <p className="text-sm text-muted-foreground">Data de Renovação</p>
+                      <p className="font-medium">{new Date(client.renewalDate).toLocaleDateString('pt-BR')}</p>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </CardContent>
+              </Card>
 
-          {/* Onboarding */}
-          <TabsContent value="onboarding" className="space-y-6">
-            <ClientOnboardingTab clientId={client.id} />
-          </TabsContent>
+              {/* Contas e IDs */}
+              <Card className="bg-card border-border">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Contas e Integrações
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Grupo WhatsApp</p>
+                    <p className="font-medium">{client.whatsappGroup.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{client.whatsappGroup.id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Conta de Anúncios</p>
+                    <p className="font-medium">{client.adAccount.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{client.adAccount.id}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Business Manager ID</p>
+                      <p className="text-xs font-mono">{client.businessManagerId}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Google Ads ID</p>
+                      <p className="text-xs font-mono">{client.googleAdsId}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Planejamento */}
-          <TabsContent value="planejamento" className="space-y-6">
-            <ClientMonthlyPlanTab clientId={client.id} />
-          </TabsContent>
-
-          {/* Cronograma Mensal */}
-          <TabsContent value="cronograma" className="space-y-6">
-            <ClientMonthlyScheduleTab clientId={client.id} />
+              {/* Responsáveis */}
+              <Card className="bg-card border-border md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    Responsáveis por Área
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-3/10">
+                        <Palette className="h-5 w-5 text-chart-3" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Arte</p>
+                        <p className="font-medium text-sm">{client.responsibles.arte}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-2/10">
+                        <Video className="h-5 w-5 text-chart-2" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Vídeo</p>
+                        <p className="font-medium text-sm">{client.responsibles.video}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                        <Target className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Tráfego</p>
+                        <p className="font-medium text-sm">{client.responsibles.trafego}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-lg border border-border p-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-chart-4/10">
+                        <MessageSquare className="h-5 w-5 text-chart-4" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Comunicação</p>
+                        <p className="font-medium text-sm">{client.responsibles.comunicacao}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           {/* Pagamento */}
@@ -386,15 +312,7 @@ export default function ClientDetailPage() {
 
           {/* Cobranças */}
           <TabsContent value="cobranças" className="space-y-6">
-            <PaymentManagement
-              payments={client.payments}
-              isLoaded={client.isLoaded}
-              onTogglePayment={() => {}}
-              totalPaid={client.totalPaid}
-              totalDue={client.totalDue}
-              paidCount={client.paidCount}
-              pendingCount={client.pendingCount}
-            />
+            <CobrancasTab client={client} />
           </TabsContent>
 
           {/* Estratégia */}
@@ -421,8 +339,7 @@ export default function ClientDetailPage() {
                 <CardTitle className="text-lg">Demandas ({clientDemands.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                <Table className="min-w-[600px]">
+                <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead>Demanda</TableHead>
@@ -450,7 +367,6 @@ export default function ClientDetailPage() {
                     ))}
                   </TableBody>
                 </Table>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -462,8 +378,7 @@ export default function ClientDetailPage() {
                 <CardTitle className="text-lg">Produção de Conteúdo ({clientProductions.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                <Table className="min-w-[500px]">
+                <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead>Tipo</TableHead>
@@ -489,7 +404,6 @@ export default function ClientDetailPage() {
                     ))}
                   </TableBody>
                 </Table>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -501,8 +415,7 @@ export default function ClientDetailPage() {
                 <CardTitle className="text-lg">Campanhas de Tráfego ({clientCampaigns.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                <Table className="min-w-[700px]">
+                <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead>Campanha</TableHead>
@@ -532,7 +445,6 @@ export default function ClientDetailPage() {
                     ))}
                   </TableBody>
                 </Table>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -544,8 +456,7 @@ export default function ClientDetailPage() {
                 <CardTitle className="text-lg">Relatórios ({clientReports.length})</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                <Table className="min-w-[400px]">
+                <Table>
                   <TableHeader>
                     <TableRow className="border-border hover:bg-transparent">
                       <TableHead>Mês</TableHead>
@@ -571,12 +482,45 @@ export default function ClientDetailPage() {
                     ))}
                   </TableBody>
                 </Table>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
     </AppShell>
+  )
+}
+
+interface CobrancasTabProps {
+  client: typeof clients[0]
+}
+
+function CobrancasTab({ client }: CobrancasTabProps) {
+  const {
+    payments,
+    isLoaded,
+    togglePayment,
+    getTotalPaid,
+    getTotalDue,
+    getPaidCount,
+    getPendingCount,
+  } = usePaymentManagement(
+    client.id,
+    client.payment_frequency || 'Mensal',
+    client.contract_start_date || '',
+    client.contract_end_date || '',
+    client.monthly_value || 0
+  )
+
+  return (
+    <PaymentManagement
+      payments={payments}
+      isLoaded={isLoaded}
+      onTogglePayment={togglePayment}
+      totalPaid={getTotalPaid()}
+      totalDue={getTotalDue()}
+      paidCount={getPaidCount()}
+      pendingCount={getPendingCount()}
+    />
   )
 }

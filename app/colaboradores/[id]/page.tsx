@@ -62,19 +62,19 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
     <AppShell>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex items-center gap-4">
           <Link href="/colaboradores">
-            <Button variant="ghost" size="icon" className="shrink-0 mt-1">
+            <Button variant="ghost" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
-            <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-lg sm:text-xl font-bold shrink-0">
+          <div className="flex items-center gap-4 flex-1">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-primary-foreground text-xl font-bold">
               {collaborator.avatar}
             </div>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <h1 className="text-xl sm:text-2xl font-bold">{collaborator.name}</h1>
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold">{collaborator.name}</h1>
                 <Badge variant="outline" className={cn(
                   collaborator.status === 'Ativo' 
                     ? 'bg-success/10 text-success border-success/20' 
@@ -99,7 +99,7 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card className="bg-card border-border">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -162,8 +162,7 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
           </CardHeader>
           <CardContent>
             {collaboratorDemands.length > 0 ? (
-              <div className="overflow-x-auto">
-              <Table className="min-w-[600px]">
+              <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead>Demanda</TableHead>
@@ -191,7 +190,6 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
                   ))}
                 </TableBody>
               </Table>
-              </div>
             ) : (
               <div className="flex items-center justify-center h-32 text-muted-foreground">
                 Nenhuma demanda atribuída
@@ -208,8 +206,7 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
           </CardHeader>
           <CardContent>
             {collaboratorProductions.length > 0 ? (
-              <div className="overflow-x-auto">
-              <Table className="min-w-[500px]">
+              <Table>
                 <TableHeader>
                   <TableRow className="border-border hover:bg-transparent">
                     <TableHead>Cliente</TableHead>
@@ -233,7 +230,6 @@ export default function ColaboradorDetailPage({ params }: { params: Promise<{ id
                   ))}
                 </TableBody>
               </Table>
-              </div>
             ) : (
               <div className="flex items-center justify-center h-32 text-muted-foreground">
                 Nenhuma produção atribuída

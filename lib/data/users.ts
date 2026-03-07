@@ -10,7 +10,6 @@ export interface User {
   area: "Arte" | "Vídeo" | "Tráfego" | "Comunicação" | null
   status: "Ativo" | "Inativo"
   avatar_url: string | null
-  modules_access?: string[]
   created_at: string
   updated_at: string
 }

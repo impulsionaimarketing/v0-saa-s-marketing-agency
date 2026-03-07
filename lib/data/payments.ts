@@ -1,172 +1,155 @@
-import { createClient } from '@/lib/supabase/server'
-import { sendWebhookNotification } from '@/lib/webhooks/send-notification'
+"use server"
+
+import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 
 export interface Payment {
   id: string
   client_id: string
-  client_name?: string
   due_date: string
   amount: number
   is_paid: boolean
   paid_date: string | null
-  payment_method: string | null
-  notes: string | null
-  created_at: string
 }
 
-export async function getPayments(): Promise<Payment[]> {
+export async function getPayments(clientId?: string): Promise<Payment[]> {
   try {
-    const supabase = await createClient()
-    const { data, error } = await supabase.rpc('get_all_payments')
+    const supabase = await createSupabaseClient()
 
-    if (error) {
-      console.error('[v0] Error fetching payments:', error)
-      throw new Error(error.message)
+    let query = supabase.from("payments").select("*").order("due_date", { ascending: true })
+
+    if (clientId) {
+      query = query.eq("client_id", clientId)
     }
 
-    return (data || []) as Payment[]
+    const { data, error } = await query
+
+    if (error) {
+      console.error("[v0] Error fetching payments:", error)
+      return []
+    }
+
+    return data || []
   } catch (error) {
-    console.error('[v0] Error fetching payments:', error)
+    console.error("[v0] Error fetching payments:", error)
     return []
   }
 }
 
-export async function createPayment(data: {
-  client_id: string
-  due_date: string
-  amount: number
-  payment_method?: string
-  notes?: string
-}): Promise<Payment | null> {
+export async function generatePaymentsForClient(
+  clientId: string,
+  paymentFrequency: string,
+  contractStartDate: string,
+  contractEndDate: string,
+  monthlyValue: number
+): Promise<Payment[]> {
   try {
-    const supabase = await createClient()
-    const { data: payment, error } = await supabase
-      .from('payments')
-      .insert({
-        client_id: data.client_id,
-        due_date: data.due_date,
-        amount: data.amount,
-        payment_method: data.payment_method || null,
-        notes: data.notes || null,
-      })
-      .select()
-      .single()
+    const supabase = await createSupabaseClient()
 
-    if (error) {
-      console.error('[v0] Error creating payment:', error)
-      throw new Error(error.message)
+    // Check if payments already exist for this client
+    const { data: existingPayments, error: fetchError } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("client_id", clientId)
+
+    if (fetchError) {
+      console.error("[v0] Error checking existing payments:", fetchError)
+      return []
     }
 
-    // Send webhook notification
-    await sendWebhookNotification('payment.created', payment)
-
-    return payment as Payment
-  } catch (error) {
-    console.error('[v0] Error creating payment:', error)
-    throw error
-  }
-}
-
-export async function updatePayment(
-  id: string,
-  data: Partial<Payment>
-): Promise<Payment | null> {
-  try {
-    const supabase = await createClient()
-    const { data: payment, error } = await supabase
-      .from('payments')
-      .update(data)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('[v0] Error updating payment:', error)
-      throw new Error(error.message)
+    // If payments already exist, don't generate new ones
+    if (existingPayments && existingPayments.length > 0) {
+      return getPayments(clientId)
     }
 
-    // Send webhook notification
-    await sendWebhookNotification('payment.updated', { id, ...payment })
+    // Generate payment schedule
+    const payments: Omit<Payment, "id">[] = []
+    const startDate = new Date(contractStartDate)
+    const endDate = new Date(contractEndDate)
+    let currentDate = new Date(startDate)
 
-    return payment as Payment
-  } catch (error) {
-    console.error('[v0] Error updating payment:', error)
-    throw error
-  }
-}
-
-export async function markPaymentAsPaid(
-  id: string,
-  paid_date: string,
-  payment_method?: string
-): Promise<Payment | null> {
-  try {
-    const supabase = await createClient()
-    const { data: payment, error } = await supabase
-      .from('payments')
-      .update({
-        is_paid: true,
-        paid_date: paid_date,
-        payment_method: payment_method || null,
-      })
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('[v0] Error marking payment as paid:', error)
-      throw new Error(error.message)
+    const frequencyDays: { [key: string]: number } = {
+      "Semanal": 7,
+      "Quinzenal": 15,
+      "Mensal": 30,
+      "Bimestral": 60,
+      "Trimestral": 90,
+      "Anual": 365,
     }
 
-    // Send webhook notification
-    await sendWebhookNotification('payment.paid', payment)
+    const daysToAdd = frequencyDays[paymentFrequency] || 30
 
-    return payment as Payment
-  } catch (error) {
-    console.error('[v0] Error marking payment as paid:', error)
-    throw error
-  }
-}
-
-export async function markPaymentAsUnpaid(id: string): Promise<Payment | null> {
-  try {
-    const supabase = await createClient()
-    const { data: payment, error } = await supabase
-      .from('payments')
-      .update({
+    while (currentDate <= endDate) {
+      payments.push({
+        client_id: clientId,
+        due_date: currentDate.toISOString().split("T")[0],
+        amount: monthlyValue,
         is_paid: false,
         paid_date: null,
       })
-      .eq('id', id)
+
+      currentDate.setDate(currentDate.getDate() + daysToAdd)
+    }
+
+    // Insert payments into database
+    if (payments.length > 0) {
+      const { error: insertError } = await supabase.from("payments").insert(payments)
+
+      if (insertError) {
+        console.error("[v0] Error inserting payments:", insertError)
+        return []
+      }
+    }
+
+    return getPayments(clientId)
+  } catch (error) {
+    console.error("[v0] Error generating payments:", error)
+    return []
+  }
+}
+
+export async function togglePayment(
+  paymentId: string,
+  isPaid: boolean
+): Promise<Payment | null> {
+  try {
+    const supabase = await createSupabaseClient()
+
+    const { data, error } = await supabase
+      .from("payments")
+      .update({
+        is_paid: isPaid,
+        paid_date: isPaid ? new Date().toISOString().split("T")[0] : null,
+      })
+      .eq("id", paymentId)
       .select()
       .single()
 
     if (error) {
-      console.error('[v0] Error marking payment as unpaid:', error)
-      throw new Error(error.message)
+      console.error("[v0] Error toggling payment:", error)
+      return null
     }
 
-    return payment as Payment
+    return data
   } catch (error) {
-    console.error('[v0] Error marking payment as unpaid:', error)
-    throw error
+    console.error("[v0] Error toggling payment:", error)
+    return null
   }
 }
 
-export async function deletePayment(id: string): Promise<void> {
+export async function deletePaymentsForClient(clientId: string): Promise<boolean> {
   try {
-    const supabase = await createClient()
-    const { error } = await supabase.from('payments').delete().eq('id', id)
+    const supabase = await createSupabaseClient()
+
+    const { error } = await supabase.from("payments").delete().eq("client_id", clientId)
 
     if (error) {
-      console.error('[v0] Error deleting payment:', error)
-      throw new Error(error.message)
+      console.error("[v0] Error deleting payments:", error)
+      return false
     }
 
-    // Send webhook notification
-    await sendWebhookNotification('payment.deleted', { id })
+    return true
   } catch (error) {
-    console.error('[v0] Error deleting payment:', error)
-    throw error
+    console.error("[v0] Error deleting payments:", error)
+    return false
   }
 }
