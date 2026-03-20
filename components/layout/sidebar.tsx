@@ -22,6 +22,7 @@ import {
   Lock,
   CheckSquare,
   Calendar,
+  Kanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -38,6 +39,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, moduleName: 'dashboard' },
+  { name: 'CRM', href: '/crm', icon: Kanban, moduleName: 'crm' },
   { name: 'Clientes', href: '/clientes', icon: Users, moduleName: 'clientes' },
   { name: 'Onboarding', href: '/onboarding', icon: CheckSquare, moduleName: 'clientes' },
   { name: 'Cobranças', href: '/cobrancas', icon: CreditCard, moduleName: 'cobrancas' },
