@@ -3,7 +3,7 @@
 import React from "react"
 import { DollarSign } from 'lucide-react'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -39,6 +39,33 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
   const [instances, setInstances] = useState<WhatsAppInstance[]>(
     client?.whatsapp_instances || []
   )
+
+  // Sync form data and instances whenever the dialog opens
+  useEffect(() => {
+    if (open) {
+      setInstances(client?.whatsapp_instances || [])
+      setFormData({
+        name: client?.name || '',
+        type: client?.type || 'Serviço',
+        campaign_type: client?.campaign_type || 'Mensagem',
+        payment_frequency: client?.payment_frequency || 'Mensal',
+        plan: client?.plan || '',
+        monthly_value: client?.monthly_value?.toString() || '',
+        payment_day: client?.payment_day?.toString() || '10',
+        contract_status: client?.contract_status || 'Ativo',
+        contract_start_date: client?.contract_start_date?.split('T')[0] || '',
+        contract_end_date: client?.contract_end_date?.split('T')[0] || '',
+        renewal_date: client?.renewal_date?.split('T')[0] || '',
+        month_status: client?.month_status || 'green',
+        whatsapp_group_name: client?.whatsapp_group_name || '',
+        whatsapp_group_id: client?.whatsapp_group_id || '',
+        ad_account_name: client?.ad_account_name || '',
+        ad_account_id: client?.ad_account_id || '',
+        business_manager_id: client?.business_manager_id || '',
+        google_ads_id: client?.google_ads_id || '',
+      })
+    }
+  }, [open, client])
   const [newInstance, setNewInstance] = useState<WhatsAppInstance>({
     instance_name: '',
     phone_number: '',
@@ -194,7 +221,7 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Serviço">Serviço</SelectItem>
+                      <SelectItem value="Serviço">Servi��o</SelectItem>
                       <SelectItem value="Infoproduto">Infoproduto</SelectItem>
                       <SelectItem value="Local">Local</SelectItem>
                     </SelectContent>

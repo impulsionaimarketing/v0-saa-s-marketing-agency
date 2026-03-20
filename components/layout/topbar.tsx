@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, Bell, LogOut, Menu } from 'lucide-react'
+import { Search, Bell, LogOut, Menu, Sun, Moon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,8 +28,29 @@ export function Topbar({ onRoleChange, currentRole, onMenuClick }: TopbarProps) 
   const [searchQuery, setSearchQuery] = useState('')
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
+  const [isLight, setIsLight] = useState(false)
   const { user, logout } = useAuth()
   const router = useRouter()
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme')
+    if (saved === 'light') {
+      document.documentElement.classList.add('light')
+      setIsLight(true)
+    }
+  }, [])
+
+  const toggleTheme = () => {
+    const next = !isLight
+    setIsLight(next)
+    if (next) {
+      document.documentElement.classList.add('light')
+      localStorage.setItem('theme', 'light')
+    } else {
+      document.documentElement.classList.remove('light')
+      localStorage.setItem('theme', 'dark')
+    }
+  }
 
   useEffect(() => {
     const fetchAlerts = async () => {
@@ -81,6 +102,16 @@ export function Topbar({ onRoleChange, currentRole, onMenuClick }: TopbarProps) 
 
       {/* Right side */}
       <div className="flex items-center gap-1 sm:gap-2 ml-auto">
+        {/* Theme toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleTheme}
+          className="h-9 w-9 sm:h-10 sm:w-10"
+          title={isLight ? 'Mudar para tema escuro' : 'Mudar para tema claro'}
+        >
+          {isLight ? <Moon className="h-4 w-4 sm:h-5 sm:w-5" /> : <Sun className="h-4 w-4 sm:h-5 sm:w-5" />}
+        </Button>
         {/* Notifications */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

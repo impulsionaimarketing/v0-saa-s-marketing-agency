@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock } from 'lucide-react'
+import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown } from 'lucide-react'
 import { getDemands, updateDemandStatus, deleteDemand, type Demand } from '@/lib/data/demands'
 import { getClients } from '@/lib/data/clients'
 import { getUsers } from '@/lib/data/users'
@@ -300,6 +300,9 @@ export function DemandsKanban() {
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
+  const [reorganizeModes, setReorganizeModes] = useState<Record<string, boolean>>({})
+  const [reorderDraggedId, setReorderDraggedId] = useState<string | null>(null)
+  const [reorderDragOverId, setReorderDragOverId] = useState<string | null>(null)
   const AREAS = ['Arte', 'Vídeo', 'Tráfego', 'Comunicação']
   const { onDragStart: dragScrollStart, onDragEnd: dragScrollEnd } = useDragScroll()
 
@@ -456,6 +459,40 @@ export function DemandsKanban() {
     setDetailOpen(true)
   }
 
+  const toggleReorganize = (columnId: string) => {
+    setReorganizeModes(prev => ({ ...prev, [columnId]: !prev[columnId] }))
+  }
+
+  const handleReorderDragStart = (e: React.DragEvent, demandId: string) => {
+    setReorderDraggedId(demandId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleReorderDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (targetId !== reorderDraggedId) setReorderDragOverId(targetId)
+  }
+
+  const handleReorderDrop = (e: React.DragEvent, targetId: string, columnId: DemandStatus) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!reorderDraggedId || reorderDraggedId === targetId) return
+
+    setDemandItems(prev => {
+      const items = [...prev]
+      const fromIdx = items.findIndex(d => d.id === reorderDraggedId)
+      const toIdx = items.findIndex(d => d.id === targetId)
+      if (fromIdx === -1 || toIdx === -1) return prev
+      const [removed] = items.splice(fromIdx, 1)
+      items.splice(toIdx, 0, removed)
+      return items
+    })
+
+    setReorderDraggedId(null)
+    setReorderDragOverId(null)
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -609,6 +646,7 @@ export function DemandsKanban() {
         {columns.map((column) => {
           const columnDemands = getColumnDemands(column.id)
           const overdueCount = columnDemands.filter(d => isOverdue(d.deadline, d.status)).length
+          const isReorganizing = !!reorganizeModes[column.id]
 
           return (
             <div key={column.id} className="flex-shrink-0 w-72">
@@ -616,7 +654,7 @@ export function DemandsKanban() {
               <div className="flex items-center gap-2 mb-3 px-1">
                 <div className={cn('h-3 w-3 rounded-full', column.color)} />
                 <h3 className="font-semibold text-sm">{column.title}</h3>
-                <Badge variant="secondary" className="ml-auto text-xs">
+                <Badge variant="secondary" className="text-xs">
                   {columnDemands.length}
                 </Badge>
                 {overdueCount > 0 && column.id !== 'Publicado' && (
@@ -625,13 +663,27 @@ export function DemandsKanban() {
                     {overdueCount}
                   </Badge>
                 )}
+                <button
+                  type="button"
+                  onClick={() => toggleReorganize(column.id)}
+                  title={isReorganizing ? 'Sair do modo reorganizar' : 'Reorganizar cards'}
+                  className={cn(
+                    'ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors',
+                    isReorganizing
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  )}
+                >
+                  <ArrowUpDown className="h-3 w-3" />
+                  {isReorganizing ? 'Concluir' : 'Ordenar'}
+                </button>
               </div>
 
               {/* Column content */}
               <div
-                className="space-y-3 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide rounded-lg bg-secondary/30 p-2"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, column.id)}
+                className="space-y-2 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide rounded-lg bg-secondary/30 p-2"
+                onDragOver={isReorganizing ? undefined : handleDragOver}
+                onDrop={isReorganizing ? undefined : (e) => handleDrop(e, column.id)}
               >
                 {columnDemands.map((demand) => {
                   const overdue = isOverdue(demand.deadline, demand.status)
@@ -639,6 +691,35 @@ export function DemandsKanban() {
                   const isVideo = demand.area === 'Vídeo'
                   const isArte = demand.area === 'Arte'
 
+                  /* ── Compact reorganize card ── */
+                  if (isReorganizing) {
+                    return (
+                      <div
+                        key={demand.id}
+                        draggable
+                        onDragStart={(e) => handleReorderDragStart(e, demand.id)}
+                        onDragEnd={() => { setReorderDraggedId(null); setReorderDragOverId(null) }}
+                        onDragOver={(e) => handleReorderDragOver(e, demand.id)}
+                        onDrop={(e) => handleReorderDrop(e, demand.id, column.id)}
+                        className={cn(
+                          'flex items-center gap-2 bg-card border border-border rounded-md px-3 py-2 cursor-grab active:cursor-grabbing select-none transition-all',
+                          reorderDraggedId === demand.id && 'opacity-40',
+                          reorderDragOverId === demand.id && reorderDraggedId !== demand.id && 'border-t-2 border-t-primary'
+                        )}
+                      >
+                        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{demand.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{demand.client_name}</p>
+                        </div>
+                        {overdue && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+                        {isVideo && <Film className="h-3 w-3 text-chart-2 shrink-0" />}
+                        {isArte && <Palette className="h-3 w-3 text-chart-3 shrink-0" />}
+                      </div>
+                    )
+                  }
+
+                  /* ── Full card (normal mode) ── */
                   return (
                     <Card
                       key={demand.id}
