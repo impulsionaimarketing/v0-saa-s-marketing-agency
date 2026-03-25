@@ -16,8 +16,11 @@ export interface CRMLead {
   phone: string | null
   email: string | null
   company: string | null
+  source: string | null
+  notes: string | null
   status: CRMStatus
   created_at: string
+  updated_at: string
 }
 
 export const CRM_STATUS_CONFIG: Record<CRMStatus, { label: string; color: string }> = {
@@ -29,6 +32,15 @@ export const CRM_STATUS_CONFIG: Record<CRMStatus, { label: string; color: string
   contrato_cancelado: { label: "Contrato Cancelado", color: "bg-destructive/20 text-destructive border-destructive/30" },
 }
 
+export const CRM_COLUMNS: { id: CRMStatus; title: string }[] = [
+  { id: "lead_novo", title: "Lead Novo" },
+  { id: "entrar_em_contato", title: "Entrar em Contato" },
+  { id: "proposta_enviada", title: "Proposta Enviada" },
+  { id: "contrato_ativo", title: "Contrato Ativo" },
+  { id: "contrato_pausado", title: "Contrato Pausado" },
+  { id: "contrato_cancelado", title: "Contrato Cancelado" },
+]
+
 export async function getCRMLeads(filters?: {
   status?: CRMStatus | "all"
   search?: string
@@ -37,8 +49,8 @@ export async function getCRMLeads(filters?: {
     const supabase = await createSupabaseClient()
 
     let query = supabase
-      .from("clients")
-      .select("id, name, phone, email, company, status, created_at")
+      .from("crm_leads")
+      .select("*")
       .order("created_at", { ascending: false })
 
     if (filters?.status && filters.status !== "all") {
@@ -46,7 +58,7 @@ export async function getCRMLeads(filters?: {
     }
 
     if (filters?.search) {
-      query = query.or(`name.ilike.%${filters.search}%,company.ilike.%${filters.search}%`)
+      query = query.or(`name.ilike.%${filters.search}%,company.ilike.%${filters.search}%,email.ilike.%${filters.search}%`)
     }
 
     const { data, error } = await query
@@ -68,21 +80,25 @@ export async function createCRMLead(data: {
   phone?: string | null
   email?: string | null
   company?: string | null
+  source?: string | null
+  notes?: string | null
   status?: CRMStatus
 }): Promise<CRMLead | null> {
   try {
     const supabase = await createSupabaseClient()
 
     const { data: result, error } = await supabase
-      .from("clients")
+      .from("crm_leads")
       .insert({
         name: data.name,
         phone: data.phone || null,
         email: data.email || null,
         company: data.company || null,
+        source: data.source || null,
+        notes: data.notes || null,
         status: data.status || "lead_novo",
       })
-      .select("id, name, phone, email, company, status, created_at")
+      .select("*")
       .single()
 
     if (error) {
@@ -105,10 +121,10 @@ export async function updateCRMLead(
     const supabase = await createSupabaseClient()
 
     const { data: result, error } = await supabase
-      .from("clients")
-      .update(data)
+      .from("crm_leads")
+      .update({ ...data, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .select("id, name, phone, email, company, status, created_at")
+      .select("*")
       .single()
 
     if (error) {
@@ -128,8 +144,8 @@ export async function updateCRMLeadStatus(id: string, status: CRMStatus): Promis
     const supabase = await createSupabaseClient()
 
     const { error } = await supabase
-      .from("clients")
-      .update({ status })
+      .from("crm_leads")
+      .update({ status, updated_at: new Date().toISOString() })
       .eq("id", id)
 
     if (error) {
@@ -146,7 +162,7 @@ export async function deleteCRMLead(id: string): Promise<void> {
   try {
     const supabase = await createSupabaseClient()
 
-    const { error } = await supabase.from("clients").delete().eq("id", id)
+    const { error } = await supabase.from("crm_leads").delete().eq("id", id)
 
     if (error) {
       console.error("[v0] Error deleting CRM lead:", error)

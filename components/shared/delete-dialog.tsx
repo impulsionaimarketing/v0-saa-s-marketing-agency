@@ -23,11 +23,26 @@ interface DeleteDialogProps {
   onConfirm: () => Promise<void>
   onSuccess?: () => void
   trigger?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function DeleteDialog({ title, description, onConfirm, onSuccess, trigger }: DeleteDialogProps) {
-  const [open, setOpen] = useState(false)
+export function DeleteDialog({ 
+  title, 
+  description, 
+  onConfirm, 
+  onSuccess, 
+  trigger,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: DeleteDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = isControlled ? (controlledOnOpenChange || (() => {})) : setInternalOpen
 
   const handleConfirm = () => {
     startTransition(async () => {
@@ -43,13 +58,15 @@ export function DeleteDialog({ title, description, onConfirm, onSuccess, trigger
 
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        {trigger || (
-          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </AlertDialogTrigger>
+      {!isControlled && (
+        <AlertDialogTrigger asChild>
+          {trigger || (
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </AlertDialogTrigger>
+      )}
       <AlertDialogContent className="bg-card border-border">
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
