@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown } from 'lucide-react'
+import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, ChevronUp, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown, Filter, X } from 'lucide-react'
 import { getDemands, updateDemandStatus, deleteDemand, type Demand } from '@/lib/data/demands'
 import { getClients } from '@/lib/data/clients'
 import { getUsers } from '@/lib/data/users'
@@ -303,8 +303,22 @@ export function DemandsKanban() {
   const [reorganizeModes, setReorganizeModes] = useState<Record<string, boolean>>({})
   const [reorderDraggedId, setReorderDraggedId] = useState<string | null>(null)
   const [reorderDragOverId, setReorderDragOverId] = useState<string | null>(null)
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
   const AREAS = ['Arte', 'Vídeo', 'Tráfego', 'Comunicação']
   const { onDragStart: dragScrollStart, onDragEnd: dragScrollEnd } = useDragScroll()
+
+  // Conta quantos filtros estão ativos
+  const activeFiltersCount = useMemo(() => {
+    let count = 0
+    if (filters.searchQuery) count++
+    if (filters.clientFilter !== 'all') count++
+    if ((filters.areaFilter as string[]).length > 0) count++
+    if (filters.responsibleFilter !== 'all') count++
+    if (filters.statusFilter !== 'all') count++
+    if (filters.dateFrom) count++
+    if (filters.dateTo) count++
+    return count
+  }, [filters])
 
   const toggleArea = (area: string) => {
     const current = filters.areaFilter as string[]
@@ -512,7 +526,8 @@ export function DemandsKanban() {
       {/* Filters */}
       <Card className="bg-card border-border">
         <CardContent className="p-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+          {/* Header com busca e botão de filtros */}
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -523,121 +538,151 @@ export function DemandsKanban() {
                 className="pl-9 bg-secondary border-border"
               />
             </div>
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-              <Select value={filters.clientFilter} onValueChange={(v) => setFilter('clientFilter', v)}>
-                <SelectTrigger className="w-full sm:w-36 bg-secondary border-border text-xs sm:text-sm">
-                  <SelectValue placeholder="Cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <button
+              type="button"
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              className={cn(
+                'inline-flex items-center gap-2 px-3 h-10 rounded-md border text-sm font-medium transition-colors',
+                filtersExpanded
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-secondary border-border hover:bg-secondary/80'
+              )}
+            >
+              <Filter className="h-4 w-4" />
+              <span className="hidden sm:inline">Filtros</span>
+              {activeFiltersCount > 0 && (
+                <Badge variant={filtersExpanded ? "secondary" : "default"} className="h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+              {filtersExpanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+            <DemandFormDialog onSuccess={loadData} />
+          </div>
 
-              {/* Multi-select Area */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setAreaDropdownOpen(!areaDropdownOpen)}
-                  className="inline-flex items-center justify-between w-full sm:w-32 px-3 h-10 bg-secondary border border-border rounded-md text-xs sm:text-sm hover:bg-secondary/80 transition-colors"
-                >
-                  <span className="truncate">
-                    {(filters.areaFilter as string[]).length === 0
-                      ? 'Áreas'
-                      : (filters.areaFilter as string[]).length === 1
-                      ? (filters.areaFilter as string[])[0]
-                      : `${(filters.areaFilter as string[]).length} áreas`}
-                  </span>
-                  <ChevronDown className="h-4 w-4 ml-2 shrink-0" />
-                </button>
-                {areaDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setAreaDropdownOpen(false)} />
-                    <div className="absolute left-0 top-full mt-1 w-48 bg-popover border border-border rounded-md shadow-lg z-20 p-1">
-                      {AREAS.map((area) => (
-                        <button
-                          key={area}
-                          type="button"
-                          onClick={() => toggleArea(area)}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent rounded-sm transition-colors"
-                        >
-                          <div className={cn(
-                            'h-4 w-4 border rounded flex items-center justify-center shrink-0',
-                            (filters.areaFilter as string[]).includes(area)
-                              ? 'bg-primary border-primary'
-                              : 'border-input'
-                          )}>
-                            {(filters.areaFilter as string[]).includes(area) && (
-                              <Check className="h-3 w-3 text-primary-foreground" />
-                            )}
-                          </div>
-                          <span>{area}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
+          {/* Filtros expansíveis */}
+          {filtersExpanded && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:flex lg:flex-wrap gap-2">
+                <Select value={filters.clientFilter} onValueChange={(v) => setFilter('clientFilter', v)}>
+                  <SelectTrigger className="w-full lg:w-36 bg-secondary border-border text-xs sm:text-sm">
+                    <SelectValue placeholder="Cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Multi-select Area */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setAreaDropdownOpen(!areaDropdownOpen)}
+                    className="inline-flex items-center justify-between w-full lg:w-32 px-3 h-10 bg-secondary border border-border rounded-md text-xs sm:text-sm hover:bg-secondary/80 transition-colors"
+                  >
+                    <span className="truncate">
+                      {(filters.areaFilter as string[]).length === 0
+                        ? 'Áreas'
+                        : (filters.areaFilter as string[]).length === 1
+                        ? (filters.areaFilter as string[])[0]
+                        : `${(filters.areaFilter as string[]).length} áreas`}
+                    </span>
+                    <ChevronDown className="h-4 w-4 ml-2 shrink-0" />
+                  </button>
+                  {areaDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setAreaDropdownOpen(false)} />
+                      <div className="absolute left-0 top-full mt-1 w-48 bg-popover border border-border rounded-md shadow-lg z-20 p-1">
+                        {AREAS.map((area) => (
+                          <button
+                            key={area}
+                            type="button"
+                            onClick={() => toggleArea(area)}
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-accent rounded-sm transition-colors"
+                          >
+                            <div className={cn(
+                              'h-4 w-4 border rounded flex items-center justify-center shrink-0',
+                              (filters.areaFilter as string[]).includes(area)
+                                ? 'bg-primary border-primary'
+                                : 'border-input'
+                            )}>
+                              {(filters.areaFilter as string[]).includes(area) && (
+                                <Check className="h-3 w-3 text-primary-foreground" />
+                              )}
+                            </div>
+                            <span>{area}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <Select value={filters.responsibleFilter} onValueChange={(v) => setFilter('responsibleFilter', v)}>
+                  <SelectTrigger className="w-full lg:w-36 bg-secondary border-border text-xs sm:text-sm">
+                    <SelectValue placeholder="Responsável" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.statusFilter as string} onValueChange={(v) => setFilter('statusFilter', v)}>
+                  <SelectTrigger className="w-full lg:w-36 bg-secondary border-border text-xs sm:text-sm">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos status</SelectItem>
+                    <SelectItem value="a-fazer">A Fazer</SelectItem>
+                    <SelectItem value="feito">Feito</SelectItem>
+                    <SelectItem value="atrasado">Atrasado</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center gap-1">
+                  <label className="text-xs text-muted-foreground whitespace-nowrap">De</label>
+                  <Input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) => setFilter('dateFrom', e.target.value)}
+                    className="w-full lg:w-36 bg-secondary border-border text-xs sm:text-sm"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <label className="text-xs text-muted-foreground whitespace-nowrap">Até</label>
+                  <Input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(e) => setFilter('dateTo', e.target.value)}
+                    className="w-full lg:w-36 bg-secondary border-border text-xs sm:text-sm"
+                  />
+                </div>
+
+                {activeFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetFilters()
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 h-10 text-xs text-destructive hover:text-destructive/80 hover:bg-destructive/10 rounded-md transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Limpar filtros
+                  </button>
                 )}
               </div>
-
-              <Select value={filters.responsibleFilter} onValueChange={(v) => setFilter('responsibleFilter', v)}>
-                <SelectTrigger className="w-full sm:w-36 bg-secondary border-border text-xs sm:text-sm">
-                  <SelectValue placeholder="Responsável" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {users.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filters.statusFilter as string} onValueChange={(v) => setFilter('statusFilter', v)}>
-                <SelectTrigger className="w-full sm:w-36 bg-secondary border-border text-xs sm:text-sm">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos status</SelectItem>
-                  <SelectItem value="a-fazer">A Fazer</SelectItem>
-                  <SelectItem value="feito">Feito</SelectItem>
-                  <SelectItem value="atrasado">Atrasado</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">De</label>
-                <Input
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(e) => setFilter('dateFrom', e.target.value)}
-                  className="w-full sm:w-36 bg-secondary border-border text-xs sm:text-sm"
-                />
-              </div>
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-muted-foreground whitespace-nowrap">Até</label>
-                <Input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(e) => setFilter('dateTo', e.target.value)}
-                  className="w-full sm:w-36 bg-secondary border-border text-xs sm:text-sm"
-                />
-              </div>
-
-              {(filters.dateFrom || filters.dateTo || filters.clientFilter !== 'all' || (filters.areaFilter as string[]).length > 0 || filters.responsibleFilter !== 'all' || filters.statusFilter !== 'all') && (
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="text-xs text-muted-foreground hover:text-foreground underline whitespace-nowrap self-center"
-                >
-                  Limpar filtros
-                </button>
-              )}
-              <div className="col-span-2 sm:col-span-1">
-                <DemandFormDialog onSuccess={loadData} />
-              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
