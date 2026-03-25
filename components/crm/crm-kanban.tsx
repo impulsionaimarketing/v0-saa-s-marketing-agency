@@ -287,9 +287,11 @@ export function CRMKanban() {
   async function loadLeads() {
     try {
       const data = await getCRMLeads()
-      setLeads(data)
+      // Ensure data is always an array
+      setLeads(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('[v0] Error loading leads:', error)
+      setLeads([])
     } finally {
       setIsLoading(false)
     }
