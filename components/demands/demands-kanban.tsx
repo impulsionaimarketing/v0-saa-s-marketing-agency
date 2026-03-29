@@ -132,7 +132,7 @@ function DemandDetailModal({
               <p className="text-xs text-muted-foreground mb-1">Prazo</p>
               <p className={cn('font-medium', overdue && 'text-destructive')}>
                 {demand.deadline
-                  ? new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR')
+                  ? `${new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR')}${demand.deadline_time ? ` às ${demand.deadline_time.slice(0, 5)}` : ''}`
                   : '—'}
               </p>
             </div>
@@ -303,6 +303,7 @@ export function DemandsKanban() {
   const [reorganizeModes, setReorganizeModes] = useState<Record<string, boolean>>({})
   const [reorderDraggedId, setReorderDraggedId] = useState<string | null>(null)
   const [reorderDragOverId, setReorderDragOverId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'kanban' | 'schedule'>('kanban')
   const AREAS = ['Arte', 'Vídeo', 'Tráfego', 'Comunicação']
   const { onDragStart: dragScrollStart, onDragEnd: dragScrollEnd } = useDragScroll()
 
@@ -633,6 +634,37 @@ export function DemandsKanban() {
                   Limpar filtros
                 </button>
               )}
+              
+              {/* Toggle View Mode */}
+              <div className="flex items-center gap-1 border border-border rounded-md p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('kanban')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                    viewMode === 'kanban'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  )}
+                >
+                  <ArrowUpDown className="h-3 w-3" />
+                  Kanban
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('schedule')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors',
+                    viewMode === 'schedule'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  )}
+                >
+                  <Clock className="h-3 w-3" />
+                  Horários
+                </button>
+              </div>
+              
               <div className="col-span-2 sm:col-span-1">
                 <DemandFormDialog onSuccess={loadData} />
               </div>
@@ -642,218 +674,458 @@ export function DemandsKanban() {
       </Card>
 
       {/* Kanban board */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((column) => {
-          const columnDemands = getColumnDemands(column.id)
-          const overdueCount = columnDemands.filter(d => isOverdue(d.deadline, d.status)).length
-          const isReorganizing = !!reorganizeModes[column.id]
+      {viewMode === 'kanban' && (
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {columns.map((column) => {
+            const columnDemands = getColumnDemands(column.id)
+            const overdueCount = columnDemands.filter(d => isOverdue(d.deadline, d.status)).length
+            const isReorganizing = !!reorganizeModes[column.id]
 
-          return (
-            <div key={column.id} className="flex-shrink-0 w-72">
-              {/* Column header */}
-              <div className="flex items-center gap-2 mb-3 px-1">
-                <div className={cn('h-3 w-3 rounded-full', column.color)} />
-                <h3 className="font-semibold text-sm">{column.title}</h3>
-                <Badge variant="secondary" className="text-xs">
-                  {columnDemands.length}
-                </Badge>
-                {overdueCount > 0 && column.id !== 'Publicado' && (
-                  <Badge variant="destructive" className="text-xs flex items-center gap-1 px-1.5">
-                    <AlertTriangle className="h-3 w-3" />
-                    {overdueCount}
+            return (
+              <div key={column.id} className="flex-shrink-0 w-72">
+                {/* Column header */}
+                <div className="flex items-center gap-2 mb-3 px-1">
+                  <div className={cn('h-3 w-3 rounded-full', column.color)} />
+                  <h3 className="font-semibold text-sm">{column.title}</h3>
+                  <Badge variant="secondary" className="text-xs">
+                    {columnDemands.length}
                   </Badge>
-                )}
-                <button
-                  type="button"
-                  onClick={() => toggleReorganize(column.id)}
-                  title={isReorganizing ? 'Sair do modo reorganizar' : 'Reorganizar cards'}
-                  className={cn(
-                    'ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors',
-                    isReorganizing
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  {overdueCount > 0 && column.id !== 'Publicado' && (
+                    <Badge variant="destructive" className="text-xs flex items-center gap-1 px-1.5">
+                      <AlertTriangle className="h-3 w-3" />
+                      {overdueCount}
+                    </Badge>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => toggleReorganize(column.id)}
+                    title={isReorganizing ? 'Sair do modo reorganizar' : 'Reorganizar cards'}
+                    className={cn(
+                      'ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors',
+                      isReorganizing
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                    )}
+                  >
+                    <ArrowUpDown className="h-3 w-3" />
+                    {isReorganizing ? 'Concluir' : 'Ordenar'}
+                  </button>
+                </div>
+
+                {/* Column content */}
+                <div
+                  className="space-y-2 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide rounded-lg bg-secondary/30 p-2"
+                  onDragOver={isReorganizing ? undefined : handleDragOver}
+                  onDrop={isReorganizing ? undefined : (e) => handleDrop(e, column.id)}
                 >
-                  <ArrowUpDown className="h-3 w-3" />
-                  {isReorganizing ? 'Concluir' : 'Ordenar'}
-                </button>
-              </div>
+                  {columnDemands.map((demand) => {
+                    const overdue = isOverdue(demand.deadline, demand.status)
+                    const isPublished = demand.status === 'Publicado'
+                    const isVideo = demand.area === 'Vídeo'
+                    const isArte = demand.area === 'Arte'
 
-              {/* Column content */}
-              <div
-                className="space-y-2 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide rounded-lg bg-secondary/30 p-2"
-                onDragOver={isReorganizing ? undefined : handleDragOver}
-                onDrop={isReorganizing ? undefined : (e) => handleDrop(e, column.id)}
-              >
-                {columnDemands.map((demand) => {
-                  const overdue = isOverdue(demand.deadline, demand.status)
-                  const isPublished = demand.status === 'Publicado'
-                  const isVideo = demand.area === 'Vídeo'
-                  const isArte = demand.area === 'Arte'
+                    /* ── Compact reorganize card ── */
+                    if (isReorganizing) {
+                      return (
+                        <div
+                          key={demand.id}
+                          draggable
+                          onDragStart={(e) => handleReorderDragStart(e, demand.id)}
+                          onDragEnd={() => { setReorderDraggedId(null); setReorderDragOverId(null) }}
+                          onDragOver={(e) => handleReorderDragOver(e, demand.id)}
+                          onDrop={(e) => handleReorderDrop(e, demand.id, column.id)}
+                          className={cn(
+                            'flex items-center gap-2 bg-card border border-border rounded-md px-3 py-2 cursor-grab active:cursor-grabbing select-none transition-all',
+                            reorderDraggedId === demand.id && 'opacity-40',
+                            reorderDragOverId === demand.id && reorderDraggedId !== demand.id && 'border-t-2 border-t-primary'
+                          )}
+                        >
+                          <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{demand.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{demand.client_name}</p>
+                          </div>
+                          {overdue && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+                          {isVideo && <Film className="h-3 w-3 text-chart-2 shrink-0" />}
+                          {isArte && <Palette className="h-3 w-3 text-chart-3 shrink-0" />}
+                        </div>
+                      )
+                    }
 
-                  /* ── Compact reorganize card ── */
-                  if (isReorganizing) {
+                    /* ── Full card (normal mode) ── */
                     return (
-                      <div
+                      <Card
                         key={demand.id}
                         draggable
-                        onDragStart={(e) => handleReorderDragStart(e, demand.id)}
-                        onDragEnd={() => { setReorderDraggedId(null); setReorderDragOverId(null) }}
-                        onDragOver={(e) => handleReorderDragOver(e, demand.id)}
-                        onDrop={(e) => handleReorderDrop(e, demand.id, column.id)}
+                        onDragStart={(e) => handleDragStart(e, demand)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => handleCardDragOver(e, demand.id)}
                         className={cn(
-                          'flex items-center gap-2 bg-card border border-border rounded-md px-3 py-2 cursor-grab active:cursor-grabbing select-none transition-all',
-                          reorderDraggedId === demand.id && 'opacity-40',
-                          reorderDragOverId === demand.id && reorderDraggedId !== demand.id && 'border-t-2 border-t-primary'
+                          'bg-card border-border cursor-grab active:cursor-grabbing transition-all hover:border-primary/50',
+                          overdue && 'border-destructive/50',
+                          draggedItem?.id === demand.id && 'opacity-50',
+                          dragOverId === demand.id && draggedItem?.id !== demand.id && 'border-t-2 border-t-primary'
                         )}
                       >
-                        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{demand.name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{demand.client_name}</p>
-                        </div>
-                        {overdue && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
-                        {isVideo && <Film className="h-3 w-3 text-chart-2 shrink-0" />}
-                        {isArte && <Palette className="h-3 w-3 text-chart-3 shrink-0" />}
-                      </div>
-                    )
-                  }
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-2">
+                            <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
 
-                  /* ── Full card (normal mode) ── */
-                  return (
-                    <Card
-                      key={demand.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, demand)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={(e) => handleCardDragOver(e, demand.id)}
-                      className={cn(
-                        'bg-card border-border cursor-grab active:cursor-grabbing transition-all hover:border-primary/50',
-                        overdue && 'border-destructive/50',
-                        draggedItem?.id === demand.id && 'opacity-50',
-                        dragOverId === demand.id && draggedItem?.id !== demand.id && 'border-t-2 border-t-primary'
-                      )}
-                    >
-                      <CardContent className="p-3">
-                        <div className="flex items-start gap-2">
-                          <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-
-                            {/* Overdue tag */}
-                            {overdue && (
-                              <div className="flex items-center gap-1 mb-2 text-xs text-destructive font-medium">
-                                <AlertTriangle className="h-3 w-3" />
-                                Atrasado
-                              </div>
-                            )}
-
-                            {/* Title row with click to open detail */}
-                            <button
-                              type="button"
-                              onClick={() => openDetail(demand)}
-                              className="text-left w-full group"
-                            >
-                              <div className="flex items-center gap-1.5">
-                                {isVideo && <Film className="h-3 w-3 text-chart-2 shrink-0" />}
-                                {isArte && <Palette className="h-3 w-3 text-chart-3 shrink-0" />}
-                                <p className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
-                                  {demand.name}
-                                </p>
-                              </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">{demand.client_name}</p>
-                            </button>
-
-                            {demand.description && (
-                              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                                {demand.description}
-                              </p>
-                            )}
-
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                              <Badge variant="outline" className={cn('text-xs', areaColors[demand.area])}>
-                                {demand.area}
-                              </Badge>
-                            </div>
-
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-                              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <User className="h-3 w-3" />
-                                <span className="truncate max-w-[80px]">{demand.responsible_name || 'Não atribuído'}</span>
-                              </div>
-                              {demand.deadline && (
-                                <div className={cn(
-                                  'flex items-center gap-1.5 text-xs',
-                                  overdue ? 'text-destructive font-medium' : 'text-muted-foreground'
-                                )}>
-                                  <Calendar className="h-3 w-3" />
-                                  <span>
-                                    {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                  </span>
+                              {/* Overdue tag */}
+                              {overdue && (
+                                <div className="flex items-center gap-1 mb-2 text-xs text-destructive font-medium">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  Atrasado
                                 </div>
                               )}
-                            </div>
 
-                            {/* Action row */}
-                            <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border">
-                              {/* Publish checkbox */}
+                              {/* Title row with click to open detail */}
                               <button
                                 type="button"
-                                onClick={(e) => handlePublish(e, demand)}
-                                title={isPublished ? 'Publicado' : 'Marcar como publicado'}
-                                className={cn(
-                                  'flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors',
-                                  isPublished
-                                    ? 'text-success bg-success/10 cursor-default'
-                                    : 'text-muted-foreground hover:text-success hover:bg-success/10'
-                                )}
+                                onClick={() => openDetail(demand)}
+                                className="text-left w-full group"
                               >
-                                <div className={cn(
-                                  'h-4 w-4 border-2 rounded flex items-center justify-center shrink-0',
-                                  isPublished ? 'bg-success border-success' : 'border-muted-foreground'
-                                )}>
-                                  {isPublished && <Check className="h-3 w-3 text-white" />}
+                                <div className="flex items-center gap-1.5">
+                                  {isVideo && <Film className="h-3 w-3 text-chart-2 shrink-0" />}
+                                  {isArte && <Palette className="h-3 w-3 text-chart-3 shrink-0" />}
+                                  <p className="font-medium text-sm leading-tight group-hover:text-primary transition-colors">
+                                    {demand.name}
+                                  </p>
                                 </div>
-                                  {isPublished ? 'Feito' : 'Marcar como feito'}
+                                <p className="text-xs text-muted-foreground mt-0.5">{demand.client_name}</p>
                               </button>
 
-                              <DemandFormDialog
-                                demand={demand}
-                                onSuccess={loadData}
-                                trigger={
-                                  <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground p-1 rounded hover:bg-secondary ml-auto">
-                                    <Pencil className="h-3 w-3" />
-                                  </button>
-                                }
-                              />
-                              <DeleteDialog
-                                title="Excluir Demanda"
-                                description={`Tem certeza que deseja excluir "${demand.name}"? Esta ação não pode ser desfeita.`}
-                                onConfirm={() => deleteDemand(demand.id)}
-                                onSuccess={loadData}
-                                trigger={
-                                  <button type="button" className="flex items-center gap-1 text-xs text-destructive hover:text-destructive p-1 rounded hover:bg-destructive/10">
-                                    <Trash2 className="h-3 w-3" />
-                                  </button>
-                                }
-                              />
+                              {demand.description && (
+                                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                                  {demand.description}
+                                </p>
+                              )}
+
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                <Badge variant="outline" className={cn('text-xs', areaColors[demand.area])}>
+                                  {demand.area}
+                                </Badge>
+                              </div>
+
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                  <User className="h-3 w-3" />
+                                  <span className="truncate max-w-[80px]">{demand.responsible_name || 'Não atribuído'}</span>
+                                </div>
+                                {demand.deadline && (
+                                  <div className={cn(
+                                    'flex items-center gap-1.5 text-xs',
+                                    overdue ? 'text-destructive font-medium' : 'text-muted-foreground'
+                                  )}>
+                                    <Calendar className="h-3 w-3" />
+                                    <span>
+                                      {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                      {demand.deadline_time && ` ${demand.deadline_time.slice(0, 5)}`}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action row */}
+                              <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border">
+                                {/* Publish checkbox */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => handlePublish(e, demand)}
+                                  title={isPublished ? 'Publicado' : 'Marcar como publicado'}
+                                  className={cn(
+                                    'flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors',
+                                    isPublished
+                                      ? 'text-success bg-success/10 cursor-default'
+                                      : 'text-muted-foreground hover:text-success hover:bg-success/10'
+                                  )}
+                                >
+                                  <div className={cn(
+                                    'h-4 w-4 border-2 rounded flex items-center justify-center shrink-0',
+                                    isPublished ? 'bg-success border-success' : 'border-muted-foreground'
+                                  )}>
+                                    {isPublished && <Check className="h-3 w-3 text-white" />}
+                                  </div>
+                                    {isPublished ? 'Feito' : 'Marcar como feito'}
+                                </button>
+
+                                <DemandFormDialog
+                                  demand={demand}
+                                  onSuccess={loadData}
+                                  trigger={
+                                    <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground p-1 rounded hover:bg-secondary ml-auto">
+                                      <Pencil className="h-3 w-3" />
+                                    </button>
+                                  }
+                                />
+                                <DeleteDialog
+                                  title="Excluir Demanda"
+                                  description={`Tem certeza que deseja excluir "${demand.name}"? Esta ação não pode ser desfeita.`}
+                                  onConfirm={() => deleteDemand(demand.id)}
+                                  onSuccess={loadData}
+                                  trigger={
+                                    <button type="button" className="flex items-center gap-1 text-xs text-destructive hover:text-destructive p-1 rounded hover:bg-destructive/10">
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  }
+                                />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )
-                })}
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
 
-                {columnDemands.length === 0 && (
-                  <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
-                    Nenhuma demanda
-                  </div>
-                )}
+                  {columnDemands.length === 0 && (
+                    <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+                      Nenhuma demanda
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Schedule View - Organized by Time */}
+      {viewMode === 'schedule' && (
+        <ScheduleView
+          demands={filteredDemands}
+          onOpenDetail={openDetail}
+          onPublish={handlePublish}
+          onSuccess={loadData}
+        />
+      )}
     </>
+  )
+}
+
+// Schedule View Component
+function ScheduleView({
+  demands,
+  onOpenDetail,
+  onPublish,
+  onSuccess,
+}: {
+  demands: Demand[]
+  onOpenDetail: (demand: Demand) => void
+  onPublish: (e: React.MouseEvent, demand: Demand) => void
+  onSuccess: () => void
+}) {
+  // Group demands by date and sort by time within each date
+  const groupedByDate = useMemo(() => {
+    const groups: Record<string, Demand[]> = {}
+    
+    // Filter demands that are not published and have a deadline
+    const pendingDemands = demands.filter(d => d.status !== 'Publicado')
+    
+    for (const demand of pendingDemands) {
+      const dateKey = demand.deadline || 'sem-data'
+      if (!groups[dateKey]) {
+        groups[dateKey] = []
+      }
+      groups[dateKey].push(demand)
+    }
+    
+    // Sort demands within each date by time
+    for (const dateKey of Object.keys(groups)) {
+      groups[dateKey].sort((a, b) => {
+        // Items without time go to the end
+        if (!a.deadline_time && !b.deadline_time) return 0
+        if (!a.deadline_time) return 1
+        if (!b.deadline_time) return -1
+        return a.deadline_time.localeCompare(b.deadline_time)
+      })
+    }
+    
+    // Sort dates
+    const sortedDates = Object.keys(groups).sort((a, b) => {
+      if (a === 'sem-data') return 1
+      if (b === 'sem-data') return -1
+      return a.localeCompare(b)
+    })
+    
+    return { groups, sortedDates }
+  }, [demands])
+
+  const formatDate = (dateStr: string) => {
+    if (dateStr === 'sem-data') return 'Sem data definida'
+    const date = new Date(dateStr + 'T00:00:00')
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    
+    if (date.getTime() === today.getTime()) {
+      return 'Hoje'
+    } else if (date.getTime() === tomorrow.getTime()) {
+      return 'Amanhã'
+    }
+    
+    return date.toLocaleDateString('pt-BR', { 
+      weekday: 'long', 
+      day: '2-digit', 
+      month: 'long' 
+    })
+  }
+
+  const isDateOverdue = (dateStr: string) => {
+    if (dateStr === 'sem-data') return false
+    const date = new Date(dateStr + 'T00:00:00')
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return date < today
+  }
+
+  if (groupedByDate.sortedDates.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        <div className="text-center">
+          <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <p>Nenhuma demanda pendente encontrada</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {groupedByDate.sortedDates.map((dateKey) => {
+        const dateDemands = groupedByDate.groups[dateKey]
+        const overdue = isDateOverdue(dateKey)
+        
+        return (
+          <div key={dateKey}>
+            {/* Date Header */}
+            <div className={cn(
+              'flex items-center gap-3 mb-3 pb-2 border-b',
+              overdue ? 'border-destructive/50' : 'border-border'
+            )}>
+              <Calendar className={cn('h-5 w-5', overdue ? 'text-destructive' : 'text-primary')} />
+              <h3 className={cn(
+                'font-semibold text-lg capitalize',
+                overdue && 'text-destructive'
+              )}>
+                {formatDate(dateKey)}
+              </h3>
+              <Badge variant={overdue ? 'destructive' : 'secondary'} className="text-xs">
+                {dateDemands.length} {dateDemands.length === 1 ? 'demanda' : 'demandas'}
+              </Badge>
+              {overdue && (
+                <Badge variant="destructive" className="text-xs flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Atrasado
+                </Badge>
+              )}
+            </div>
+            
+            {/* Demands for this date */}
+            <div className="grid gap-2">
+              {dateDemands.map((demand) => {
+                const isVideo = demand.area === 'Vídeo'
+                const isArte = demand.area === 'Arte'
+                const itemOverdue = isOverdue(demand.deadline, demand.status)
+                
+                return (
+                  <Card 
+                    key={demand.id} 
+                    className={cn(
+                      'bg-card border-border hover:border-primary/50 transition-colors',
+                      itemOverdue && 'border-destructive/50'
+                    )}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-4">
+                        {/* Time Column */}
+                        <div className={cn(
+                          'flex flex-col items-center justify-center w-16 shrink-0 py-2 px-3 rounded-md',
+                          demand.deadline_time 
+                            ? 'bg-primary/10 text-primary' 
+                            : 'bg-muted text-muted-foreground'
+                        )}>
+                          <Clock className="h-4 w-4 mb-1" />
+                          <span className="text-sm font-semibold">
+                            {demand.deadline_time ? demand.deadline_time.slice(0, 5) : '--:--'}
+                          </span>
+                        </div>
+                        
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => onOpenDetail(demand)}
+                            className="text-left w-full group"
+                          >
+                            <div className="flex items-center gap-2">
+                              {isVideo && <Film className="h-4 w-4 text-chart-2 shrink-0" />}
+                              {isArte && <Palette className="h-4 w-4 text-chart-3 shrink-0" />}
+                              <p className="font-medium text-sm group-hover:text-primary transition-colors truncate">
+                                {demand.name}
+                              </p>
+                              {itemOverdue && (
+                                <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />
+                              )}
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                            <span>{demand.client_name}</span>
+                            <Badge variant="outline" className={cn('text-xs', areaColors[demand.area])}>
+                              {demand.area}
+                            </Badge>
+                            {demand.responsible_name && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {demand.responsible_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => onPublish(e, demand)}
+                            title="Marcar como feito"
+                            className="flex items-center gap-1.5 text-xs px-2 py-1.5 rounded transition-colors text-muted-foreground hover:text-success hover:bg-success/10"
+                          >
+                            <div className="h-4 w-4 border-2 border-muted-foreground rounded flex items-center justify-center shrink-0">
+                              <Check className="h-3 w-3 opacity-0 group-hover:opacity-100" />
+                            </div>
+                          </button>
+                          <DemandFormDialog
+                            demand={demand}
+                            onSuccess={onSuccess}
+                            trigger={
+                              <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-secondary">
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            }
+                          />
+                          <DeleteDialog
+                            title="Excluir Demanda"
+                            description={`Tem certeza que deseja excluir "${demand.name}"? Esta ação não pode ser desfeita.`}
+                            onConfirm={() => deleteDemand(demand.id)}
+                            onSuccess={onSuccess}
+                            trigger={
+                              <button type="button" className="flex items-center gap-1 text-xs text-destructive hover:text-destructive p-1.5 rounded hover:bg-destructive/10">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            }
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }

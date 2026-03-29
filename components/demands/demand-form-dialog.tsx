@@ -47,6 +47,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
     area: demand?.area || 'Arte',
     responsible_id: demand?.responsible_id || '',
     deadline: demand?.deadline?.split('T')[0] || '',
+    deadline_time: demand?.deadline_time || '',
     status: demand?.status || 'A Fazer',
     priority: demand?.priority || 'medium',
   })
@@ -82,6 +83,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
           area: formData.area as Demand['area'],
           responsible_id: (formData.responsible_id && formData.responsible_id !== 'none') ? formData.responsible_id : null,
           deadline: formData.deadline || null,
+          deadline_time: formData.deadline_time || null,
           status: formData.status as Demand['status'],
           priority: formData.priority as Demand['priority'],
         }
@@ -103,6 +105,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
             area: 'Arte',
             responsible_id: '',
             deadline: '',
+            deadline_time: '',
             status: 'A Fazer',
             priority: 'medium',
           })
@@ -220,14 +223,25 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="deadline">Prazo</Label>
+                <Label htmlFor="deadline">Prazo (Data)</Label>
                 <Input
                   id="deadline"
                   type="date"
                   value={formData.deadline}
                   onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
+                  className="bg-secondary border-border"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="deadline_time">Horário</Label>
+                <Input
+                  id="deadline_time"
+                  type="time"
+                  value={formData.deadline_time}
+                  onChange={(e) => setFormData(prev => ({ ...prev, deadline_time: e.target.value }))}
                   className="bg-secondary border-border"
                 />
               </div>

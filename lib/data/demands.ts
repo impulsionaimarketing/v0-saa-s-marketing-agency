@@ -13,6 +13,7 @@ export interface Demand {
   responsible_id: string | null
   responsible_name?: string
   deadline: string | null
+  deadline_time: string | null
   status: "A Fazer" | "Em Produção" | "Em Revisão" | "Aprovado" | "Publicado" | "Atrasado"
   priority: "low" | "medium" | "high"
   created_at: string
@@ -110,6 +111,7 @@ export async function createDemand(data: Partial<Demand>): Promise<Demand | null
       p_area: data.area,
       p_responsible_id: data.responsible_id,
       p_deadline: data.deadline,
+      p_deadline_time: data.deadline_time,
       p_status: data.status || "A Fazer",
       p_priority: data.priority || "medium",
     })
@@ -141,6 +143,7 @@ export async function updateDemand(id: string, data: Partial<Demand>): Promise<D
       p_area: data.area,
       p_responsible_id: data.responsible_id,
       p_deadline: data.deadline,
+      p_deadline_time: data.deadline_time,
       p_status: data.status,
       p_priority: data.priority,
     })
