@@ -2,7 +2,14 @@
 ALTER TABLE public.demands
 ADD COLUMN IF NOT EXISTS deadline_time TIME;
 
--- Atualiza a função get_all_demands para incluir deadline_time
+-- Remove as funções existentes para poder recriá-las com novo tipo de retorno
+DROP FUNCTION IF EXISTS get_all_demands();
+DROP FUNCTION IF EXISTS insert_demand(VARCHAR, TEXT, UUID, VARCHAR, UUID, DATE, VARCHAR, VARCHAR);
+DROP FUNCTION IF EXISTS insert_demand(VARCHAR, TEXT, UUID, VARCHAR, UUID, DATE, TIME, VARCHAR, VARCHAR);
+DROP FUNCTION IF EXISTS update_demand(UUID, VARCHAR, TEXT, UUID, VARCHAR, UUID, DATE, VARCHAR, VARCHAR);
+DROP FUNCTION IF EXISTS update_demand(UUID, VARCHAR, TEXT, UUID, VARCHAR, UUID, DATE, TIME, VARCHAR, VARCHAR);
+
+-- Recria a função get_all_demands para incluir deadline_time
 CREATE OR REPLACE FUNCTION get_all_demands()
 RETURNS TABLE (
   id UUID,
@@ -44,7 +51,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Atualiza a função insert_demand para incluir deadline_time
+-- Recria a função insert_demand para incluir deadline_time
 CREATE OR REPLACE FUNCTION insert_demand(
   p_name VARCHAR(255),
   p_description TEXT,
@@ -102,7 +109,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Atualiza a função update_demand para incluir deadline_time
+-- Recria a função update_demand para incluir deadline_time
 CREATE OR REPLACE FUNCTION update_demand(
   p_id UUID,
   p_name VARCHAR(255),
