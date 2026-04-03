@@ -40,13 +40,21 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<User[]>([])
   
+  // Split deadline into date and time parts
+  const deadlineParts = demand?.deadline
+    ? demand.deadline.includes('T')
+      ? { date: demand.deadline.split('T')[0], time: demand.deadline.split('T')[1]?.slice(0, 5) || '' }
+      : { date: demand.deadline, time: '' }
+    : { date: '', time: '' }
+
   const [formData, setFormData] = useState({
     name: demand?.name || '',
     description: demand?.description || '',
     client_id: demand?.client_id || '',
     area: demand?.area || 'Arte',
     responsible_id: demand?.responsible_id || '',
-    deadline: demand?.deadline?.split('T')[0] || '',
+    deadlineDate: deadlineParts.date,
+    deadlineTime: deadlineParts.time,
     status: demand?.status || 'A Fazer',
     priority: demand?.priority || 'medium',
   })
@@ -75,13 +83,21 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
     
     startTransition(async () => {
       try {
+        // Build deadline: combine date + optional time
+        let deadlineValue: string | null = null
+        if (formData.deadlineDate) {
+          deadlineValue = formData.deadlineTime
+            ? `${formData.deadlineDate}T${formData.deadlineTime}:00`
+            : formData.deadlineDate
+        }
+
         const data = {
           name: formData.name,
           description: formData.description || null,
           client_id: formData.client_id,
           area: formData.area as Demand['area'],
           responsible_id: (formData.responsible_id && formData.responsible_id !== 'none') ? formData.responsible_id : null,
-          deadline: formData.deadline || null,
+          deadline: deadlineValue,
           status: formData.status as Demand['status'],
           priority: formData.priority as Demand['priority'],
         }
@@ -102,7 +118,8 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
             client_id: '',
             area: 'Arte',
             responsible_id: '',
-            deadline: '',
+            deadlineDate: '',
+            deadlineTime: '',
             status: 'A Fazer',
             priority: 'medium',
           })
@@ -223,13 +240,23 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="deadline">Prazo</Label>
-                <Input
-                  id="deadline"
-                  type="date"
-                  value={formData.deadline}
-                  onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
-                  className="bg-secondary border-border"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="deadline"
+                    type="date"
+                    value={formData.deadlineDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, deadlineDate: e.target.value }))}
+                    className="bg-secondary border-border flex-1"
+                  />
+                  <Input
+                    id="deadlineTime"
+                    type="time"
+                    value={formData.deadlineTime}
+                    onChange={(e) => setFormData(prev => ({ ...prev, deadlineTime: e.target.value }))}
+                    className="bg-secondary border-border w-28"
+                    placeholder="Horário"
+                  />
+                </div>
               </div>
 
               <div className="grid gap-2">

@@ -48,9 +48,23 @@ const areaColors: Record<string, string> = {
 function isOverdue(deadline: string | null, status: DemandStatus): boolean {
   if (!deadline || status === 'Publicado') return false
   const now = new Date()
+  // If deadline has a time component, compare with exact timestamp
+  if (deadline.includes('T')) {
+    return new Date(deadline) < now
+  }
+  // Date only: compare at start of day
   now.setHours(0, 0, 0, 0)
   const d = new Date(deadline + 'T00:00:00')
   return d < now
+}
+
+function formatDeadline(deadline: string): string {
+  if (deadline.includes('T')) {
+    const d = new Date(deadline)
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) +
+      ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  }
+  return new Date(deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
 // ─── Detail Modal ────────────────────────────────────────────────────────────
@@ -132,7 +146,7 @@ function DemandDetailModal({
               <p className="text-xs text-muted-foreground mb-1">Prazo</p>
               <p className={cn('font-medium', overdue && 'text-destructive')}>
                 {demand.deadline
-                  ? new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR')
+                  ? formatDeadline(demand.deadline)
                   : '—'}
               </p>
             </div>
@@ -297,6 +311,7 @@ export function DemandsKanban() {
     dateFrom: '',
     dateTo: '',
     statusFilter: 'all' as 'all' | 'a-fazer' | 'feito' | 'atrasado',
+    sortOrder: 'manual' as 'manual' | 'date-asc' | 'date-desc',
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
@@ -352,8 +367,8 @@ export function DemandsKanban() {
   }
 
   const filteredDemands = useMemo(() => {
-    const { searchQuery, clientFilter, areaFilter, responsibleFilter, dateFrom, dateTo, statusFilter } = filters
-    return demandItems.filter((demand) => {
+    const { searchQuery, clientFilter, areaFilter, responsibleFilter, dateFrom, dateTo, statusFilter, sortOrder } = filters
+    let result = demandItems.filter((demand) => {
       if (demand.status === 'Atrasado') return false // legacy status
       const overdue = isOverdue(demand.deadline, demand.status)
       const isFeito = demand.status === 'Publicado'
@@ -371,7 +386,8 @@ export function DemandsKanban() {
 
       let matchesDate = true
       if (demand.deadline) {
-        const demandDate = new Date(demand.deadline + 'T00:00:00')
+        const deadlineDateStr = demand.deadline.includes('T') ? demand.deadline.split('T')[0] : demand.deadline
+        const demandDate = new Date(deadlineDateStr + 'T00:00:00')
         if (dateFrom) {
           if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
         }
@@ -384,6 +400,20 @@ export function DemandsKanban() {
 
       return matchesSearch && matchesClient && matchesArea && matchesResponsible && matchesDate
     })
+
+    // Apply sort
+    if (sortOrder === 'date-asc' || sortOrder === 'date-desc') {
+      result = [...result].sort((a, b) => {
+        if (!a.deadline && !b.deadline) return 0
+        if (!a.deadline) return 1
+        if (!b.deadline) return -1
+        const dateA = a.deadline.includes('T') ? new Date(a.deadline).getTime() : new Date(a.deadline + 'T00:00:00').getTime()
+        const dateB = b.deadline.includes('T') ? new Date(b.deadline).getTime() : new Date(b.deadline + 'T00:00:00').getTime()
+        return sortOrder === 'date-asc' ? dateA - dateB : dateB - dateA
+      })
+    }
+
+    return result
   }, [demandItems, filters])
 
   const getColumnDemands = (status: DemandStatus) =>
@@ -605,6 +635,17 @@ export function DemandsKanban() {
                 </SelectContent>
               </Select>
 
+              <Select value={filters.sortOrder as string} onValueChange={(v) => setFilter('sortOrder', v)}>
+                <SelectTrigger className="w-full sm:w-40 bg-secondary border-border text-xs sm:text-sm">
+                  <SelectValue placeholder="Ordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Ordem manual</SelectItem>
+                  <SelectItem value="date-asc">Prazo: mais próximo</SelectItem>
+                  <SelectItem value="date-desc">Prazo: mais distante</SelectItem>
+                </SelectContent>
+              </Select>
+
               <div className="flex items-center gap-1">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">De</label>
                 <Input
@@ -624,7 +665,7 @@ export function DemandsKanban() {
                 />
               </div>
 
-              {(filters.dateFrom || filters.dateTo || filters.clientFilter !== 'all' || (filters.areaFilter as string[]).length > 0 || filters.responsibleFilter !== 'all' || filters.statusFilter !== 'all') && (
+              {(filters.dateFrom || filters.dateTo || filters.clientFilter !== 'all' || (filters.areaFilter as string[]).length > 0 || filters.responsibleFilter !== 'all' || filters.statusFilter !== 'all' || filters.sortOrder !== 'manual') && (
                 <button
                   type="button"
                   onClick={resetFilters}
@@ -667,10 +708,13 @@ export function DemandsKanban() {
                   type="button"
                   onClick={() => toggleReorganize(column.id)}
                   title={isReorganizing ? 'Sair do modo reorganizar' : 'Reorganizar cards'}
+                  disabled={filters.sortOrder !== 'manual'}
                   className={cn(
                     'ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors',
                     isReorganizing
                       ? 'bg-primary text-primary-foreground'
+                      : filters.sortOrder !== 'manual'
+                      ? 'text-muted-foreground/40 cursor-not-allowed'
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                   )}
                 >
@@ -786,9 +830,7 @@ export function DemandsKanban() {
                                   overdue ? 'text-destructive font-medium' : 'text-muted-foreground'
                                 )}>
                                   <Calendar className="h-3 w-3" />
-                                  <span>
-                                    {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                  </span>
+                                  <span>{formatDeadline(demand.deadline)}</span>
                                 </div>
                               )}
                             </div>
