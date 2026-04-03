@@ -45,11 +45,28 @@ const areaColors: Record<string, string> = {
   'Comunicação': 'bg-chart-4/10 text-chart-4 border-chart-4/20',
 }
 
+// Helper to safely parse deadline from various formats (ISO timestamp or date string)
+function parseDeadline(deadline: string | null): Date | null {
+  if (!deadline) return null
+  
+  // If it's already an ISO timestamp (contains T and timezone info), parse directly
+  if (deadline.includes('T')) {
+    const d = new Date(deadline)
+    return isNaN(d.getTime()) ? null : d
+  }
+  
+  // If it's just a date string (YYYY-MM-DD), treat as local date
+  const d = new Date(deadline + 'T00:00:00')
+  return isNaN(d.getTime()) ? null : d
+}
+
 function isOverdue(deadline: string | null, status: DemandStatus): boolean {
   if (!deadline || status === 'Publicado') return false
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const d = new Date(deadline + 'T00:00:00')
+  const d = parseDeadline(deadline)
+  if (!d) return false
+  d.setHours(0, 0, 0, 0)
   return d < now
 }
 
@@ -132,14 +149,17 @@ function DemandDetailModal({
               <p className="text-xs text-muted-foreground mb-1">Prazo</p>
               <p className={cn('font-medium', overdue && 'text-destructive')}>
                 {demand.deadline
-                  ? new Date(demand.deadline).toLocaleString('pt-BR', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour12: false,
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })
+                  ? (() => {
+                      const d = parseDeadline(demand.deadline)
+                      return d ? d.toLocaleString('pt-BR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      }) : '—'
+                    })()
                   : '—'}
               </p>
             </div>
@@ -379,12 +399,16 @@ export function DemandsKanban() {
 
       let matchesDate = true
       if (demand.deadline) {
-        const demandDate = new Date(demand.deadline + 'T00:00:00')
-        if (dateFrom) {
-          if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
-        }
-        if (dateTo) {
-          if (demandDate > new Date(dateTo + 'T23:59:59')) matchesDate = false
+        const demandDate = parseDeadline(demand.deadline)
+        if (demandDate) {
+          if (dateFrom) {
+            if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
+          }
+          if (dateTo) {
+            if (demandDate > new Date(dateTo + 'T23:59:59')) matchesDate = false
+          }
+        } else {
+          matchesDate = false
         }
       } else if (dateFrom || dateTo) {
         matchesDate = false
@@ -399,8 +423,10 @@ export function DemandsKanban() {
     if (sortOption === 'none') return filteredDemands
 
     return [...filteredDemands].sort((a, b) => {
-      const dateA = a.deadline ? new Date(a.deadline).getTime() : Infinity
-      const dateB = b.deadline ? new Date(b.deadline).getTime() : Infinity
+      const parsedA = parseDeadline(a.deadline)
+      const parsedB = parseDeadline(b.deadline)
+      const dateA = parsedA ? parsedA.getTime() : Infinity
+      const dateB = parsedB ? parsedB.getTime() : Infinity
 
       if (sortOption === 'deadline-asc') {
         return dateA - dateB
@@ -821,7 +847,10 @@ export function DemandsKanban() {
                                 )}>
                                   <Calendar className="h-3 w-3" />
                                   <span>
-                                    {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                    {(() => {
+                                      const d = parseDeadline(demand.deadline)
+                                      return d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
+                                    })()}
                                   </span>
                                 </div>
                               )}
