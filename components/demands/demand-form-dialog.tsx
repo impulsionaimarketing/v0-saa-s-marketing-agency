@@ -34,6 +34,28 @@ interface DemandFormDialogProps {
   trigger?: React.ReactNode
 }
 
+// Helper to format ISO/date string to datetime-local input value
+function toDatetimeLocal(value: string | null | undefined): string {
+  if (!value) return ''
+  // If it already looks like datetime-local format (YYYY-MM-DDTHH:MM), return as-is
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+    return value.slice(0, 16)
+  }
+  // If it's just a date (YYYY-MM-DD), append T00:00
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value + 'T00:00'
+  }
+  // Try parsing as ISO string
+  try {
+    const d = new Date(value)
+    if (!isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, '0')
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+  } catch {}
+  return ''
+}
+
 export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialogProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -46,7 +68,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
     client_id: demand?.client_id || '',
     area: demand?.area || 'Arte',
     responsible_id: demand?.responsible_id || '',
-    deadline: demand?.deadline?.split('T')[0] || '',
+    deadline: toDatetimeLocal(demand?.deadline),
     status: demand?.status || 'A Fazer',
     priority: demand?.priority || 'medium',
   })
@@ -54,6 +76,17 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
   useEffect(() => {
     if (open) {
       loadOptions()
+      // Reset form with current demand values when dialog opens
+      setFormData({
+        name: demand?.name || '',
+        description: demand?.description || '',
+        client_id: demand?.client_id || '',
+        area: demand?.area || 'Arte',
+        responsible_id: demand?.responsible_id || '',
+        deadline: toDatetimeLocal(demand?.deadline),
+        status: demand?.status || 'A Fazer',
+        priority: demand?.priority || 'medium',
+      })
     }
   }, [open])
 
@@ -222,10 +255,10 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="deadline">Prazo</Label>
+                <Label htmlFor="deadline">Prazo (data e hora)</Label>
                 <Input
                   id="deadline"
-                  type="date"
+                  type="datetime-local"
                   value={formData.deadline}
                   onChange={(e) => setFormData(prev => ({ ...prev, deadline: e.target.value }))}
                   className="bg-secondary border-border"
