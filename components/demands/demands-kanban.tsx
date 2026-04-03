@@ -297,6 +297,7 @@ export function DemandsKanban() {
     dateFrom: '',
     dateTo: '',
     statusFilter: 'all' as 'all' | 'a-fazer' | 'feito' | 'atrasado',
+    sortOption: 'none' as 'none' | 'deadline-asc' | 'deadline-desc',
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
@@ -386,8 +387,23 @@ export function DemandsKanban() {
     })
   }, [demandItems, filters])
 
+  const sortedDemands = useMemo(() => {
+    const { sortOption } = filters
+    if (sortOption === 'none') return filteredDemands
+
+    return [...filteredDemands].sort((a, b) => {
+      const dateA = a.deadline ? new Date(a.deadline).getTime() : Infinity
+      const dateB = b.deadline ? new Date(b.deadline).getTime() : Infinity
+
+      if (sortOption === 'deadline-asc') {
+        return dateA - dateB
+      }
+      return dateB - dateA
+    })
+  }, [filteredDemands, filters.sortOption])
+
   const getColumnDemands = (status: DemandStatus) =>
-    filteredDemands.filter((d) => d.status === status)
+    sortedDemands.filter((d) => d.status === status)
 
   const handleDragStart = (e: React.DragEvent, demand: Demand) => {
     setDraggedItem(demand)
@@ -605,10 +621,21 @@ export function DemandsKanban() {
                 </SelectContent>
               </Select>
 
+              <Select value={filters.sortOption} onValueChange={(v) => setFilter('sortOption', v)}>
+                <SelectTrigger className="w-full sm:w-40 bg-secondary border-border text-xs sm:text-sm">
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem ordenação</SelectItem>
+                  <SelectItem value="deadline-asc">Prazo ↑ (mais próximo)</SelectItem>
+                  <SelectItem value="deadline-desc">Prazo ↓ (mais distante)</SelectItem>
+                </SelectContent>
+              </Select>
+
               <div className="flex items-center gap-1">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">De</label>
                 <Input
-                  type="date"
+                  type="datetime-local"
                   value={filters.dateFrom}
                   onChange={(e) => setFilter('dateFrom', e.target.value)}
                   className="w-full sm:w-36 bg-secondary border-border text-xs sm:text-sm"
@@ -617,7 +644,7 @@ export function DemandsKanban() {
               <div className="flex items-center gap-1">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">Até</label>
                 <Input
-                  type="date"
+                  type="datetime-local"
                   value={filters.dateTo}
                   onChange={(e) => setFilter('dateTo', e.target.value)}
                   className="w-full sm:w-36 bg-secondary border-border text-xs sm:text-sm"
