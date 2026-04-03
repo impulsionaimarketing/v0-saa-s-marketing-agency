@@ -849,7 +849,7 @@ export function DemandsKanban() {
                                   <span>
                                     {(() => {
                                       const d = parseDeadline(demand.deadline)
-                                      return d ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
+                                      return d ? d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) : '—'
                                     })()}
                                   </span>
                                 </div>
