@@ -132,7 +132,14 @@ function DemandDetailModal({
               <p className="text-xs text-muted-foreground mb-1">Prazo</p>
               <p className={cn('font-medium', overdue && 'text-destructive')}>
                 {demand.deadline
-                  ? new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR')
+                  ? new Date(demand.deadline).toLocaleString('pt-BR', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour12: false,
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
                   : '—'}
               </p>
             </div>
