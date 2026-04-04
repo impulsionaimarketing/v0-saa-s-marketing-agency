@@ -55,17 +55,18 @@ export function GeneratePaymentsDialog({
     startTransition(async () => {
       try {
         const result = await generateMonthlyPaymentsAction(month, year)
+        console.log('[v0] Generate payments result:', result)
         
-        if (result.success) {
+        if (result && result.success) {
           alert(result.message)
           onSuccess()
           onOpenChange(false)
         } else {
-          alert('Erro: ' + result.message)
+          alert('Erro: ' + (result?.message || 'Erro desconhecido ao gerar pagamentos'))
         }
       } catch (error) {
         console.error('[v0] Error generating payments:', error)
-        alert('Erro ao gerar pagamentos')
+        alert('Erro ao gerar pagamentos: ' + (error instanceof Error ? error.message : 'Erro desconhecido'))
       }
     })
   }
