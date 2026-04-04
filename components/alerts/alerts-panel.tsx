@@ -211,82 +211,87 @@ export function AlertsPanel() {
         </CardContent>
       </Card>
 
-      {/* Alerts list */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="text-lg">Alertas Ativos ({alerts.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {alerts.map((alert) => {
-              const Icon = alertIcons[alert.type] || AlertCircle
-              return (
-                <div
-                  key={alert.id}
-                  className={cn(
-                    'flex items-start gap-4 rounded-lg border p-4 transition-colors',
-                    alert.severity === 'high' ? 'border-destructive/30 bg-destructive/5' :
-                    alert.severity === 'medium' ? 'border-warning/30 bg-warning/5' :
-                    'border-border'
-                  )}
-                >
-                  <div className={cn(
-                    'flex h-12 w-12 shrink-0 items-center justify-center rounded-lg',
-                    alert.severity === 'high' ? 'bg-destructive/10' : 
-                    alert.severity === 'medium' ? 'bg-warning/10' : 'bg-muted'
-                  )}>
-                    <Icon className={cn(
-                      'h-6 w-6',
-                      alert.severity === 'high' ? 'text-destructive' : 
-                      alert.severity === 'medium' ? 'text-warning' : 'text-muted-foreground'
-                    )} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold">{alert.title}</p>
-                        <p className="text-sm text-muted-foreground mt-1">{alert.description}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <Badge variant="outline" className={cn(severityColors[alert.severity])}>
-                          {severityLabels[alert.severity]}
-                        </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          {alertTypeLabels[alert.type]}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        {alert.client_name && (
-                          <span>Cliente: <span className="text-foreground">{alert.client_name}</span></span>
-                        )}
-                        <span>{formatDate(alert.created_at)}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm"
-                          onClick={() => handleResolve(alert.id)}
-                        >
-                          Resolver
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-            
-            {alerts.length === 0 && (
+      {/* Alerts grid */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4">Alertas Ativos ({alerts.length})</h2>
+        
+        {alerts.length === 0 ? (
+          <Card className="bg-card border-border">
+            <CardContent className="p-6">
               <div className="flex flex-col items-center justify-center h-48 text-center">
                 <CheckCircle className="h-12 w-12 text-success mb-4" />
                 <p className="text-lg font-medium">Tudo em ordem!</p>
                 <p className="text-muted-foreground">Não há alertas para os filtros selecionados</p>
               </div>
-            )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {alerts.map((alert) => {
+              const Icon = alertIcons[alert.type] || AlertCircle
+              return (
+                <Card
+                  key={alert.id}
+                  className={cn(
+                    'relative overflow-hidden transition-all hover:shadow-md',
+                    alert.severity === 'high' ? 'border-destructive/30 bg-destructive/5' :
+                    alert.severity === 'medium' ? 'border-warning/30 bg-warning/5' :
+                    'border-border bg-card'
+                  )}
+                >
+                  <CardContent className="p-4 flex flex-col h-full min-h-[220px]">
+                    {/* Header with icon and badges */}
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className={cn(
+                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                        alert.severity === 'high' ? 'bg-destructive/10' : 
+                        alert.severity === 'medium' ? 'bg-warning/10' : 'bg-muted'
+                      )}>
+                        <Icon className={cn(
+                          'h-5 w-5',
+                          alert.severity === 'high' ? 'text-destructive' : 
+                          alert.severity === 'medium' ? 'text-warning' : 'text-muted-foreground'
+                        )} />
+                      </div>
+                      <Badge variant="outline" className={cn('text-xs', severityColors[alert.severity])}>
+                        {severityLabels[alert.severity]}
+                      </Badge>
+                    </div>
+
+                    {/* Title and description */}
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm line-clamp-2 mb-1">{alert.title}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{alert.description}</p>
+                    </div>
+
+                    {/* Type badge */}
+                    <Badge variant="secondary" className="text-xs w-fit mt-2">
+                      {alertTypeLabels[alert.type]}
+                    </Badge>
+
+                    {/* Footer with meta info and action */}
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <div className="text-xs text-muted-foreground mb-2">
+                        {alert.client_name && (
+                          <p className="truncate">Cliente: <span className="text-foreground">{alert.client_name}</span></p>
+                        )}
+                        <p>{formatDate(alert.created_at)}</p>
+                      </div>
+                      <Button 
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleResolve(alert.id)}
+                      >
+                        Resolver
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
     </>
   )
 }
