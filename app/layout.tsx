@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/lib/contexts/auth-context'
 import { ServiceWorkerRegistration } from '@/components/pwa/service-worker-registration'
 import { InstallButton } from '@/components/pwa/install-button'
+import { NotificationButton } from '@/components/pwa/notification-button'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
@@ -50,6 +51,7 @@ export default function RootLayout({
           {children}
         </AuthProvider>
         <InstallButton />
+        <NotificationButton />
         <Analytics />
       </body>
     </html>
