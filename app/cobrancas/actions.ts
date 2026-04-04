@@ -41,15 +41,25 @@ export async function markPaymentAsUnpaidAction(id: string) {
 }
 
 export async function generateMonthlyPaymentsAction(month: number, year: number) {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('generate_monthly_payments', {
-    p_month: month,
-    p_year: year
-  })
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase.rpc('generate_monthly_payments', {
+      p_month: month,
+      p_year: year
+    })
 
-  if (error) {
-    throw new Error(error.message)
+    if (error) {
+      console.error('[v0] Supabase RPC error:', error)
+      return { success: false, message: error.message, created_count: 0 }
+    }
+
+    if (!data || data.length === 0) {
+      return { success: true, message: 'Nenhum pagamento para gerar', created_count: 0 }
+    }
+
+    return data[0]
+  } catch (err) {
+    console.error('[v0] generateMonthlyPaymentsAction error:', err)
+    return { success: false, message: 'Erro ao gerar pagamentos. Verifique se a função existe no banco.', created_count: 0 }
   }
-
-  return data[0]
 }
