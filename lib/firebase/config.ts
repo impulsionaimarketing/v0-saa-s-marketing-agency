@@ -2,12 +2,12 @@ import { initializeApp, getApps, FirebaseApp } from "firebase/app"
 import { getMessaging, Messaging, isSupported } from "firebase/messaging"
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyCzqRisoaBjOwPgefLTdVszx7I5J1iQX9o",
+  authDomain: "dashboard-impulsionai-mkt.firebaseapp.com",
+  projectId: "dashboard-impulsionai-mkt",
+  storageBucket: "dashboard-impulsionai-mkt.firebasestorage.app",
+  messagingSenderId: "273537569477",
+  appId: "1:273537569477:web:952881348ae20dfda3d6ac",
 }
 
 let app: FirebaseApp | undefined

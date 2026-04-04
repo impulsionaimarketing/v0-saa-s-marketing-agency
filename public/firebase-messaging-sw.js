@@ -4,27 +4,14 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
-// Firebase config will be injected via query params or hardcoded
-// For security, we use a minimal config here - the full config is in the main app
+// Firebase config - hardcoded because service workers cannot access env vars
 firebase.initializeApp({
-  apiKey: self.location.search.includes('apiKey') 
-    ? new URLSearchParams(self.location.search).get('apiKey')
-    : '',
-  authDomain: self.location.search.includes('authDomain')
-    ? new URLSearchParams(self.location.search).get('authDomain')
-    : '',
-  projectId: self.location.search.includes('projectId')
-    ? new URLSearchParams(self.location.search).get('projectId')
-    : '',
-  storageBucket: self.location.search.includes('storageBucket')
-    ? new URLSearchParams(self.location.search).get('storageBucket')
-    : '',
-  messagingSenderId: self.location.search.includes('messagingSenderId')
-    ? new URLSearchParams(self.location.search).get('messagingSenderId')
-    : '',
-  appId: self.location.search.includes('appId')
-    ? new URLSearchParams(self.location.search).get('appId')
-    : '',
+  apiKey: "AIzaSyCzqRisoaBjOwPgefLTdVszx7I5J1iQX9o",
+  authDomain: "dashboard-impulsionai-mkt.firebaseapp.com",
+  projectId: "dashboard-impulsionai-mkt",
+  storageBucket: "dashboard-impulsionai-mkt.firebasestorage.app",
+  messagingSenderId: "273537569477",
+  appId: "1:273537569477:web:952881348ae20dfda3d6ac",
 });
 
 const messaging = firebase.messaging();
