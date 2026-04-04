@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, DollarSign, CheckCircle2, Clock, AlertCircle, Calendar, LayoutGrid, Table } from 'lucide-react'
+import { Plus, DollarSign, CheckCircle2, Clock, AlertCircle, Calendar, LayoutGrid, Table, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PaymentsTable } from '@/components/payments/payments-table'
 import { PaymentsGrid } from '@/components/payments/payments-grid'
 import { PaymentFormDialog } from '@/components/payments/payment-form-dialog'
@@ -11,7 +11,11 @@ import { GeneratePaymentsDialog } from '@/components/payments/generate-payments-
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { type Payment } from '@/lib/data/payments'
 import { getPaymentsAction } from '@/app/cobrancas/actions'
-import { getPayments } from '@/lib/data/payments' // Declared the getPayments variable
+
+const months = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+]
 
 export function CobrancasContent() {
   const [payments, setPayments] = useState<Payment[]>([])
@@ -20,6 +24,11 @@ export function CobrancasContent() {
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
   const [activeView, setActiveView] = useState<string>("table")
+  
+  // Filtro por mês
+  const currentDate = new Date()
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth())
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear())
 
   useEffect(() => {
     loadPayments()
@@ -42,17 +51,48 @@ export function CobrancasContent() {
     setSelectedPayment(null)
   }
 
+  // Navegar entre meses
+  const goToPreviousMonth = () => {
+    if (selectedMonth === 0) {
+      setSelectedMonth(11)
+      setSelectedYear(selectedYear - 1)
+    } else {
+      setSelectedMonth(selectedMonth - 1)
+    }
+  }
+
+  const goToNextMonth = () => {
+    if (selectedMonth === 11) {
+      setSelectedMonth(0)
+      setSelectedYear(selectedYear + 1)
+    } else {
+      setSelectedMonth(selectedMonth + 1)
+    }
+  }
+
+  const goToCurrentMonth = () => {
+    const now = new Date()
+    setSelectedMonth(now.getMonth())
+    setSelectedYear(now.getFullYear())
+  }
+
+  // Filtrar pagamentos pelo mês selecionado
+  const filteredPayments = payments.filter((payment) => {
+    const dueDate = new Date(payment.due_date)
+    return dueDate.getMonth() === selectedMonth && dueDate.getFullYear() === selectedYear
+  })
+
   const calculateStats = () => {
-    const total = payments.reduce((sum, p) => sum + p.amount, 0)
-    const paid = payments.filter((p) => p.is_paid).reduce((sum, p) => sum + p.amount, 0)
-    const pending = payments
+    const total = filteredPayments.reduce((sum, p) => sum + p.amount, 0)
+    const paid = filteredPayments.filter((p) => p.is_paid).reduce((sum, p) => sum + p.amount, 0)
+    const pending = filteredPayments
       .filter((p) => !p.is_paid && new Date(p.due_date) >= new Date())
       .reduce((sum, p) => sum + p.amount, 0)
-    const overdue = payments
+    const overdue = filteredPayments
       .filter((p) => !p.is_paid && new Date(p.due_date) < new Date())
       .reduce((sum, p) => sum + p.amount, 0)
 
-    return { total, paid, pending, overdue }
+    return { total, paid, pending, overdue, count: filteredPayments.length }
   }
 
   const formatCurrency = (value: number) => {
@@ -85,6 +125,26 @@ export function CobrancasContent() {
         </div>
       </div>
 
+      {/* Seletor de Mês */}
+      <div className="flex items-center justify-center gap-2 sm:gap-4">
+        <Button variant="outline" size="icon" onClick={goToPreviousMonth}>
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex items-center gap-2">
+          <span className="text-lg sm:text-xl font-semibold min-w-[140px] sm:min-w-[180px] text-center">
+            {months[selectedMonth]} {selectedYear}
+          </span>
+          {(selectedMonth !== currentDate.getMonth() || selectedYear !== currentDate.getFullYear()) && (
+            <Button variant="ghost" size="sm" onClick={goToCurrentMonth} className="text-xs">
+              Hoje
+            </Button>
+          )}
+        </div>
+        <Button variant="outline" size="icon" onClick={goToNextMonth}>
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card>
@@ -95,7 +155,7 @@ export function CobrancasContent() {
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.total)}</div>
             <p className="text-xs text-muted-foreground">
-              {payments.length} pagamentos
+              {stats.count} pagamentos
             </p>
           </CardContent>
         </Card>
@@ -110,7 +170,7 @@ export function CobrancasContent() {
               {formatCurrency(stats.paid)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {payments.filter((p) => p.is_paid).length} pagos
+              {filteredPayments.filter((p) => p.is_paid).length} pagos
             </p>
           </CardContent>
         </Card>
@@ -126,7 +186,7 @@ export function CobrancasContent() {
             </div>
             <p className="text-xs text-muted-foreground">
               {
-                payments.filter(
+                filteredPayments.filter(
                   (p) => !p.is_paid && new Date(p.due_date) >= new Date()
                 ).length
               }{' '}
@@ -146,7 +206,7 @@ export function CobrancasContent() {
             </div>
             <p className="text-xs text-muted-foreground">
               {
-                payments.filter(
+                filteredPayments.filter(
                   (p) => !p.is_paid && new Date(p.due_date) < new Date()
                 ).length
               }{' '}
@@ -184,7 +244,7 @@ export function CobrancasContent() {
 
               <TabsContent value="table" className="mt-6">
                 <PaymentsTable
-                  payments={payments}
+                  payments={filteredPayments}
                   onUpdate={loadPayments}
                   onEdit={handleEdit}
                 />
@@ -192,7 +252,7 @@ export function CobrancasContent() {
 
               <TabsContent value="grid" className="mt-6">
                 <PaymentsGrid
-                  payments={payments}
+                  payments={filteredPayments}
                   onUpdate={loadPayments}
                   onEdit={handleEdit}
                 />
