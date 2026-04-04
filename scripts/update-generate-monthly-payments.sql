@@ -1,6 +1,9 @@
 -- Update the generate_monthly_payments function to only include active clients
 -- This ensures that clients with status 'Pausado' or 'Cancelado' are excluded
 
+-- First, drop the existing function to allow changing the return type
+DROP FUNCTION IF EXISTS generate_monthly_payments(INTEGER, INTEGER);
+
 CREATE OR REPLACE FUNCTION generate_monthly_payments(p_month INTEGER, p_year INTEGER)
 RETURNS TABLE(success BOOLEAN, message TEXT, created_count INTEGER) AS $$
 DECLARE
