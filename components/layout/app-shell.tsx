@@ -6,6 +6,7 @@ import { useState, createContext, useContext } from 'react'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
 import type { UserRole } from '@/lib/mock-data'
+import { cn } from '@/lib/utils'
 
 interface AppContextType {
   currentRole: UserRole
@@ -28,12 +29,21 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const [currentRole, setCurrentRole] = useState<UserRole>('Admin')
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   return (
     <AppContext.Provider value={{ currentRole, setCurrentRole }}>
       <div className="min-h-screen bg-background">
-        <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
-        <div className="lg:pl-64 transition-all duration-300">
+        <Sidebar 
+          mobileOpen={mobileOpen} 
+          setMobileOpen={setMobileOpen}
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
+        />
+        <div className={cn(
+          'transition-all duration-300',
+          sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
+        )}>
           <Topbar
             currentRole={currentRole}
             onRoleChange={setCurrentRole}
