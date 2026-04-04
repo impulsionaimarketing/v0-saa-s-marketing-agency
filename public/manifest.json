@@ -1,0 +1,28 @@
+{
+  "name": "Dashboard Impulsionaí Marketing",
+  "short_name": "Impulsionaí",
+  "description": "Plataforma de gestão interna para agências de marketing digital",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a1f",
+  "theme_color": "#1a1a1f",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "pt-BR",
+  "dir": "ltr"
+}
