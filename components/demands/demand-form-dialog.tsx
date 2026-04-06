@@ -93,7 +93,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
   async function loadOptions() {
     try {
       const [clientsData, usersData] = await Promise.all([
-        getClients({ status: 'Ativo' }),
+        getClients(),
         getUsers({ status: 'Ativo' }),
       ])
       setClients(clientsData)
