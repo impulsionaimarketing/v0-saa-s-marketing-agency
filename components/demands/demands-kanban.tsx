@@ -787,6 +787,11 @@ export function DemandsKanban() {
                               onClick={() => openDetail(demand)}
                               className="text-left w-full group"
                             >
+                              {demand.client_name && (
+                                <p className="text-xs font-semibold text-primary mb-1 truncate">
+                                  {demand.client_name}
+                                </p>
+                              )}
                               <div className="flex items-center gap-1.5">
                                 {isVideo && <Film className="h-3 w-3 text-chart-2 shrink-0" />}
                                 {isArte && <Palette className="h-3 w-3 text-chart-3 shrink-0" />}
@@ -794,7 +799,6 @@ export function DemandsKanban() {
                                   {demand.name}
                                 </p>
                               </div>
-                              <p className="text-xs text-muted-foreground mt-0.5">{demand.client_name}</p>
                             </button>
 
                             {demand.description && (
@@ -811,8 +815,8 @@ export function DemandsKanban() {
 
                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
                               <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                <User className="h-3 w-3" />
-                                <span className="truncate max-w-[80px]">{demand.responsible_name || 'Não atribuído'}</span>
+                                <User className="h-3 w-3 shrink-0" />
+                                <span className="truncate max-w-[100px]">{demand.responsible_name || 'Não atribuído'}</span>
                               </div>
                               {demand.deadline && (
                                 <div className={cn(
