@@ -765,9 +765,9 @@ export function DemandsChecklist() {
   }
 
   // Summary stats
-  const totalDemands = sortedDemands.length
-  const completedDemands = sortedDemands.filter(d => d.status === 'Publicado').length
-  const overdueDemands = sortedDemands.filter(d => isOverdue(d.deadline, d.status)).length
+  const totalDemands = filteredDemands.length
+  const completedDemands = filteredDemands.filter(d => d.status === 'Publicado').length
+  const overdueDemands = filteredDemands.filter(d => isOverdue(d.deadline, d.status)).length
 
   if (isLoading) {
     return (
