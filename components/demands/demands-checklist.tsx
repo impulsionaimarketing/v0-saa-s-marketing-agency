@@ -83,8 +83,32 @@ function isOverdue(deadline: string | null, status: DemandStatus): boolean {
   if (!deadline || status === 'Publicado') return false
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const d = new Date(deadline + 'T00:00:00')
+  const d = parseDeadline(deadline)
   return d < now
+}
+
+// Parse deadline handling both date-only strings and ISO datetime strings
+function parseDeadline(deadline: string): Date {
+  // If it's just a date (YYYY-MM-DD), add time to avoid timezone issues
+  if (deadline.length === 10 && !deadline.includes('T')) {
+    return new Date(deadline + 'T00:00:00')
+  }
+  // Otherwise parse as-is
+  return new Date(deadline)
+}
+
+// Format deadline for display (short)
+function formatDeadline(deadline: string): string {
+  const date = parseDeadline(deadline)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+}
+
+// Format deadline for display (full)
+function formatDeadlineFull(deadline: string): string {
+  const date = parseDeadline(deadline)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 // ─── Detail Sheet ────────────────────────────────────────────────────────────
@@ -181,16 +205,7 @@ function DemandDetailSheet({
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Prazo</p>
               <p className={cn('text-sm font-medium', overdue && 'text-destructive')}>
-                {demand.deadline
-                  ? new Date(demand.deadline).toLocaleString('pt-BR', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour12: false,
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })
-                  : '—'}
+                {demand.deadline ? formatDeadlineFull(demand.deadline) : '—'}
               </p>
             </div>
             <div className="space-y-1">
@@ -394,7 +409,7 @@ function DemandDetailSheet({
   )
 }
 
-// ─── Task Item ───────────────────────────────────────────────────────────────
+// ─── Task Item ───���───────────────────────────────────────────────────────────
 function TaskItem({
   demand,
   onToggleComplete,
@@ -465,15 +480,13 @@ function TaskItem({
                 overdue ? "text-destructive font-medium" : "text-muted-foreground"
               )}>
                 <Calendar className="h-3 w-3" />
-                {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                {formatDeadline(demand.deadline)}
               </span>
             )}
-            {demand.responsible_name && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <User className="h-3 w-3" />
-                <span className="truncate max-w-[100px]">{demand.responsible_name}</span>
-              </span>
-            )}
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <User className="h-3 w-3" />
+              <span className="truncate max-w-[120px]">{demand.responsible_name || 'Não atribuído'}</span>
+            </span>
           </div>
         </div>
 
@@ -582,7 +595,8 @@ export function DemandsChecklist() {
     dateFrom: '',
     dateTo: '',
     statusFilter: 'all' as 'all' | 'a-fazer' | 'feito' | 'atrasado',
-    sortOption: 'none' as 'none' | 'deadline-asc' | 'deadline-desc',
+    sortTasks: 'deadline-asc' as 'deadline-asc' | 'deadline-desc' | 'name-asc' | 'name-desc' | 'priority-desc' | 'priority-asc' | 'created-desc' | 'created-asc',
+    sortClients: 'name-asc' as 'name-asc' | 'name-desc' | 'tasks-desc' | 'tasks-asc' | 'overdue-desc',
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
@@ -670,26 +684,46 @@ export function DemandsChecklist() {
     })
   }, [demandItems, filters])
 
-  const sortedDemands = useMemo(() => {
-    const { sortOption } = filters
-    if (sortOption === 'none') return filteredDemands
+  // Priority order mapping for sorting
+  const priorityOrder = { high: 3, medium: 2, low: 1 }
 
-    return [...filteredDemands].sort((a, b) => {
-      const dateA = a.deadline ? new Date(a.deadline).getTime() : Infinity
-      const dateB = b.deadline ? new Date(b.deadline).getTime() : Infinity
-
-      if (sortOption === 'deadline-asc') {
-        return dateA - dateB
+  // Sort tasks function
+  const sortTasks = (tasks: Demand[], sortBy: string): Demand[] => {
+    return [...tasks].sort((a, b) => {
+      switch (sortBy) {
+        case 'deadline-asc': {
+          const dateA = a.deadline ? new Date(a.deadline + 'T00:00:00').getTime() : Infinity
+          const dateB = b.deadline ? new Date(b.deadline + 'T00:00:00').getTime() : Infinity
+          return dateA - dateB
+        }
+        case 'deadline-desc': {
+          const dateA = a.deadline ? new Date(a.deadline + 'T00:00:00').getTime() : -Infinity
+          const dateB = b.deadline ? new Date(b.deadline + 'T00:00:00').getTime() : -Infinity
+          return dateB - dateA
+        }
+        case 'name-asc':
+          return a.name.localeCompare(b.name, 'pt-BR')
+        case 'name-desc':
+          return b.name.localeCompare(a.name, 'pt-BR')
+        case 'priority-desc':
+          return priorityOrder[b.priority] - priorityOrder[a.priority]
+        case 'priority-asc':
+          return priorityOrder[a.priority] - priorityOrder[b.priority]
+        case 'created-desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case 'created-asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        default:
+          return 0
       }
-      return dateB - dateA
     })
-  }, [filteredDemands, filters.sortOption])
+  }
 
   // Group demands by client
   const demandsByClient = useMemo(() => {
     const grouped: Record<string, Demand[]> = {}
     
-    for (const demand of sortedDemands) {
+    for (const demand of filteredDemands) {
       const clientName = demand.client_name || 'Sem cliente'
       if (!grouped[clientName]) {
         grouped[clientName] = []
@@ -697,9 +731,33 @@ export function DemandsChecklist() {
       grouped[clientName].push(demand)
     }
     
-    // Sort clients alphabetically
-    return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b))
-  }, [sortedDemands])
+    // Sort tasks within each client group
+    const sortedGroups = Object.entries(grouped).map(([clientName, tasks]) => {
+      return [clientName, sortTasks(tasks, filters.sortTasks)] as [string, Demand[]]
+    })
+
+    // Sort client groups
+    const { sortClients } = filters
+    return sortedGroups.sort(([nameA, tasksA], [nameB, tasksB]) => {
+      switch (sortClients) {
+        case 'name-asc':
+          return nameA.localeCompare(nameB, 'pt-BR')
+        case 'name-desc':
+          return nameB.localeCompare(nameA, 'pt-BR')
+        case 'tasks-desc':
+          return tasksB.length - tasksA.length
+        case 'tasks-asc':
+          return tasksA.length - tasksB.length
+        case 'overdue-desc': {
+          const overdueA = tasksA.filter(d => isOverdue(d.deadline, d.status)).length
+          const overdueB = tasksB.filter(d => isOverdue(d.deadline, d.status)).length
+          return overdueB - overdueA
+        }
+        default:
+          return 0
+      }
+    })
+  }, [filteredDemands, filters.sortTasks, filters.sortClients])
 
   const openDetail = (demand: Demand) => {
     setSelectedDemand(demand)
@@ -842,14 +900,32 @@ export function DemandsChecklist() {
                 </SelectContent>
               </Select>
 
-              <Select value={filters.sortOption} onValueChange={(v) => setFilter('sortOption', v)}>
-                <SelectTrigger className="w-full sm:w-40 bg-secondary border-border text-xs sm:text-sm">
-                  <SelectValue placeholder="Ordenar por" />
+              <Select value={filters.sortClients} onValueChange={(v) => setFilter('sortClients', v)}>
+                <SelectTrigger className="w-full sm:w-44 bg-secondary border-border text-xs sm:text-sm">
+                  <SelectValue placeholder="Ordenar clientes" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sem ordenação</SelectItem>
+                  <SelectItem value="name-asc">Cliente A-Z</SelectItem>
+                  <SelectItem value="name-desc">Cliente Z-A</SelectItem>
+                  <SelectItem value="tasks-desc">Mais tarefas</SelectItem>
+                  <SelectItem value="tasks-asc">Menos tarefas</SelectItem>
+                  <SelectItem value="overdue-desc">Mais atrasados</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={filters.sortTasks} onValueChange={(v) => setFilter('sortTasks', v)}>
+                <SelectTrigger className="w-full sm:w-44 bg-secondary border-border text-xs sm:text-sm">
+                  <SelectValue placeholder="Ordenar tarefas" />
+                </SelectTrigger>
+                <SelectContent>
                   <SelectItem value="deadline-asc">Prazo (mais próximo)</SelectItem>
                   <SelectItem value="deadline-desc">Prazo (mais distante)</SelectItem>
+                  <SelectItem value="name-asc">Nome A-Z</SelectItem>
+                  <SelectItem value="name-desc">Nome Z-A</SelectItem>
+                  <SelectItem value="priority-desc">Prioridade (alta primeiro)</SelectItem>
+                  <SelectItem value="priority-asc">Prioridade (baixa primeiro)</SelectItem>
+                  <SelectItem value="created-desc">Mais recentes</SelectItem>
+                  <SelectItem value="created-asc">Mais antigas</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -872,7 +948,7 @@ export function DemandsChecklist() {
                 />
               </div>
 
-              {(filters.dateFrom || filters.dateTo || filters.clientFilter !== 'all' || (filters.areaFilter as string[]).length > 0 || filters.responsibleFilter !== 'all' || filters.statusFilter !== 'all') && (
+              {(filters.dateFrom || filters.dateTo || filters.clientFilter !== 'all' || (filters.areaFilter as string[]).length > 0 || filters.responsibleFilter !== 'all' || filters.statusFilter !== 'all' || filters.sortClients !== 'name-asc' || filters.sortTasks !== 'deadline-asc') && (
                 <button
                   type="button"
                   onClick={resetFilters}
