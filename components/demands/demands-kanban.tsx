@@ -49,7 +49,7 @@ function isOverdue(deadline: string | null, status: DemandStatus): boolean {
   if (!deadline || status === 'Publicado') return false
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const d = new Date(deadline + 'T00:00:00')
+  const d = new Date(deadline)
   return d < now
 }
 
@@ -132,13 +132,10 @@ function DemandDetailModal({
               <p className="text-xs text-muted-foreground mb-1">Prazo</p>
               <p className={cn('font-medium', overdue && 'text-destructive')}>
                 {demand.deadline
-                  ? new Date(demand.deadline).toLocaleString('pt-BR', {
+                  ? new Date(demand.deadline).toLocaleDateString('pt-BR', {
                       year: 'numeric',
                       month: '2-digit',
                       day: '2-digit',
-                      hour12: false,
-                      hour: '2-digit',
-                      minute: '2-digit'
                     })
                   : '—'}
               </p>
@@ -379,12 +376,12 @@ export function DemandsKanban() {
 
       let matchesDate = true
       if (demand.deadline) {
-        const demandDate = new Date(demand.deadline + 'T00:00:00')
+        const demandDate = new Date(demand.deadline)
         if (dateFrom) {
-          if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
+          if (demandDate < new Date(dateFrom)) matchesDate = false
         }
         if (dateTo) {
-          if (demandDate > new Date(dateTo + 'T23:59:59')) matchesDate = false
+          if (demandDate > new Date(dateTo)) matchesDate = false
         }
       } else if (dateFrom || dateTo) {
         matchesDate = false
@@ -821,7 +818,7 @@ export function DemandsKanban() {
                                 )}>
                                   <Calendar className="h-3 w-3" />
                                   <span>
-                                    {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                    {new Date(demand.deadline).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
                                   </span>
                                 </div>
                               )}
