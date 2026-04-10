@@ -671,12 +671,16 @@ export function DemandsChecklist() {
 
       let matchesDate = true
       if (demand.deadline) {
-        const demandDate = new Date(demand.deadline + 'T00:00:00')
+        const demandDate = parseDeadline(demand.deadline)
         if (dateFrom) {
-          if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
+          // dateFrom from datetime-local is "YYYY-MM-DDTHH:MM"
+          const fromDate = new Date(dateFrom)
+          if (demandDate < fromDate) matchesDate = false
         }
         if (dateTo) {
-          if (demandDate > new Date(dateTo + 'T23:59:59')) matchesDate = false
+          // dateTo from datetime-local is "YYYY-MM-DDTHH:MM"
+          const toDate = new Date(dateTo)
+          if (demandDate > toDate) matchesDate = false
         }
       } else if (dateFrom || dateTo) {
         matchesDate = false
@@ -694,13 +698,13 @@ export function DemandsChecklist() {
     return [...tasks].sort((a, b) => {
       switch (sortBy) {
         case 'deadline-asc': {
-          const dateA = a.deadline ? new Date(a.deadline + 'T00:00:00').getTime() : Infinity
-          const dateB = b.deadline ? new Date(b.deadline + 'T00:00:00').getTime() : Infinity
+          const dateA = a.deadline ? parseDeadline(a.deadline).getTime() : Infinity
+          const dateB = b.deadline ? parseDeadline(b.deadline).getTime() : Infinity
           return dateA - dateB
         }
         case 'deadline-desc': {
-          const dateA = a.deadline ? new Date(a.deadline + 'T00:00:00').getTime() : -Infinity
-          const dateB = b.deadline ? new Date(b.deadline + 'T00:00:00').getTime() : -Infinity
+          const dateA = a.deadline ? parseDeadline(a.deadline).getTime() : -Infinity
+          const dateB = b.deadline ? parseDeadline(b.deadline).getTime() : -Infinity
           return dateB - dateA
         }
         case 'name-asc':
