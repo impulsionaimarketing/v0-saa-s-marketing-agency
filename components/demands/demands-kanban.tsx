@@ -49,8 +49,34 @@ function isOverdue(deadline: string | null, status: DemandStatus): boolean {
   if (!deadline || status === 'Publicado') return false
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const d = new Date(deadline + 'T00:00:00')
+  const d = parseDeadline(deadline)
   return d < now
+}
+
+// Parse deadline handling both date-only strings and ISO datetime strings
+function parseDeadline(deadline: string): Date {
+  // If it's just a date (YYYY-MM-DD), add time to avoid timezone issues
+  if (deadline.length === 10 && !deadline.includes('T')) {
+    return new Date(deadline + 'T00:00:00')
+  }
+  // Otherwise parse as-is
+  return new Date(deadline)
+}
+
+// Format deadline for display (short - with time)
+function formatDeadline(deadline: string): string {
+  const date = parseDeadline(deadline)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + 
+    date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+// Format deadline for display (full - with date and time)
+function formatDeadlineFull(deadline: string): string {
+  const date = parseDeadline(deadline)
+  if (isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + 
+    date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 // ─── Detail Modal ────────────────────────────────────────────────────────────
@@ -131,16 +157,7 @@ function DemandDetailModal({
             <div>
               <p className="text-xs text-muted-foreground mb-1">Prazo</p>
               <p className={cn('font-medium', overdue && 'text-destructive')}>
-                {demand.deadline
-                  ? new Date(demand.deadline).toLocaleString('pt-BR', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour12: false,
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })
-                  : '—'}
+                {demand.deadline ? formatDeadlineFull(demand.deadline) : '—'}
               </p>
             </div>
             <div>
@@ -821,7 +838,7 @@ export function DemandsKanban() {
                                 )}>
                                   <Calendar className="h-3 w-3" />
                                   <span>
-                                    {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                    {formatDeadline(demand.deadline)}
                                   </span>
                                 </div>
                               )}

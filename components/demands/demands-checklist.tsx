@@ -97,18 +97,20 @@ function parseDeadline(deadline: string): Date {
   return new Date(deadline)
 }
 
-// Format deadline for display (short)
+// Format deadline for display (short - with time)
 function formatDeadline(deadline: string): string {
   const date = parseDeadline(deadline)
   if (isNaN(date.getTime())) return '—'
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + 
+    date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
-// Format deadline for display (full)
+// Format deadline for display (full - with date and time)
 function formatDeadlineFull(deadline: string): string {
   const date = parseDeadline(deadline)
   if (isNaN(date.getTime())) return '—'
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + 
+    date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 // ─── Detail Sheet ────────────────────────────────────────────────────────────
