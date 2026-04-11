@@ -44,6 +44,7 @@ export function AgentChat() {
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
+  const transcriptRef = useRef<string>('')
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -100,6 +101,9 @@ export function AgentChat() {
     }
 
     try {
+      // Reset transcript
+      transcriptRef.current = ''
+
       // Get microphone access for visualization
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mediaStreamRef.current = stream
@@ -119,42 +123,51 @@ export function AgentChat() {
       const recognition = new SpeechRecognition()
       recognition.lang = 'pt-BR'
       recognition.continuous = true
-      recognition.interimResults = false
+      recognition.interimResults = true
       recognitionRef.current = recognition
 
-      recognition.onstart = () => setIsListening(true)
+      recognition.onstart = () => {
+        console.log('[v0] Speech recognition started')
+        setIsListening(true)
+      }
       
       recognition.onend = () => {
-        // Only process if we were actively listening
-        if (isListening) {
-          setIsListening(false)
-        }
+        console.log('[v0] Speech recognition ended')
       }
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        const lastResult = event.results[event.results.length - 1]
-        if (lastResult.isFinal) {
-          const transcript = lastResult[0].transcript
-          setInput(prev => prev + ' ' + transcript)
+        console.log('[v0] Speech recognition result:', event.results)
+        let fullTranscript = ''
+        for (let i = 0; i < event.results.length; i++) {
+          fullTranscript += event.results[i][0].transcript
         }
+        transcriptRef.current = fullTranscript
+        console.log('[v0] Current transcript:', fullTranscript)
       }
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('Erro no reconhecimento de voz:', event.error)
-        stopListening()
+        console.error('[v0] Speech recognition error:', event.error)
+        if (event.error !== 'aborted') {
+          stopListening()
+        }
       }
 
       recognition.start()
       setIsListening(true)
     } catch (error) {
-      console.error('Erro ao acessar microfone:', error)
+      console.error('[v0] Error accessing microphone:', error)
       alert('Não foi possível acessar o microfone.')
     }
-  }, [updateAudioLevels, isListening])
+  }, [updateAudioLevels])
 
   const stopListening = useCallback(() => {
+    console.log('[v0] stopListening called, transcript:', transcriptRef.current)
     setIsListening(false)
     setIsProcessingAudio(true)
+
+    // Capture transcript before stopping
+    const capturedTranscript = transcriptRef.current.trim()
+    console.log('[v0] Captured transcript:', capturedTranscript)
 
     // Stop speech recognition
     if (recognitionRef.current) {
@@ -183,18 +196,17 @@ export function AgentChat() {
     // Reset audio levels
     setAudioLevels(Array(20).fill(0.1))
 
-    // Simulate processing time then send message
+    // Small delay to show processing, then send captured transcript
     setTimeout(() => {
       setIsProcessingAudio(false)
-      // Get the current input value and send if not empty
-      setInput(currentInput => {
-        if (currentInput.trim()) {
-          sendMessage(currentInput.trim())
-          return ''
-        }
-        return currentInput
-      })
-    }, 500)
+      if (capturedTranscript) {
+        console.log('[v0] Sending message:', capturedTranscript)
+        sendMessage(capturedTranscript)
+      } else {
+        console.log('[v0] No transcript to send')
+      }
+      transcriptRef.current = ''
+    }, 300)
   }, [])
 
   const sendMessage = async (text: string) => {
