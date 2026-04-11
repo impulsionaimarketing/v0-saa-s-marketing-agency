@@ -5,6 +5,7 @@ import React from "react"
 import { useState, createContext, useContext } from 'react'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
+import { AgentChat } from '@/components/ai-agent/agent-chat'
 import type { UserRole } from '@/lib/mock-data'
 
 interface AppContextType {
@@ -43,6 +44,7 @@ export function AppShell({ children }: AppShellProps) {
             {children}
           </main>
         </div>
+        <AgentChat />
       </div>
     </AppContext.Provider>
   )
