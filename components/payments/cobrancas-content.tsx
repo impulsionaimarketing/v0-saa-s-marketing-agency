@@ -3,11 +3,12 @@
 import { useState, useEffect, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, DollarSign, CheckCircle2, Clock, AlertCircle, Calendar, LayoutGrid, Table } from 'lucide-react'
+import { Plus, DollarSign, CheckCircle2, Clock, AlertCircle, Calendar, LayoutGrid, Table, PlusCircle } from 'lucide-react'
 import { PaymentsTable } from '@/components/payments/payments-table'
 import { PaymentsGrid } from '@/components/payments/payments-grid'
 import { PaymentFormDialog } from '@/components/payments/payment-form-dialog'
 import { GeneratePaymentsDialog } from '@/components/payments/generate-payments-dialog'
+import { PaymentFilters } from '@/components/payments/payment-filters'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { type Payment } from '@/lib/data/payments'
 import { getPaymentsAction } from '@/app/cobrancas/actions'
@@ -15,6 +16,7 @@ import { getPayments } from '@/lib/data/payments' // Declared the getPayments va
 
 export function CobrancasContent() {
   const [payments, setPayments] = useState<Payment[]>([])
+  const [filteredPayments, setFilteredPayments] = useState<Payment[]>([])
   const [isPending, startTransition] = useTransition()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isGenerateDialogOpen, setIsGenerateDialogOpen] = useState(false)
@@ -29,6 +31,7 @@ export function CobrancasContent() {
     startTransition(async () => {
       const data = await getPaymentsAction()
       setPayments(data)
+      setFilteredPayments(data)
     })
   }
 
@@ -42,13 +45,13 @@ export function CobrancasContent() {
     setSelectedPayment(null)
   }
 
-  const calculateStats = () => {
-    const total = payments.reduce((sum, p) => sum + p.amount, 0)
-    const paid = payments.filter((p) => p.is_paid).reduce((sum, p) => sum + p.amount, 0)
-    const pending = payments
+  const calculateStats = (data: Payment[] = payments) => {
+    const total = data.reduce((sum, p) => sum + p.amount, 0)
+    const paid = data.filter((p) => p.is_paid).reduce((sum, p) => sum + p.amount, 0)
+    const pending = data
       .filter((p) => !p.is_paid && new Date(p.due_date) >= new Date())
       .reduce((sum, p) => sum + p.amount, 0)
-    const overdue = payments
+    const overdue = data
       .filter((p) => !p.is_paid && new Date(p.due_date) < new Date())
       .reduce((sum, p) => sum + p.amount, 0)
 
@@ -62,7 +65,7 @@ export function CobrancasContent() {
     }).format(value)
   }
 
-  const stats = calculateStats()
+  const stats = calculateStats(filteredPayments)
 
   return (
     <div className="space-y-6">
@@ -78,7 +81,13 @@ export function CobrancasContent() {
             <Calendar className="mr-2 h-4 w-4" />
             Gerar Pagamentos do Mês
           </Button>
-          <Button onClick={() => setIsDialogOpen(true)} className="w-full sm:w-auto">
+          <Button 
+            onClick={() => {
+              setSelectedPayment(null)
+              setIsDialogOpen(true)
+            }} 
+            className="w-full sm:w-auto"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Novo Pagamento
           </Button>
@@ -159,15 +168,26 @@ export function CobrancasContent() {
       {/* Payments View */}
       <Card>
         <CardHeader>
-          <CardTitle>Pagamentos</CardTitle>
-          <CardDescription>
-            Marque os pagamentos como recebidos ao clicar no checkbox
-          </CardDescription>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Pagamentos</CardTitle>
+              <CardDescription>
+                Marque os pagamentos como recebidos ao clicar no checkbox
+              </CardDescription>
+            </div>
+          </div>
+          <div className="mt-4">
+            <PaymentFilters payments={payments} onFiltersChange={setFilteredPayments} />
+          </div>
         </CardHeader>
         <CardContent>
           {isPending ? (
             <div className="text-center py-12 text-muted-foreground">
               Carregando pagamentos...
+            </div>
+          ) : filteredPayments.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              Nenhum pagamento encontrado com os filtros selecionados
             </div>
           ) : (
             <Tabs value={activeView} onValueChange={setActiveView} className="w-full">
@@ -184,7 +204,7 @@ export function CobrancasContent() {
 
               <TabsContent value="table" className="mt-6">
                 <PaymentsTable
-                  payments={payments}
+                  payments={filteredPayments}
                   onUpdate={loadPayments}
                   onEdit={handleEdit}
                 />
@@ -192,7 +212,7 @@ export function CobrancasContent() {
 
               <TabsContent value="grid" className="mt-6">
                 <PaymentsGrid
-                  payments={payments}
+                  payments={filteredPayments}
                   onUpdate={loadPayments}
                   onEdit={handleEdit}
                 />
