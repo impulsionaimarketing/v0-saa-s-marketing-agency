@@ -341,33 +341,29 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
         />
       </div>
 
-      {/* Export PDF Section */}
-      {selectedMonth && selectedYear && (
+      {/* Export PDF Section - Always show if there are plannings */}
+      {plannings.length > 0 && (
         <div className="mt-8 pt-8 border-t border-border">
-          {(() => {
-            const selectedPlanning = plannings.find(
-              p => p.month === selectedMonth && p.year === selectedYear
-            )
-            if (!selectedPlanning) return null
-            
-            return (
-              <ExportPdfSection
-                planning={selectedPlanning}
-                videoScripts={videoScripts}
-                arteBriefs={arteBriefs}
-                clientName={clientName}
-                onPdfGenerated={(pdfUrl) => {
-                  // Update the local planning state with the new pdf_url
-                  setPlannings(prev => prev.map(p => 
-                    p.id === selectedPlanning.id 
-                      ? { ...p, pdf_url: pdfUrl }
-                      : p
-                  ))
-                  loadExportData()
-                }}
-              />
-            )
-          })()}
+          <ExportPdfSection
+            plannings={plannings}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+            videoScripts={videoScripts}
+            arteBriefs={arteBriefs}
+            clientName={clientName}
+            onMonthChange={(month, year) => {
+              setSelectedMonth(month)
+              setSelectedYear(year)
+            }}
+            onPdfGenerated={(planningId, pdfUrl) => {
+              setPlannings(prev => prev.map(p => 
+                p.id === planningId 
+                  ? { ...p, pdf_url: pdfUrl }
+                  : p
+              ))
+              loadExportData()
+            }}
+          />
         </div>
       )}
     </div>

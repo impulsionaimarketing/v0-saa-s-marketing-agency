@@ -6,17 +6,20 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { Video, ImageIcon, FileDown, Loader2, Download, AlertCircle } from 'lucide-react'
+import { Video, ImageIcon, FileDown, Loader2, Download, AlertCircle, Calendar } from 'lucide-react'
 import { type VideoScript } from '@/lib/data/video-scripts'
 import { type ArteBrief } from '@/lib/data/arte-briefs'
 import { type MonthlyPlanning, updateMonthlyPlanningPdfUrl } from '@/lib/data/monthly-plannings'
 
 interface ExportPdfSectionProps {
-  planning: MonthlyPlanning
+  plannings: MonthlyPlanning[]
+  selectedMonth: number | null
+  selectedYear: number | null
   videoScripts: VideoScript[]
   arteBriefs: ArteBrief[]
   clientName: string
-  onPdfGenerated: (pdfUrl: string) => void
+  onMonthChange: (month: number, year: number) => void
+  onPdfGenerated: (planningId: string, pdfUrl: string) => void
 }
 
 const MONTHS = [
@@ -33,10 +36,13 @@ const statusColors: Record<string, string> = {
 }
 
 export function ExportPdfSection({ 
-  planning, 
+  plannings,
+  selectedMonth,
+  selectedYear,
   videoScripts, 
   arteBriefs, 
   clientName,
+  onMonthChange,
   onPdfGenerated 
 }: ExportPdfSectionProps) {
   const [selectedVideos, setSelectedVideos] = useState<string[]>([])
@@ -44,12 +50,17 @@ export function ExportPdfSection({
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Get current selected planning
+  const selectedPlanning = plannings.find(
+    p => p.month === selectedMonth && p.year === selectedYear
+  )
+
   // Reset selections when planning changes
   useEffect(() => {
     setSelectedVideos([])
     setSelectedArtes([])
     setError(null)
-  }, [planning.id])
+  }, [selectedMonth, selectedYear])
 
   const handleSelectAllVideos = (checked: boolean) => {
     if (checked) {
@@ -84,6 +95,11 @@ export function ExportPdfSection({
   }
 
   const handleGeneratePdf = async () => {
+    if (!selectedPlanning) {
+      setError('Selecione um mes primeiro')
+      return
+    }
+
     if (selectedVideos.length === 0 && selectedArtes.length === 0) {
       setError('Selecione pelo menos um item para exportar')
       return
@@ -98,10 +114,10 @@ export function ExportPdfSection({
       const selectedArteItems = arteBriefs.filter(a => selectedArtes.includes(a.id))
 
       const payload = {
-        planning_id: planning.id,
+        planning_id: selectedPlanning.id,
         cliente: clientName,
-        mes: MONTHS[planning.month - 1],
-        ano: planning.year,
+        mes: MONTHS[selectedPlanning.month - 1],
+        ano: selectedPlanning.year,
         itens: [
           ...selectedVideoItems.map(video => ({
             tipo: 'video',
@@ -142,14 +158,14 @@ export function ExportPdfSection({
       const result = await response.json()
 
       if (!result.pdf_url) {
-        throw new Error('URL do PDF não retornada')
+        throw new Error('URL do PDF nao retornada')
       }
 
       // Save the PDF URL to the database
-      await updateMonthlyPlanningPdfUrl(planning.id, result.pdf_url)
+      await updateMonthlyPlanningPdfUrl(selectedPlanning.id, result.pdf_url)
 
       // Notify parent component
-      onPdfGenerated(result.pdf_url)
+      onPdfGenerated(selectedPlanning.id, result.pdf_url)
 
     } catch (err) {
       console.error('[v0] Error generating PDF:', err)
@@ -164,33 +180,62 @@ export function ExportPdfSection({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <CardTitle className="flex items-center gap-2">
               <FileDown className="h-5 w-5" />
               Exportar PDF do Planejamento
             </CardTitle>
             <CardDescription>
-              Selecione os itens que deseja incluir no PDF
+              Selecione o mes e os itens para gerar o PDF
             </CardDescription>
           </div>
-          {planning.pdf_url && (
-            <Button
-              variant="outline"
-              onClick={() => window.open(planning.pdf_url!, '_blank')}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Baixar PDF
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Month Selector */}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <select
+                className="px-3 py-2 border rounded-md bg-background text-sm"
+                value={selectedMonth && selectedYear ? `${selectedMonth}-${selectedYear}` : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const [month, year] = e.target.value.split('-').map(Number)
+                    onMonthChange(month, year)
+                  }
+                }}
+              >
+                <option value="">Selecione o mes</option>
+                {plannings.map((planning) => (
+                  <option key={planning.id} value={`${planning.month}-${planning.year}`}>
+                    {MONTHS[planning.month - 1]} {planning.year}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedPlanning?.pdf_url && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(selectedPlanning.pdf_url!, '_blank')}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Baixar PDF
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        {!hasItems ? (
+        {!selectedMonth || !selectedYear ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Calendar className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+            <p>Selecione um mes acima para visualizar os itens disponiveis.</p>
+          </div>
+        ) : !hasItems ? (
           <div className="text-center py-8 text-muted-foreground">
             <FileDown className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
-            <p>Nenhum roteiro ou briefing disponivel para exportar.</p>
-            <p className="text-sm mt-1">Crie itens primeiro na seção acima.</p>
+            <p>Nenhum roteiro ou briefing disponivel para {MONTHS[selectedMonth - 1]} {selectedYear}.</p>
+            <p className="text-sm mt-1">Crie itens primeiro na secao de Roteiros e Briefings acima.</p>
           </div>
         ) : (
           <>
