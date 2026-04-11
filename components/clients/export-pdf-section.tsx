@@ -142,8 +142,6 @@ export function ExportPdfSection({
         ]
       }
 
-      console.log('[v0] Sending PDF generation request:', payload)
-
       // Send to webhook with timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
@@ -159,36 +157,37 @@ export function ExportPdfSection({
 
       clearTimeout(timeoutId)
 
-      console.log('[v0] PDF webhook response status:', response.status)
-
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('[v0] Webhook error response:', errorText)
         throw new Error(`Erro do servidor (${response.status}): ${errorText || 'Resposta invalida'}`)
       }
 
       let result
       try {
         result = await response.json()
-        console.log('[v0] Webhook response:', result)
       } catch (parseError) {
-        console.error('[v0] Failed to parse response:', parseError)
         throw new Error('Resposta invalida do servidor')
       }
 
       if (!result.pdf_url) {
-        console.error('[v0] No pdf_url in response:', result)
         throw new Error('Servidor nao retornou URL do PDF')
       }
 
-      console.log('[v0] PDF URL received:', result.pdf_url)
+      const pdfUrl = result.pdf_url
 
-      // Save the PDF URL to the database
-      await updateMonthlyPlanningPdfUrl(selectedPlanning.id, result.pdf_url)
-      console.log('[v0] PDF URL saved to database')
+      // Open PDF in new tab immediately
+      window.open(pdfUrl, '_blank')
 
-      // Notify parent component
-      onPdfGenerated(selectedPlanning.id, result.pdf_url)
+      // Try to save the PDF URL to the database (don't fail if this errors)
+      try {
+        await updateMonthlyPlanningPdfUrl(selectedPlanning.id, pdfUrl)
+        onPdfGenerated(selectedPlanning.id, pdfUrl)
+      } catch (dbError) {
+        console.error('[v0] Error saving PDF URL to database:', dbError)
+        // Still consider it a success since the PDF was generated
+        onPdfGenerated(selectedPlanning.id, pdfUrl)
+      }
+      
       setError(null)
 
     } catch (err) {
@@ -197,9 +196,9 @@ export function ExportPdfSection({
       let errorMessage = 'Erro ao gerar PDF. Tente novamente.'
       
       if (err instanceof TypeError) {
-        if (err.message.includes('AbortError')) {
+        if (err.message.includes('AbortError') || err.name === 'AbortError') {
           errorMessage = 'Requisicao expirou. A geracao demorou muito. Tente novamente.'
-        } else if (err.message.includes('Failed to fetch')) {
+        } else if (err.message.includes('Failed to fetch') || err.message.includes('fetch')) {
           errorMessage = 'Erro de conexao. Verifique sua internet e tente novamente.'
         }
       } else if (err instanceof Error) {
