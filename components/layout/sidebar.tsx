@@ -56,6 +56,8 @@ const menuItems: MenuItem[] = [
 interface SidebarProps {
   mobileOpen: boolean
   setMobileOpen: (open: boolean) => void
+  collapsed: boolean
+  setCollapsed: (collapsed: boolean) => void
 }
 
 function SidebarMenuItemContent({ item }: { item: MenuItem }) {
@@ -64,9 +66,8 @@ function SidebarMenuItemContent({ item }: { item: MenuItem }) {
   return isBlocked ? <Lock className="h-4 w-4 text-red-500" /> : null
 }
 
-export function Sidebar({ mobileOpen, setMobileOpen }: SidebarProps) {
+export function Sidebar({ mobileOpen, setMobileOpen, collapsed, setCollapsed }: SidebarProps) {
   const pathname = usePathname()
-  const [collapsed, setCollapsed] = useState(false)
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
