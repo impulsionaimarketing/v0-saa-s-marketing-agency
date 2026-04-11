@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, DollarSign, CheckCircle2, Clock, AlertCircle, Calendar, LayoutGrid, Table } from 'lucide-react'
+import { Plus, DollarSign, CheckCircle2, Clock, AlertCircle, Calendar, LayoutGrid, Table, PlusCircle } from 'lucide-react'
 import { PaymentsTable } from '@/components/payments/payments-table'
 import { PaymentsGrid } from '@/components/payments/payments-grid'
 import { PaymentFormDialog } from '@/components/payments/payment-form-dialog'
@@ -81,7 +81,13 @@ export function CobrancasContent() {
             <Calendar className="mr-2 h-4 w-4" />
             Gerar Pagamentos do Mês
           </Button>
-          <Button onClick={() => setIsDialogOpen(true)} className="w-full sm:w-auto">
+          <Button 
+            onClick={() => {
+              setSelectedPayment(null)
+              setIsDialogOpen(true)
+            }} 
+            className="w-full sm:w-auto"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Novo Pagamento
           </Button>

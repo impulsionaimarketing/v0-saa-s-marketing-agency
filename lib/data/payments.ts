@@ -3,7 +3,7 @@ import { sendWebhookNotification } from '@/lib/webhooks/send-notification'
 
 export interface Payment {
   id: string
-  client_id: string
+  client_id: string | null
   client_name?: string
   due_date: string
   amount: number
@@ -32,7 +32,8 @@ export async function getPayments(): Promise<Payment[]> {
 }
 
 export async function createPayment(data: {
-  client_id: string
+  client_id: string | null
+  client_name?: string
   due_date: string
   amount: number
   payment_method?: string
@@ -44,6 +45,7 @@ export async function createPayment(data: {
       .from('payments')
       .insert({
         client_id: data.client_id,
+        client_name: data.client_name || null,
         due_date: data.due_date,
         amount: data.amount,
         payment_method: data.payment_method || null,
