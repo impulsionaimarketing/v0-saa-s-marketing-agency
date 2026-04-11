@@ -142,34 +142,71 @@ export function ExportPdfSection({
         ]
       }
 
-      // Send to webhook
+      console.log('[v0] Sending PDF generation request:', payload)
+
+      // Send to webhook with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
       const response = await fetch('https://n8n.impulsionaimarketing.com.br/webhook/cronograma-gerarpdf', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload),
+        signal: controller.signal
       })
 
+      clearTimeout(timeoutId)
+
+      console.log('[v0] PDF webhook response status:', response.status)
+
       if (!response.ok) {
-        throw new Error('Erro na resposta do servidor')
+        const errorText = await response.text()
+        console.error('[v0] Webhook error response:', errorText)
+        throw new Error(`Erro do servidor (${response.status}): ${errorText || 'Resposta invalida'}`)
       }
 
-      const result = await response.json()
+      let result
+      try {
+        result = await response.json()
+        console.log('[v0] Webhook response:', result)
+      } catch (parseError) {
+        console.error('[v0] Failed to parse response:', parseError)
+        throw new Error('Resposta invalida do servidor')
+      }
 
       if (!result.pdf_url) {
-        throw new Error('URL do PDF nao retornada')
+        console.error('[v0] No pdf_url in response:', result)
+        throw new Error('Servidor nao retornou URL do PDF')
       }
+
+      console.log('[v0] PDF URL received:', result.pdf_url)
 
       // Save the PDF URL to the database
       await updateMonthlyPlanningPdfUrl(selectedPlanning.id, result.pdf_url)
+      console.log('[v0] PDF URL saved to database')
 
       // Notify parent component
       onPdfGenerated(selectedPlanning.id, result.pdf_url)
+      setError(null)
 
     } catch (err) {
       console.error('[v0] Error generating PDF:', err)
-      setError('Erro ao gerar PDF. Tente novamente.')
+      
+      let errorMessage = 'Erro ao gerar PDF. Tente novamente.'
+      
+      if (err instanceof TypeError) {
+        if (err.message.includes('AbortError')) {
+          errorMessage = 'Requisicao expirou. A geracao demorou muito. Tente novamente.'
+        } else if (err.message.includes('Failed to fetch')) {
+          errorMessage = 'Erro de conexao. Verifique sua internet e tente novamente.'
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message
+      }
+      
+      setError(errorMessage)
     } finally {
       setIsGenerating(false)
     }
@@ -363,9 +400,14 @@ export function ExportPdfSection({
 
             {/* Error Message */}
             {error && (
-              <div className="mt-4 p-3 rounded-md bg-destructive/10 text-destructive flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">{error}</span>
+              <div className="mt-4 p-4 rounded-md bg-destructive/10 border border-destructive/20 text-destructive space-y-2">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">Erro ao gerar PDF</p>
+                    <p className="text-sm mt-1">{error}</p>
+                  </div>
+                </div>
               </div>
             )}
 
