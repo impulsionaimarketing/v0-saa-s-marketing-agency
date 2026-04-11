@@ -250,9 +250,9 @@ export function ExportPdfSection({
             </div>
             {selectedPlanning?.pdf_url && (
               <Button
-                variant="outline"
                 size="sm"
                 onClick={() => window.open(selectedPlanning.pdf_url!, '_blank')}
+                className="bg-violet-600 hover:bg-violet-700 text-white animate-pulse"
               >
                 <Download className="h-4 w-4 mr-2" />
                 Baixar PDF
