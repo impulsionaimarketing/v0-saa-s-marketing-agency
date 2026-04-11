@@ -21,9 +21,13 @@ import {
 } from '@/lib/data/monthly-plannings'
 import { createVideoScript, deleteAllVideoScriptsByClient } from '@/lib/data/video-scripts'
 import { createArteBrief, deleteAllArteBriefsByClient } from '@/lib/data/arte-briefs'
-import { Calendar, Plus, Trash2, Video, ImageIcon, DollarSign, Check, Pencil } from 'lucide-react'
+import { Calendar, Plus, Trash2, Video, ImageIcon, DollarSign, Check, Pencil, Download } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
 import { RoteirosSection } from './roteiros-section'
+import { ExportPdfSection } from './export-pdf-section'
+import { getVideoScripts, type VideoScript } from '@/lib/data/video-scripts'
+import { getArteBriefs, type ArteBrief } from '@/lib/data/arte-briefs'
+import { getClientById } from '@/lib/data/clients'
 
 interface ClientMonthlyScheduleTabProps {
   clientId: string
@@ -40,6 +44,9 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
   const [isPending, startTransition] = useTransition()
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null)
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [videoScripts, setVideoScripts] = useState<VideoScript[]>([])
+  const [arteBriefs, setArteBriefs] = useState<ArteBrief[]>([])
+  const [clientName, setClientName] = useState<string>('')
 
   const [formData, setFormData] = useState({
     month: new Date().getMonth() + 1,
@@ -56,9 +63,35 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
     })
   }
 
+  const loadExportData = async () => {
+    if (selectedMonth && selectedYear) {
+      const [videos, artes] = await Promise.all([
+        getVideoScripts(clientId, selectedMonth, selectedYear),
+        getArteBriefs(clientId, selectedMonth, selectedYear)
+      ])
+      setVideoScripts(videos)
+      setArteBriefs(artes)
+    } else {
+      setVideoScripts([])
+      setArteBriefs([])
+    }
+  }
+
+  const loadClientName = async () => {
+    const client = await getClientById(clientId)
+    if (client) {
+      setClientName(client.name)
+    }
+  }
+
   useEffect(() => {
     loadData()
+    loadClientName()
   }, [clientId])
+
+  useEffect(() => {
+    loadExportData()
+  }, [selectedMonth, selectedYear, clientId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -225,6 +258,16 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
                 </CardTitle>
               </div>
               <div className="flex gap-2">
+                {planning.pdf_url && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(planning.pdf_url!, '_blank')}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    PDF
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -297,6 +340,36 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
           year={selectedYear}
         />
       </div>
+
+      {/* Export PDF Section */}
+      {selectedMonth && selectedYear && (
+        <div className="mt-8 pt-8 border-t border-border">
+          {(() => {
+            const selectedPlanning = plannings.find(
+              p => p.month === selectedMonth && p.year === selectedYear
+            )
+            if (!selectedPlanning) return null
+            
+            return (
+              <ExportPdfSection
+                planning={selectedPlanning}
+                videoScripts={videoScripts}
+                arteBriefs={arteBriefs}
+                clientName={clientName}
+                onPdfGenerated={(pdfUrl) => {
+                  // Update the local planning state with the new pdf_url
+                  setPlannings(prev => prev.map(p => 
+                    p.id === selectedPlanning.id 
+                      ? { ...p, pdf_url: pdfUrl }
+                      : p
+                  ))
+                  loadExportData()
+                }}
+              />
+            )
+          })()}
+        </div>
+      )}
     </div>
   )
 }
