@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { Sparkles, X, Send, Mic, Bot, Maximize2, Minimize2, Loader2 } from 'lucide-react'
+import { Sparkles, X, Send, Mic, Bot, Maximize2, Minimize2, Loader2, Lock, ChevronUp } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -35,8 +35,10 @@ export function AgentChat() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [isRecordingLocked, setIsRecordingLocked] = useState(false)
   const [isProcessingAudio, setIsProcessingAudio] = useState(false)
   const [audioLevels, setAudioLevels] = useState<number[]>(Array(20).fill(0.1))
+  const [dragOffset, setDragOffset] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
@@ -45,6 +47,9 @@ export function AgentChat() {
   const animationFrameRef = useRef<number | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const transcriptRef = useRef<string>('')
+  const micButtonRef = useRef<HTMLButtonElement>(null)
+  const startYRef = useRef<number>(0)
+  const isLockedRef = useRef<boolean>(false)
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -161,13 +166,14 @@ export function AgentChat() {
   }, [updateAudioLevels])
 
   const stopListening = useCallback(() => {
-    console.log('[v0] stopListening called, transcript:', transcriptRef.current)
     setIsListening(false)
+    setIsRecordingLocked(false)
+    isLockedRef.current = false
+    setDragOffset(0)
     setIsProcessingAudio(true)
 
     // Capture transcript before stopping
     const capturedTranscript = transcriptRef.current.trim()
-    console.log('[v0] Captured transcript:', capturedTranscript)
 
     // Stop speech recognition
     if (recognitionRef.current) {
@@ -196,14 +202,14 @@ export function AgentChat() {
     // Reset audio levels
     setAudioLevels(Array(20).fill(0.1))
 
-    // Small delay to show processing, then send captured transcript
+    // Small delay to show processing, then put text in input field
     setTimeout(() => {
       setIsProcessingAudio(false)
       if (capturedTranscript) {
-        console.log('[v0] Sending message:', capturedTranscript)
-        sendMessage(capturedTranscript)
-      } else {
-        console.log('[v0] No transcript to send')
+        // Put text in input field instead of sending directly
+        setInput(prev => prev ? prev + ' ' + capturedTranscript : capturedTranscript)
+        // Focus input so user can edit
+        inputRef.current?.focus()
       }
       transcriptRef.current = ''
     }, 300)
@@ -264,6 +270,47 @@ export function AgentChat() {
 
   const toggleFullscreen = () => {
     setIsFullscreen(!isFullscreen)
+  }
+
+  // Handle recording start
+  const handleRecordStart = (clientY: number) => {
+    startYRef.current = clientY
+    isLockedRef.current = false
+    setDragOffset(0)
+    startListening()
+  }
+
+  // Handle drag/move while recording
+  const handleRecordMove = (clientY: number) => {
+    if (!isListening || isLockedRef.current) return
+    
+    const offset = startYRef.current - clientY
+    setDragOffset(Math.max(0, Math.min(offset, 80)))
+    
+    // Lock if dragged up more than 60px
+    if (offset > 60 && !isLockedRef.current) {
+      isLockedRef.current = true
+      setIsRecordingLocked(true)
+      setDragOffset(0)
+    }
+  }
+
+  // Handle recording end
+  const handleRecordEnd = () => {
+    if (isLockedRef.current) {
+      // If locked, clicking again will stop
+      return
+    }
+    if (isListening) {
+      stopListening()
+    }
+  }
+
+  // Handle click when locked - stops recording
+  const handleLockedClick = () => {
+    if (isRecordingLocked) {
+      stopListening()
+    }
   }
 
   return (
@@ -389,7 +436,7 @@ export function AgentChat() {
           <div className="p-3 border-t border-border bg-card">
             {/* Audio Waveform Visualization */}
             {isListening && (
-              <div className="mb-3 p-3 bg-destructive/10 rounded-xl">
+              <div className="mb-3 p-3 bg-destructive/10 rounded-xl relative">
                 <div className="flex items-center justify-center gap-0.5 h-12">
                   {audioLevels.map((level, index) => (
                     <div
@@ -401,9 +448,27 @@ export function AgentChat() {
                     />
                   ))}
                 </div>
-                <p className="text-xs text-center text-destructive mt-2 font-medium">
-                  Gravando... solte para parar
-                </p>
+                {isRecordingLocked ? (
+                  <p className="text-xs text-center text-destructive mt-2 font-medium">
+                    Gravando... toque no microfone para parar
+                  </p>
+                ) : (
+                  <div className="flex flex-col items-center mt-2">
+                    <p className="text-xs text-center text-destructive font-medium">
+                      {dragOffset > 30 ? 'Solte para travar' : 'Arraste para cima para travar'}
+                    </p>
+                    {dragOffset > 0 && (
+                      <div 
+                        className="mt-1 flex items-center justify-center"
+                        style={{ opacity: Math.min(1, dragOffset / 60) }}
+                      >
+                        <div className="size-6 rounded-full bg-destructive/20 flex items-center justify-center">
+                          <ChevronUp className="size-3 text-destructive" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -427,37 +492,63 @@ export function AgentChat() {
                   className="flex-1 h-10 px-4 rounded-full bg-muted border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
                 />
                 <Button
+                  ref={micButtonRef}
                   type="button"
                   variant="ghost"
                   size="icon"
+                  onClick={() => {
+                    if (isRecordingLocked) {
+                      handleLockedClick()
+                    }
+                  }}
                   onMouseDown={(e) => {
+                    if (isRecordingLocked) return
                     e.preventDefault()
-                    startListening()
+                    handleRecordStart(e.clientY)
+                  }}
+                  onMouseMove={(e) => {
+                    handleRecordMove(e.clientY)
                   }}
                   onMouseUp={(e) => {
                     e.preventDefault()
-                    if (isListening) stopListening()
+                    handleRecordEnd()
                   }}
                   onMouseLeave={() => {
-                    if (isListening) stopListening()
+                    if (!isLockedRef.current && isListening) {
+                      stopListening()
+                    }
                   }}
                   onTouchStart={(e) => {
+                    if (isRecordingLocked) return
                     e.preventDefault()
-                    startListening()
+                    const touch = e.touches[0]
+                    handleRecordStart(touch.clientY)
+                  }}
+                  onTouchMove={(e) => {
+                    const touch = e.touches[0]
+                    handleRecordMove(touch.clientY)
                   }}
                   onTouchEnd={(e) => {
                     e.preventDefault()
-                    if (isListening) stopListening()
+                    handleRecordEnd()
                   }}
                   disabled={isLoading || isProcessingAudio}
                   className={cn(
-                    "shrink-0 rounded-full transition-all select-none",
+                    "shrink-0 rounded-full transition-all select-none touch-none",
                     isListening && "bg-destructive text-white hover:bg-destructive/90 scale-110",
+                    isRecordingLocked && "ring-2 ring-destructive ring-offset-2",
                     isProcessingAudio && "opacity-50"
                   )}
+                  style={{
+                    transform: isListening && !isRecordingLocked && dragOffset > 0 
+                      ? `translateY(-${dragOffset}px) scale(1.1)` 
+                      : undefined
+                  }}
                 >
                   {isProcessingAudio ? (
                     <Loader2 className="size-4 animate-spin" />
+                  ) : isRecordingLocked ? (
+                    <Lock className="size-4" />
                   ) : (
                     <Mic className="size-4" />
                   )}
