@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
-import { Sparkles, X, Send, Mic, Bot } from 'lucide-react'
+import { Sparkles, X, Send, Mic, Bot, Maximize2, Minimize2, Loader2 } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -30,12 +30,20 @@ const quickSuggestions = [
 
 export function AgentChat() {
   const [isOpen, setIsOpen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [isProcessingAudio, setIsProcessingAudio] = useState(false)
+  const [audioLevels, setAudioLevels] = useState<number[]>(Array(20).fill(0.1))
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -51,37 +59,143 @@ export function AgentChat() {
     }
   }, [isOpen])
 
-  const startListening = () => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+      }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [])
+
+  const updateAudioLevels = useCallback(() => {
+    if (!analyserRef.current) return
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
+    analyserRef.current.getByteFrequencyData(dataArray)
+
+    // Sample 20 frequency bands
+    const levels: number[] = []
+    const step = Math.floor(dataArray.length / 20)
+    for (let i = 0; i < 20; i++) {
+      const value = dataArray[i * step] / 255
+      levels.push(Math.max(0.1, value))
+    }
+    setAudioLevels(levels)
+
+    animationFrameRef.current = requestAnimationFrame(updateAudioLevels)
+  }, [])
+
+  const startListening = useCallback(async () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) {
       alert('Seu navegador não suporta reconhecimento de voz.')
       return
     }
 
-    const recognition = new SpeechRecognition()
-    recognition.lang = 'pt-BR'
-    recognition.continuous = false
-    recognition.interimResults = false
+    try {
+      // Get microphone access for visualization
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStreamRef.current = stream
 
-    recognition.onstart = () => setIsListening(true)
-    recognition.onend = () => setIsListening(false)
+      // Setup audio context for visualization
+      audioContextRef.current = new AudioContext()
+      analyserRef.current = audioContextRef.current.createAnalyser()
+      analyserRef.current.fftSize = 256
+      
+      const source = audioContextRef.current.createMediaStreamSource(stream)
+      source.connect(analyserRef.current)
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript
-      setInput(transcript)
-      // Auto-send after voice input
-      setTimeout(() => {
-        sendMessage(transcript)
-      }, 300)
+      // Start visualization
+      updateAudioLevels()
+
+      // Setup speech recognition
+      const recognition = new SpeechRecognition()
+      recognition.lang = 'pt-BR'
+      recognition.continuous = true
+      recognition.interimResults = false
+      recognitionRef.current = recognition
+
+      recognition.onstart = () => setIsListening(true)
+      
+      recognition.onend = () => {
+        // Only process if we were actively listening
+        if (isListening) {
+          setIsListening(false)
+        }
+      }
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        const lastResult = event.results[event.results.length - 1]
+        if (lastResult.isFinal) {
+          const transcript = lastResult[0].transcript
+          setInput(prev => prev + ' ' + transcript)
+        }
+      }
+
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        console.error('Erro no reconhecimento de voz:', event.error)
+        stopListening()
+      }
+
+      recognition.start()
+      setIsListening(true)
+    } catch (error) {
+      console.error('Erro ao acessar microfone:', error)
+      alert('Não foi possível acessar o microfone.')
+    }
+  }, [updateAudioLevels, isListening])
+
+  const stopListening = useCallback(() => {
+    setIsListening(false)
+    setIsProcessingAudio(true)
+
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
     }
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('Erro no reconhecimento de voz:', event.error)
-      setIsListening(false)
+    // Stop audio visualization
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
     }
 
-    recognition.start()
-  }
+    // Stop media stream
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop())
+      mediaStreamRef.current = null
+    }
+
+    // Close audio context
+    if (audioContextRef.current) {
+      audioContextRef.current.close()
+      audioContextRef.current = null
+    }
+
+    // Reset audio levels
+    setAudioLevels(Array(20).fill(0.1))
+
+    // Simulate processing time then send message
+    setTimeout(() => {
+      setIsProcessingAudio(false)
+      // Get the current input value and send if not empty
+      setInput(currentInput => {
+        if (currentInput.trim()) {
+          sendMessage(currentInput.trim())
+          return ''
+        }
+        return currentInput
+      })
+    }, 500)
+  }, [])
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return
@@ -136,14 +250,21 @@ export function AgentChat() {
     sendMessage(suggestion)
   }
 
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen)
+  }
+
   return (
     <>
       {/* Chat Panel */}
       {isOpen && (
         <div 
           className={cn(
-            "fixed bottom-24 right-6 z-50 w-[380px] h-[520px] bg-card border border-border rounded-2xl shadow-xl flex flex-col overflow-hidden",
-            "animate-in slide-in-from-bottom-4 fade-in duration-300"
+            "fixed z-50 bg-card border border-border shadow-xl flex flex-col overflow-hidden",
+            "animate-in slide-in-from-bottom-4 fade-in duration-300",
+            isFullscreen 
+              ? "inset-0 rounded-none" 
+              : "bottom-24 right-6 w-[380px] h-[520px] rounded-2xl max-sm:inset-4 max-sm:w-auto max-sm:h-auto max-sm:bottom-20"
           )}
         >
           {/* Header */}
@@ -154,14 +275,31 @@ export function AgentChat() {
               </div>
               <span className="font-semibold text-foreground">Assistente IA</span>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon-sm" 
-              onClick={() => setIsOpen(false)}
-              className="hover:bg-muted"
-            >
-              <X className="size-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon-sm" 
+                onClick={toggleFullscreen}
+                className="hover:bg-muted"
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="size-4" />
+                ) : (
+                  <Maximize2 className="size-4" />
+                )}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon-sm" 
+                onClick={() => {
+                  setIsOpen(false)
+                  setIsFullscreen(false)
+                }}
+                className="hover:bg-muted"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Messages Area */}
@@ -236,40 +374,93 @@ export function AgentChat() {
           </ScrollArea>
 
           {/* Input Area */}
-          <form onSubmit={handleSubmit} className="p-3 border-t border-border bg-card">
-            <div className="flex items-center gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Digite sua mensagem..."
-                disabled={isLoading}
-                className="flex-1 h-10 px-4 rounded-full bg-muted border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={startListening}
-                disabled={isLoading}
-                className={cn(
-                  "shrink-0 rounded-full transition-all",
-                  isListening && "bg-destructive text-white hover:bg-destructive/90 animate-pulse"
-                )}
-              >
-                <Mic className="size-4" />
-              </Button>
-              <Button
-                type="submit"
-                size="icon"
-                disabled={isLoading || !input.trim()}
-                className="shrink-0 rounded-full"
-              >
-                <Send className="size-4" />
-              </Button>
-            </div>
-          </form>
+          <div className="p-3 border-t border-border bg-card">
+            {/* Audio Waveform Visualization */}
+            {isListening && (
+              <div className="mb-3 p-3 bg-destructive/10 rounded-xl">
+                <div className="flex items-center justify-center gap-0.5 h-12">
+                  {audioLevels.map((level, index) => (
+                    <div
+                      key={index}
+                      className="w-1 bg-destructive rounded-full transition-all duration-75"
+                      style={{
+                        height: `${Math.max(8, level * 48)}px`,
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-center text-destructive mt-2 font-medium">
+                  Gravando... solte para parar
+                </p>
+              </div>
+            )}
+
+            {/* Processing Audio Indicator */}
+            {isProcessingAudio && (
+              <div className="mb-3 p-3 bg-muted rounded-xl flex items-center justify-center gap-2">
+                <Loader2 className="size-4 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Processando audio...</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Digite sua mensagem..."
+                  disabled={isLoading || isListening || isProcessingAudio}
+                  className="flex-1 h-10 px-4 rounded-full bg-muted border-0 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    startListening()
+                  }}
+                  onMouseUp={(e) => {
+                    e.preventDefault()
+                    if (isListening) stopListening()
+                  }}
+                  onMouseLeave={() => {
+                    if (isListening) stopListening()
+                  }}
+                  onTouchStart={(e) => {
+                    e.preventDefault()
+                    startListening()
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault()
+                    if (isListening) stopListening()
+                  }}
+                  disabled={isLoading || isProcessingAudio}
+                  className={cn(
+                    "shrink-0 rounded-full transition-all select-none",
+                    isListening && "bg-destructive text-white hover:bg-destructive/90 scale-110",
+                    isProcessingAudio && "opacity-50"
+                  )}
+                >
+                  {isProcessingAudio ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Mic className="size-4" />
+                  )}
+                </Button>
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={isLoading || !input.trim() || isListening || isProcessingAudio}
+                  className="shrink-0 rounded-full"
+                >
+                  <Send className="size-4" />
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
