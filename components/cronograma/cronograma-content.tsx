@@ -54,7 +54,10 @@ export function CronogramaContent() {
       </Card>
 
       {selectedClientId && (
-        <ClientMonthlyScheduleTab clientId={selectedClientId} />
+        <ClientMonthlyScheduleTab 
+          clientId={selectedClientId}
+          clientName={clients.find(c => c.id === selectedClientId)?.name}
+        />
       )}
     </div>
   )

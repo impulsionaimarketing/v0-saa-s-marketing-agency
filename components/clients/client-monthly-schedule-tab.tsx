@@ -24,9 +24,11 @@ import { createArteBrief, deleteAllArteBriefsByClient } from '@/lib/data/arte-br
 import { Calendar, Plus, Trash2, Video, ImageIcon, DollarSign, Check, Pencil } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
 import { RoteirosSection } from './roteiros-section'
+import { PDFImportSection } from './pdf-import-section'
 
 interface ClientMonthlyScheduleTabProps {
   clientId: string
+  clientName?: string
 }
 
 const MONTHS = [
@@ -40,6 +42,7 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
   const [isPending, startTransition] = useTransition()
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null)
   const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const [formData, setFormData] = useState({
     month: new Date().getMonth() + 1,
@@ -54,6 +57,11 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
       const data = await getMonthlyPlanningsByClient(clientId)
       setPlannings(data)
     })
+  }
+
+  const handlePDFImportSuccess = () => {
+    setRefreshKey(prev => prev + 1)
+    loadData()
   }
 
   useEffect(() => {
@@ -211,6 +219,18 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
             </form>
           </CardContent>
         </Card>
+      )}
+
+      {/* PDF Import Section */}
+      {plannings.length > 0 && (
+        <PDFImportSection
+          key={refreshKey}
+          clientId={clientId}
+          clientName={clientName || 'Cliente'}
+          month={plannings[0]?.month || new Date().getMonth() + 1}
+          year={plannings[0]?.year || new Date().getFullYear()}
+          onSuccess={handlePDFImportSuccess}
+        />
       )}
 
       {/* Plannings List */}
