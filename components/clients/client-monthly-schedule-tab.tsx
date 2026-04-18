@@ -36,7 +36,7 @@ const MONTHS = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ]
 
-export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabProps) {
+export function ClientMonthlyScheduleTab({ clientId, clientName }: ClientMonthlyScheduleTabProps) {
   const [plannings, setPlannings] = useState<MonthlyPlanning[]>([])
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [isPending, startTransition] = useTransition()
