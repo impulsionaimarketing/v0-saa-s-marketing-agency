@@ -70,22 +70,19 @@ export function PDFImportSection({
       setIsLoading(true)
       const pdfBase64 = await toBase64(file)
 
-      const response = await fetch(
-        'https://n8n.impulsionaimarketing.com.br/webhook/cronograma-importarpdf',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            client_id: clientId,
-            client_name: clientName,
-            month,
-            year,
-            pdf_base64: pdfBase64,
-          }),
-        }
-      )
+      const response = await fetch('/api/pdf-import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_name: clientName,
+          month,
+          year,
+          pdf_base64: pdfBase64,
+        }),
+      })
 
       if (!response.ok) {
         throw new Error(`Erro ao processar PDF: ${response.statusText}`)
