@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
       clientName: data.client_name,
       month: data.month,
       year: data.year,
+      convertToDemand: data.convert_to_demand,
     })
 
     // Call n8n webhook

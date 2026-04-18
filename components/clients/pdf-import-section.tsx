@@ -32,12 +32,14 @@ export function PDFImportSection({
 }: PDFImportSectionProps) {
   const [file, setFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [convertToDemand, setConvertToDemand] = useState<boolean | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (selectedFile && selectedFile.type === 'application/pdf') {
       setFile(selectedFile)
+      setConvertToDemand(null) // Reset conversion choice when new file is selected
     } else {
       toast.error('Por favor, selecione um arquivo PDF válido')
       setFile(null)
@@ -55,6 +57,7 @@ export function PDFImportSection({
     const droppedFile = e.dataTransfer.files?.[0]
     if (droppedFile && droppedFile.type === 'application/pdf') {
       setFile(droppedFile)
+      setConvertToDemand(null) // Reset conversion choice when new file is selected
     } else {
       toast.error('Por favor, solte um arquivo PDF válido')
     }
@@ -63,6 +66,11 @@ export function PDFImportSection({
   const handleProcessPDF = async () => {
     if (!file) {
       toast.error('Por favor, selecione um arquivo PDF')
+      return
+    }
+
+    if (convertToDemand === null) {
+      toast.error('Por favor, selecione uma opção de conversão')
       return
     }
 
@@ -81,6 +89,7 @@ export function PDFImportSection({
           month,
           year,
           pdf_base64: pdfBase64,
+          convert_to_demand: convertToDemand,
         }),
       })
 
@@ -93,6 +102,7 @@ export function PDFImportSection({
 
       toast.success(result.resumo || 'PDF processado com sucesso!')
       setFile(null)
+      setConvertToDemand(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -156,9 +166,70 @@ export function PDFImportSection({
           </div>
         </div>
 
+        {file && (
+          <div className="space-y-4 p-4 bg-muted rounded-lg">
+            <div>
+              <p className="text-sm font-semibold mb-3">
+                Deseja converter os itens em demandas automaticamente?
+              </p>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setConvertToDemand(false)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-colors ${
+                    convertToDemand === false
+                      ? 'border-primary bg-primary/5'
+                      : 'border-input hover:border-primary/50'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                      convertToDemand === false
+                        ? 'border-primary bg-primary'
+                        : 'border-input'
+                    }`}
+                  >
+                    {convertToDemand === false && (
+                      <div className="w-2 h-2 bg-white rounded-sm" />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium">
+                    Apenas criar roteiros/briefings
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConvertToDemand(true)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-colors ${
+                    convertToDemand === true
+                      ? 'border-primary bg-primary/5'
+                      : 'border-input hover:border-primary/50'
+                  }`}
+                >
+                  <div
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                      convertToDemand === true
+                        ? 'border-primary bg-primary'
+                        : 'border-input'
+                    }`}
+                  >
+                    {convertToDemand === true && (
+                      <div className="w-2 h-2 bg-white rounded-sm" />
+                    )}
+                  </div>
+                  <span className="text-sm font-medium">
+                    Criar roteiros/briefings E converter em demandas
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Button
           onClick={handleProcessPDF}
-          disabled={!file || isLoading}
+          disabled={!file || isLoading || convertToDemand === null}
           className="w-full"
         >
           {isLoading ? 'Analisando PDF...' : 'Processar PDF'}
