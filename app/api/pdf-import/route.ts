@@ -24,23 +24,41 @@ export async function POST(request: NextRequest) {
       }
     )
 
+    console.log('[v0] n8n response status:', n8nResponse.status, n8nResponse.statusText)
+
     if (!n8nResponse.ok) {
       console.error('[v0] n8n error:', n8nResponse.statusText)
-      throw new Error(`Webhook error: ${n8nResponse.statusText}`)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Webhook error: ${n8nResponse.statusText}`,
+          resumo: 'Erro ao processar o PDF',
+        },
+        { status: 200 } // Return 200 even on error for consistency
+      )
     }
 
     const result = await n8nResponse.json()
     console.log('[v0] n8n response:', result)
 
-    return NextResponse.json(result)
+    // Ensure response has success field
+    const response = {
+      success: result.success !== false,
+      resumo: result.resumo || result.message || 'Importação concluída com sucesso!',
+      data: result,
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('[v0] PDF import error:', error)
     return NextResponse.json(
       {
+        success: false,
         error: 'Erro ao processar PDF',
+        resumo: error instanceof Error ? error.message : 'Erro desconhecido',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
-      { status: 500 }
+      { status: 200 } // Return 200 for consistency
     )
   }
 }
