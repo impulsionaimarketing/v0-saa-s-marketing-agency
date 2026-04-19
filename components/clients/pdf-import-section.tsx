@@ -1,10 +1,12 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Upload, FileText } from 'lucide-react'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Upload, FileText, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface PDFImportSectionProps {
@@ -30,10 +32,22 @@ export function PDFImportSection({
   year,
   onSuccess,
 }: PDFImportSectionProps) {
+  const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [convertToDemand, setConvertToDemand] = useState<boolean | null>(null)
+  const [result, setResult] = useState<'success' | 'error' | null>(null)
+  const [resumo, setResumo] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (result === 'success') {
+      const timer = setTimeout(() => {
+        router.refresh()
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [result, router])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -76,6 +90,7 @@ export function PDFImportSection({
 
     try {
       setIsLoading(true)
+      setResult(null)
       const pdfBase64 = await toBase64(file)
 
       const response = await fetch('/api/pdf-import', {
@@ -97,21 +112,24 @@ export function PDFImportSection({
         throw new Error(`Erro ao processar PDF: ${response.statusText}`)
       }
 
-      const result = await response.json()
-      console.log('[v0] PDF processing result:', result)
+      const data = await response.json()
+      console.log('[v0] PDF processing result:', data)
 
-      toast.success(result.resumo || 'PDF processado com sucesso!')
-      setFile(null)
-      setConvertToDemand(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
+      if (data.success) {
+        setResult('success')
+        setResumo(data.resumo || 'Importação concluída com sucesso!')
+        setFile(null)
+        setConvertToDemand(null)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        onSuccess()
+      } else {
+        setResult('error')
       }
-      onSuccess()
     } catch (error) {
       console.error('[v0] Error processing PDF:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Erro ao processar o PDF'
-      )
+      setResult('error')
     } finally {
       setIsLoading(false)
     }
@@ -234,6 +252,34 @@ export function PDFImportSection({
         >
           {isLoading ? 'Analisando PDF...' : 'Processar PDF'}
         </Button>
+
+        {isLoading && (
+          <p className="text-xs text-muted-foreground text-center">
+            Isso pode levar alguns segundos...
+          </p>
+        )}
+
+        {result === 'success' && (
+          <Alert className="border-green-500 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertTitle className="text-green-700">
+              ✅ Importação concluída!
+            </AlertTitle>
+            <AlertDescription className="text-green-600">
+              {resumo}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {result === 'error' && (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertTitle>❌ Erro ao importar PDF</AlertTitle>
+            <AlertDescription>
+              Verifique o arquivo e tente novamente.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   )
