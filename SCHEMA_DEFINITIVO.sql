@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS public.campaigns (
   client_id UUID NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   objective TEXT,
-  status TEXT NOT NULL DEFAULT 'Active',
+  status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Paused', 'Completed', 'Archived')),
   start_date DATE,
   end_date DATE,
   budget NUMERIC(12, 2),
