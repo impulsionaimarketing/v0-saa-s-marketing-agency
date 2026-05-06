@@ -310,7 +310,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER IF NOT EXISTS trigger_update_monthly_plannings_updated_at
+DROP TRIGGER IF EXISTS trigger_update_monthly_plannings_updated_at ON public.monthly_plannings;
+CREATE TRIGGER trigger_update_monthly_plannings_updated_at
   BEFORE UPDATE ON public.monthly_plannings
   FOR EACH ROW
   EXECUTE FUNCTION update_monthly_plannings_updated_at();
@@ -342,7 +343,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER IF NOT EXISTS trigger_sync_demand_to_production
+DROP TRIGGER IF EXISTS trigger_sync_demand_to_production ON public.demands;
+CREATE TRIGGER trigger_sync_demand_to_production
   AFTER INSERT ON public.demands
   FOR EACH ROW
   EXECUTE FUNCTION sync_demand_to_production();
@@ -376,7 +378,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER IF NOT EXISTS trigger_sync_production_to_demand
+DROP TRIGGER IF EXISTS trigger_sync_production_to_demand ON public.productions;
+CREATE TRIGGER trigger_sync_production_to_demand
   AFTER INSERT ON public.productions
   FOR EACH ROW
   EXECUTE FUNCTION sync_production_to_demand();
