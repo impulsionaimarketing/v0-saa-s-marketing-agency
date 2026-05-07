@@ -1,6 +1,6 @@
 "use server"
 
-import { query, queryOne, execute } from "@/lib/db"
+import { createClient } from "@/lib/supabase/server"
 
 export interface Alert {
   id: string
@@ -25,47 +25,46 @@ export async function getAlerts(filters?: {
   limit?: number
 }): Promise<Alert[]> {
   try {
-    let sql = `SELECT a.*, c.name as client_name FROM alerts a LEFT JOIN clients c ON a.client_id = c.id`
-    const params: unknown[] = []
-    let paramCount = 1
-    const conditions: string[] = []
+    const supabase = await createClient()
+    let query = supabase
+      .from("alerts")
+      .select("*, clients(name)")
 
     if (filters?.type && filters.type !== "all") {
-      conditions.push(`a.type = $${paramCount}`)
-      params.push(filters.type)
-      paramCount++
+      query = query.eq("type", filters.type)
     }
 
     if (filters?.severity && filters.severity !== "all") {
-      conditions.push(`a.severity = $${paramCount}`)
-      params.push(filters.severity)
-      paramCount++
+      query = query.eq("severity", filters.severity)
     }
 
     if (filters?.is_read !== undefined) {
-      conditions.push(`a.is_read = $${paramCount}`)
-      params.push(filters.is_read)
-      paramCount++
+      query = query.eq("is_read", filters.is_read)
     }
 
     if (filters?.is_resolved !== undefined) {
-      conditions.push(`a.is_resolved = $${paramCount}`)
-      params.push(filters.is_resolved)
-      paramCount++
+      query = query.eq("is_resolved", filters.is_resolved)
     }
 
-    if (conditions.length > 0) {
-      sql += ` WHERE ${conditions.join(" AND ")}`
-    }
-
-    sql += ` ORDER BY a.created_at DESC`
+    query = query.order("created_at", { ascending: false })
 
     if (filters?.limit) {
-      sql += ` LIMIT $${paramCount}`
-      params.push(filters.limit)
+      query = query.limit(filters.limit)
     }
 
-    const alerts = await query<Alert>(sql, params)
+    const { data, error } = await query
+
+    if (error) {
+      console.error("[v0] Error fetching alerts:", error)
+      return []
+    }
+
+    // Map to include client_name from the joined clients table
+    const alerts = (data || []).map((alert: any) => ({
+      ...alert,
+      client_name: alert.clients?.name || undefined,
+    }))
+
     return alerts
   } catch (error) {
     console.error("[v0] Error fetching alerts:", error)
@@ -75,10 +74,18 @@ export async function getAlerts(filters?: {
 
 export async function getUnreadAlertsCount(): Promise<number> {
   try {
-    const result = await queryOne<{ count: number }>(
-      `SELECT COUNT(*) as count FROM alerts WHERE is_read = false`
-    )
-    return result?.count || 0
+    const supabase = await createClient()
+    const { count, error } = await supabase
+      .from("alerts")
+      .select("*", { count: "exact", head: true })
+      .eq("is_read", false)
+
+    if (error) {
+      console.error("[v0] Error fetching unread alerts count:", error)
+      return 0
+    }
+
+    return count || 0
   } catch (error) {
     console.error("[v0] Error fetching unread alerts count:", error)
     return 0
@@ -87,10 +94,15 @@ export async function getUnreadAlertsCount(): Promise<number> {
 
 export async function markAlertAsRead(id: string): Promise<void> {
   try {
-    await execute(
-      `UPDATE alerts SET is_read = true WHERE id = $1`,
-      [id]
-    )
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from("alerts")
+      .update({ is_read: true })
+      .eq("id", id)
+
+    if (error) {
+      throw error
+    }
   } catch (error) {
     console.error("[v0] Error marking alert as read:", error)
     throw error
@@ -99,7 +111,14 @@ export async function markAlertAsRead(id: string): Promise<void> {
 
 export async function markAllAlertsAsRead(): Promise<void> {
   try {
-    await execute(`UPDATE alerts SET is_read = true`)
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from("alerts")
+      .update({ is_read: true })
+
+    if (error) {
+      throw error
+    }
   } catch (error) {
     console.error("[v0] Error marking all alerts as read:", error)
     throw error
@@ -108,10 +127,15 @@ export async function markAllAlertsAsRead(): Promise<void> {
 
 export async function resolveAlert(id: string): Promise<void> {
   try {
-    await execute(
-      `UPDATE alerts SET is_resolved = true WHERE id = $1`,
-      [id]
-    )
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from("alerts")
+      .update({ is_resolved: true })
+      .eq("id", id)
+
+    if (error) {
+      throw error
+    }
   } catch (error) {
     console.error("[v0] Error resolving alert:", error)
     throw error
@@ -120,26 +144,26 @@ export async function resolveAlert(id: string): Promise<void> {
 
 export async function createAlert(data: Partial<Alert>): Promise<Alert | null> {
   try {
-    const result = await queryOne<Alert>(
-      `INSERT INTO alerts (type, title, description, severity, client_id, related_entity_type, related_entity_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [
-        data.type,
-        data.title,
-        data.description || null,
-        data.severity || "medium",
-        data.client_id || null,
-        data.related_entity_type || null,
-        data.related_entity_id || null,
-      ]
-    )
+    const supabase = await createClient()
+    const { data: result, error } = await supabase
+      .from("alerts")
+      .insert({
+        type: data.type,
+        title: data.title,
+        description: data.description || null,
+        severity: data.severity || "medium",
+        client_id: data.client_id || null,
+        related_entity_type: data.related_entity_type || null,
+        related_entity_id: data.related_entity_id || null,
+      })
+      .select()
+      .single()
 
-    if (!result) {
-      throw new Error("Failed to create alert")
+    if (error) {
+      throw error
     }
 
-    return result
+    return result || null
   } catch (error) {
     console.error("[v0] Error creating alert:", error)
     throw error
@@ -148,7 +172,15 @@ export async function createAlert(data: Partial<Alert>): Promise<Alert | null> {
 
 export async function deleteAlert(id: string): Promise<void> {
   try {
-    await execute("DELETE FROM alerts WHERE id = $1", [id])
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from("alerts")
+      .delete()
+      .eq("id", id)
+
+    if (error) {
+      throw error
+    }
   } catch (error) {
     console.error("[v0] Error deleting alert:", error)
     throw error
