@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { type Payment } from '@/lib/data/payments'
 import { type Client } from '@/lib/data/clients'
 import { createPaymentAction, updatePaymentAction, getClientsAction } from '@/app/cobrancas/actions'
@@ -39,8 +40,10 @@ export function PaymentFormDialog({
 }: PaymentFormDialogProps) {
   const [isPending, startTransition] = useTransition()
   const [clients, setClients] = useState<Client[]>([])
+  const [isStandalone, setIsStandalone] = useState(!payment?.client_id)
   const [formData, setFormData] = useState({
     client_id: payment?.client_id || '',
+    clientName: payment?.client_name || '',
     due_date: payment?.due_date || '',
     amount: payment?.amount?.toString() || '',
     payment_method: payment?.payment_method || '',
@@ -51,16 +54,20 @@ export function PaymentFormDialog({
     if (open) {
       loadClients()
       if (payment) {
+        setIsStandalone(!payment.client_id)
         setFormData({
-          client_id: payment.client_id,
+          client_id: payment.client_id || '',
+          clientName: payment.client_name || '',
           due_date: payment.due_date,
           amount: payment.amount.toString(),
           payment_method: payment.payment_method || '',
           notes: payment.notes || '',
         })
       } else {
+        setIsStandalone(false)
         setFormData({
           client_id: '',
+          clientName: '',
           due_date: '',
           amount: '',
           payment_method: '',
@@ -82,30 +89,39 @@ export function PaymentFormDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.client_id || !formData.due_date || !formData.amount) {
-      alert('Por favor, preencha todos os campos obrigatórios')
-      return
+    if (isStandalone) {
+      if (!formData.clientName || !formData.due_date || !formData.amount) {
+        alert('Por favor, preencha todos os campos obrigatórios')
+        return
+      }
+    } else {
+      if (!formData.client_id || !formData.due_date || !formData.amount) {
+        alert('Por favor, preencha todos os campos obrigatórios')
+        return
+      }
     }
 
     startTransition(async () => {
       try {
-      if (payment) {
-        await updatePaymentAction(payment.id, {
-          client_id: formData.client_id,
-          due_date: formData.due_date,
-          amount: parseFloat(formData.amount),
-          payment_method: formData.payment_method || null,
-          notes: formData.notes || null,
-        })
-      } else {
-        await createPaymentAction({
-          client_id: formData.client_id,
-          due_date: formData.due_date,
-          amount: parseFloat(formData.amount),
-          payment_method: formData.payment_method,
-          notes: formData.notes,
-        })
-      }
+        if (payment) {
+          await updatePaymentAction(payment.id, {
+            client_id: isStandalone ? null : formData.client_id,
+            client_name: isStandalone ? formData.clientName : undefined,
+            due_date: formData.due_date,
+            amount: parseFloat(formData.amount),
+            payment_method: formData.payment_method || null,
+            notes: formData.notes || null,
+          })
+        } else {
+          await createPaymentAction({
+            client_id: isStandalone ? null : formData.client_id,
+            client_name: isStandalone ? formData.clientName : undefined,
+            due_date: formData.due_date,
+            amount: parseFloat(formData.amount),
+            payment_method: formData.payment_method,
+            notes: formData.notes,
+          })
+        }
         onSuccess()
         onOpenChange(false)
       } catch (error) {
@@ -124,26 +140,70 @@ export function PaymentFormDialog({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="client_id">Cliente *</Label>
-            <Select
-              value={formData.client_id}
-              onValueChange={(value) =>
-                setFormData({ ...formData, client_id: value })
-              }
+          {/* Tab for selecting payment type */}
+          {!payment && (
+            <Tabs 
+              value={isStandalone ? 'standalone' : 'client'} 
+              onValueChange={(value) => {
+                setIsStandalone(value === 'standalone')
+                setFormData(prev => ({
+                  ...prev,
+                  client_id: '',
+                  clientName: ''
+                }))
+              }}
+              className="w-full"
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o cliente" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((client) => (
-                  <SelectItem key={client.id} value={client.id}>
-                    {client.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="client">Cliente Existente</TabsTrigger>
+                <TabsTrigger value="standalone">Pagamento Avulso</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+
+          {/* Client Selection */}
+          {!isStandalone && (
+            <div className="space-y-2">
+              <Label htmlFor="client_id">Cliente *</Label>
+              <Select
+                value={formData.client_id}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, client_id: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Standalone Client Name */}
+          {isStandalone && (
+            <div className="space-y-2">
+              <Label htmlFor="clientName">Nome do Cliente *</Label>
+              <Input
+                id="clientName"
+                type="text"
+                placeholder="Ex: João Silva, empresa XYZ..."
+                value={formData.clientName}
+                onChange={(e) =>
+                  setFormData({ ...formData, clientName: e.target.value })
+                }
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                Este pagamento será registrado como avulso de Impulsionai Marketing
+              </p>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="due_date">Data de Vencimento *</Label>

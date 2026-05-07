@@ -10,6 +10,7 @@ export interface MonthlyPlanning {
   videos_qty: number
   artes_qty: number
   trafego_budget: number
+  pdf_url?: string | null
   created_at: string
   updated_at: string
 }
@@ -118,6 +119,28 @@ export async function deleteMonthlyPlanning(id: string): Promise<void> {
     }
   } catch (error) {
     console.error('[v0] Error deleting monthly planning:', error)
+    throw error
+  }
+}
+
+export async function updateMonthlyPlanningPdfUrl(id: string, pdf_url: string): Promise<MonthlyPlanning | null> {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('monthly_plannings')
+      .update({ pdf_url })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[v0] Error updating planning pdf_url:', error)
+      throw new Error(error.message)
+    }
+
+    return data as MonthlyPlanning
+  } catch (error) {
+    console.error('[v0] Error updating planning pdf_url:', error)
     throw error
   }
 }

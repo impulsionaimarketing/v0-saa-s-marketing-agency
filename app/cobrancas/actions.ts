@@ -16,8 +16,11 @@ export async function getPaymentsAction() {
   return await getPayments()
 }
 
-export async function createPaymentAction(data: Omit<Payment, 'id' | 'created_at' | 'client_name'>) {
-  return await createPayment(data)
+export async function createPaymentAction(data: Omit<Payment, 'id' | 'created_at'> & { client_name?: string }) {
+  return await createPayment({
+    ...data,
+    client_id: data.client_id || null,
+  })
 }
 
 export async function updatePaymentAction(id: string, data: Partial<Payment>) {

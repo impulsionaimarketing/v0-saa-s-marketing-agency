@@ -39,36 +39,40 @@ export async function AlertsList() {
             Nenhum alerta pendente
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {alerts.map((alert) => {
               const Icon = alertIcons[alert.type] || AlertCircle
               return (
                 <div
                   key={alert.id}
-                  className="flex items-start gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-accent/50"
+                  className={cn(
+                    'rounded-lg border p-4 transition-all hover:shadow-md hover:scale-105',
+                    alert.severity === 'high' ? 'border-destructive/30 bg-destructive/5' : 
+                    alert.severity === 'medium' ? 'border-warning/30 bg-warning/5' : 'border-border bg-muted/30'
+                  )}
                 >
-                  <div className={cn(
-                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
-                    alert.severity === 'high' ? 'bg-destructive/10' : 
-                    alert.severity === 'medium' ? 'bg-warning/10' : 'bg-muted'
-                  )}>
-                    <Icon className={cn(
-                      'h-5 w-5',
-                      alert.severity === 'high' ? 'text-destructive' : 
-                      alert.severity === 'medium' ? 'text-warning' : 'text-muted-foreground'
-                    )} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-sm">{alert.title}</p>
-                      <Badge variant="outline" className={cn('shrink-0', severityColors[alert.severity])}>
-                        {severityLabels[alert.severity]}
-                      </Badge>
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={cn(
+                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                      alert.severity === 'high' ? 'bg-destructive/10' : 
+                      alert.severity === 'medium' ? 'bg-warning/10' : 'bg-muted'
+                    )}>
+                      <Icon className={cn(
+                        'h-5 w-5',
+                        alert.severity === 'high' ? 'text-destructive' : 
+                        alert.severity === 'medium' ? 'text-warning' : 'text-muted-foreground'
+                      )} />
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">{alert.description}</p>
+                    <Badge variant="outline" className={cn('shrink-0', severityColors[alert.severity])}>
+                      {severityLabels[alert.severity]}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="font-medium text-sm line-clamp-2">{alert.title}</p>
+                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{alert.description}</p>
                     {alert.client_name && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Cliente: <span className="text-foreground">{alert.client_name}</span>
+                      <p className="text-xs text-muted-foreground mt-3 pt-3 border-t border-border/50">
+                        <span className="font-medium">Cliente:</span> {alert.client_name}
                       </p>
                     )}
                   </div>
