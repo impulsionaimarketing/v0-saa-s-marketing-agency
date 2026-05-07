@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { query, queryOne, execute } from "@/lib/db"
 
 export interface User {
   id: string
@@ -22,37 +22,43 @@ export async function getUsers(filters?: {
   search?: string
 }): Promise<User[]> {
   try {
-    const supabase = await createClient()
-    
-    let query = supabase
-      .from("users")
-      .select("*")
-      .order("name")
+    let sql = "SELECT * FROM users ORDER BY name"
+    const params: unknown[] = []
+    let paramCount = 1
+
+    const conditions: string[] = []
 
     if (filters?.role && filters.role !== "all") {
-      query = query.eq("role", filters.role)
+      conditions.push(`role = $${paramCount}`)
+      params.push(filters.role)
+      paramCount++
     }
 
     if (filters?.area && filters.area !== "all") {
-      query = query.eq("area", filters.area)
+      conditions.push(`area = $${paramCount}`)
+      params.push(filters.area)
+      paramCount++
     }
 
     if (filters?.status && filters.status !== "all") {
-      query = query.eq("status", filters.status)
+      conditions.push(`status = $${paramCount}`)
+      params.push(filters.status)
+      paramCount++
     }
 
     if (filters?.search) {
-      query = query.or(`name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`)
+      conditions.push(`(LOWER(name) LIKE LOWER($${paramCount}) OR LOWER(email) LIKE LOWER($${paramCount}))`)
+      params.push(`%${filters.search}%`)
+      params.push(`%${filters.search}%`)
+      paramCount++
     }
 
-    const { data, error } = await query
-
-    if (error) {
-      console.error("[v0] Error fetching users:", error)
-      return []
+    if (conditions.length > 0) {
+      sql = `SELECT * FROM users WHERE ${conditions.join(" AND ")} ORDER BY name`
     }
 
-    return (data || []) as User[]
+    const users = await query<User>(sql, params)
+    return users
   } catch (error) {
     console.error("[v0] Error fetching users:", error)
     return []
@@ -61,20 +67,11 @@ export async function getUsers(filters?: {
 
 export async function getUserById(id: string): Promise<User | null> {
   try {
-    const supabase = await createClient()
-    
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", id)
-      .single()
-
-    if (error) {
-      console.error("[v0] Error fetching user by id:", error)
-      return null
-    }
-
-    return data as User || null
+    const user = await queryOne<User>(
+      "SELECT * FROM users WHERE id = $1",
+      [id]
+    )
+    return user || null
   } catch (error) {
     console.error("[v0] Error fetching user by id:", error)
     return null
@@ -83,21 +80,11 @@ export async function getUserById(id: string): Promise<User | null> {
 
 export async function getUsersByArea(area: string): Promise<User[]> {
   try {
-    const supabase = await createClient()
-    
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("area", area)
-      .eq("status", "Ativo")
-      .order("name")
-
-    if (error) {
-      console.error("[v0] Error fetching users by area:", error)
-      return []
-    }
-
-    return (data || []) as User[]
+    const users = await query<User>(
+      `SELECT * FROM users WHERE area = $1 AND status = 'Ativo' ORDER BY name`,
+      [area]
+    )
+    return users
   } catch (error) {
     console.error("[v0] Error fetching users by area:", error)
     return []
@@ -106,26 +93,23 @@ export async function getUsersByArea(area: string): Promise<User[]> {
 
 export async function createUser(data: Partial<User>): Promise<User | null> {
   try {
-    const supabase = await createClient()
-    
-    const { data: result, error } = await supabase
-      .from("users")
-      .insert({
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        area: data.area || null,
-        status: data.status || "Ativo",
-      })
-      .select()
-      .single()
+    const result = await queryOne<User>(
+      `INSERT INTO users (name, email, role, area, status) 
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [
+        data.name,
+        data.email,
+        data.role,
+        data.area || null,
+        data.status || "Ativo",
+      ]
+    )
 
-    if (error) {
-      console.error("[v0] Error creating user:", error)
-      throw new Error(error.message)
+    if (!result) {
+      throw new Error("Failed to create user")
     }
 
-    return result as User
+    return result
   } catch (error) {
     console.error("[v0] Error creating user:", error)
     throw error
@@ -134,34 +118,37 @@ export async function createUser(data: Partial<User>): Promise<User | null> {
 
 export async function updateUser(id: string, data: Partial<User>): Promise<User | null> {
   try {
-    const supabase = await createClient()
-    
-    const updateData: any = {}
+    const updates: string[] = []
+    const params: unknown[] = []
+    let paramCount = 1
+
     const fields: (keyof User)[] = ['name', 'email', 'role', 'area', 'status', 'avatar_url']
 
     for (const field of fields) {
       if (field in data) {
-        updateData[field] = data[field]
+        updates.push(`${field} = $${paramCount}`)
+        params.push(data[field])
+        paramCount++
       }
     }
 
-    if (Object.keys(updateData).length === 0) {
-      return await getUserById(id)
+    if (updates.length === 0) {
+      return await queryOne<User>("SELECT * FROM users WHERE id = $1", [id])
     }
 
-    const { data: result, error } = await supabase
-      .from("users")
-      .update(updateData)
-      .eq("id", id)
-      .select()
-      .single()
+    updates.push(`updated_at = NOW()`)
+    params.push(id)
 
-    if (error) {
-      console.error("[v0] Error updating user:", error)
-      throw new Error(error.message)
+    const result = await queryOne<User>(
+      `UPDATE users SET ${updates.join(", ")} WHERE id = $${paramCount} RETURNING *`,
+      params
+    )
+
+    if (!result) {
+      throw new Error("Failed to update user")
     }
 
-    return result as User
+    return result
   } catch (error) {
     console.error("[v0] Error updating user:", error)
     throw error
@@ -170,17 +157,7 @@ export async function updateUser(id: string, data: Partial<User>): Promise<User 
 
 export async function deleteUser(id: string): Promise<void> {
   try {
-    const supabase = await createClient()
-    
-    const { error } = await supabase
-      .from("users")
-      .delete()
-      .eq("id", id)
-
-    if (error) {
-      console.error("[v0] Error deleting user:", error)
-      throw new Error(error.message)
-    }
+    await execute("DELETE FROM users WHERE id = $1", [id])
   } catch (error) {
     console.error("[v0] Error deleting user:", error)
     throw error
