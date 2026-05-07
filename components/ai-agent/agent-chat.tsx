@@ -127,26 +127,22 @@ export function AgentChat() {
       recognitionRef.current = recognition
 
       recognition.onstart = () => {
-        console.log('[v0] Speech recognition started')
         setIsListening(true)
       }
       
       recognition.onend = () => {
-        console.log('[v0] Speech recognition ended')
+        // Recognition ended
       }
 
       recognition.onresult = (event: SpeechRecognitionEvent) => {
-        console.log('[v0] Speech recognition result:', event.results)
         let fullTranscript = ''
         for (let i = 0; i < event.results.length; i++) {
           fullTranscript += event.results[i][0].transcript
         }
         transcriptRef.current = fullTranscript
-        console.log('[v0] Current transcript:', fullTranscript)
       }
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-        console.error('[v0] Speech recognition error:', event.error)
         if (event.error !== 'aborted') {
           stopListening()
         }
@@ -216,26 +212,23 @@ export function AgentChat() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(
-        'https://n8n.impulsionaimarketing.com.br/webhook/agente-ia',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: text,
-            history: messages.slice(-6).map(m => ({
-              role: m.role,
-              content: m.content
-            }))
-          })
-        }
-      )
+      const response = await fetch('/api/agent-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: messages.slice(-6).map(m => ({
+            role: m.role,
+            content: m.content
+          }))
+        })
+      })
 
       const data = await response.json()
 
       const aiMessage: Message = {
         role: 'assistant',
-        content: data.response || data.output || data.text || 'Não consegui processar sua solicitação.',
+        content: data.response || 'Não consegui processar sua solicitação.',
         timestamp: new Date()
       }
       setMessages(prev => [...prev, aiMessage])
