@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import { query, queryOne, execute } from "@/lib/db"
 import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
 
 export interface WhatsAppInstance {
@@ -52,35 +52,36 @@ export async function getClients(filters?: {
   search?: string
 }): Promise<Client[]> {
   try {
-    const supabase = await createSupabaseClient()
-    
-    // Use RPC function to bypass PostgREST cache
-    const { data, error } = await supabase.rpc("get_all_clients")
+    let sql = "SELECT * FROM clients ORDER BY name"
+    const params: unknown[] = []
+    let paramCount = 1
 
-    if (error) {
-      console.error("[v0] Error fetching clients via RPC:", error)
-      return []
-    }
+    // Build WHERE clause based on filters
+    const conditions: string[] = []
 
-    let clients = data || []
-
-    // Apply filters client-side
     if (filters?.status && filters.status !== "all") {
-      clients = clients.filter((c: Client) => c.contract_status === filters.status)
+      conditions.push(`contract_status = $${paramCount}`)
+      params.push(filters.status)
+      paramCount++
     }
 
     if (filters?.type && filters.type !== "all") {
-      clients = clients.filter((c: Client) => c.type === filters.type)
+      conditions.push(`type = $${paramCount}`)
+      params.push(filters.type)
+      paramCount++
     }
 
     if (filters?.search) {
-      const search = filters.search.toLowerCase()
-      clients = clients.filter((c: Client) => c.name.toLowerCase().includes(search))
+      conditions.push(`LOWER(name) LIKE LOWER($${paramCount})`)
+      params.push(`%${filters.search}%`)
+      paramCount++
     }
 
-    // Sort by name
-    clients.sort((a: Client, b: Client) => a.name.localeCompare(b.name))
+    if (conditions.length > 0) {
+      sql = `SELECT * FROM clients WHERE ${conditions.join(" AND ")} ORDER BY name`
+    }
 
+    const clients = await query<Client>(sql, params)
     return clients
   } catch (error) {
     console.error("[v0] Error fetching clients:", error)
@@ -90,21 +91,25 @@ export async function getClients(filters?: {
 
 export async function getClientById(id: string): Promise<ClientWithResponsibles | null> {
   try {
-    const supabase = await createSupabaseClient()
+    const client = await queryOne<Client>(
+      `SELECT * FROM clients WHERE id = $1`,
+      [id]
+    )
 
-    const { data: clients, error } = await supabase.rpc("get_all_clients")
-
-    if (error || !clients) {
-      console.error("[v0] Error fetching client by id:", error)
-      return null
-    }
-
-    const client = clients.find((c: Client) => c.id === id)
     if (!client) return null
+
+    // Fetch responsibles for this client
+    const responsibles = await query(
+      `SELECT cr.area, cr.user_id, u.name as user_name 
+       FROM client_responsibles cr 
+       LEFT JOIN users u ON cr.user_id = u.id 
+       WHERE cr.client_id = $1`,
+      [id]
+    )
 
     return {
       ...client,
-      responsibles: [],
+      responsibles: responsibles || [],
     }
   } catch (error) {
     console.error("[v0] Error fetching client by id:", error)
@@ -114,37 +119,34 @@ export async function getClientById(id: string): Promise<ClientWithResponsibles 
 
 export async function createClient(data: Partial<Client>): Promise<Client | null> {
   try {
-    const supabase = await createSupabaseClient()
+    const result = await queryOne<Client>(
+      `INSERT INTO clients (
+        name, type, campaign_type, plan, monthly_value, 
+        contract_status, month_status, whatsapp_group_name, 
+        whatsapp_group_id, ad_account_name, ad_account_id, 
+        business_manager_id, google_ads_id, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        data.name,
+        data.type,
+        data.campaign_type,
+        data.plan,
+        data.monthly_value || 0,
+        data.contract_status || "Ativo",
+        data.month_status || "green",
+        data.whatsapp_group_name || null,
+        data.whatsapp_group_id || null,
+        data.ad_account_name || null,
+        data.ad_account_id || null,
+        data.business_manager_id || null,
+        data.google_ads_id || null,
+        "Ativo",
+      ]
+    )
 
-    const { data: result, error } = await supabase
-      .from("clients")
-      .insert({
-        name: data.name,
-        type: data.type,
-        campaign_type: data.campaign_type,
-        payment_frequency: data.payment_frequency || "Mensal",
-        plan: data.plan,
-        monthly_value: data.monthly_value,
-        payment_day: data.payment_day || 10,
-        contract_status: data.contract_status || "Ativo",
-        contract_start_date: data.contract_start_date || null,
-        contract_end_date: data.contract_end_date || null,
-        renewal_date: data.renewal_date || null,
-        month_status: data.month_status || "green",
-        whatsapp_group_name: data.whatsapp_group_name || null,
-        whatsapp_group_id: data.whatsapp_group_id || null,
-        ad_account_name: data.ad_account_name || null,
-        ad_account_id: data.ad_account_id || null,
-        business_manager_id: data.business_manager_id || null,
-        google_ads_id: data.google_ads_id || null,
-        status: "Ativo",
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error("[v0] Error creating client:", error)
-      throw new Error(error.message)
+    if (!result) {
+      throw new Error("Failed to create client")
     }
 
     // Send webhook notification
@@ -159,31 +161,40 @@ export async function createClient(data: Partial<Client>): Promise<Client | null
 
 export async function updateClient(id: string, data: Partial<Client>): Promise<Client | null> {
   try {
-    const supabase = await createSupabaseClient()
+    // Build dynamic UPDATE query
+    const updates: string[] = []
+    const params: unknown[] = []
+    let paramCount = 1
 
-    // Build payload with only the fields explicitly provided
-    const payload: Record<string, unknown> = {}
     const fields: (keyof Client)[] = [
-      'name', 'type', 'campaign_type', 'payment_frequency', 'plan',
-      'monthly_value', 'payment_day', 'contract_status', 'contract_start_date',
-      'contract_end_date', 'renewal_date', 'month_status', 'whatsapp_group_name',
-      'whatsapp_group_id', 'whatsapp_instances', 'ad_account_name', 'ad_account_id',
-      'business_manager_id', 'google_ads_id', 'status',
+      'name', 'type', 'campaign_type', 'plan',
+      'monthly_value', 'contract_status', 'month_status', 
+      'whatsapp_group_name', 'whatsapp_group_id', 'ad_account_name', 
+      'ad_account_id', 'business_manager_id', 'google_ads_id', 'status',
     ]
+
     for (const field of fields) {
-      if (field in data) payload[field] = data[field]
+      if (field in data) {
+        updates.push(`${field} = $${paramCount}`)
+        params.push(data[field])
+        paramCount++
+      }
     }
 
-    const { data: result, error } = await supabase
-      .from("clients")
-      .update({ ...payload, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select()
-      .single()
+    if (updates.length === 0) {
+      return await queryOne<Client>("SELECT * FROM clients WHERE id = $1", [id])
+    }
 
-    if (error) {
-      console.error("[v0] Error updating client:", error)
-      throw new Error(error.message)
+    updates.push(`updated_at = NOW()`)
+    params.push(id)
+
+    const result = await queryOne<Client>(
+      `UPDATE clients SET ${updates.join(", ")} WHERE id = $${paramCount} RETURNING *`,
+      params
+    )
+
+    if (!result) {
+      throw new Error("Failed to update client")
     }
 
     // Send webhook notification
@@ -198,14 +209,7 @@ export async function updateClient(id: string, data: Partial<Client>): Promise<C
 
 export async function deleteClient(id: string): Promise<void> {
   try {
-    const supabase = await createSupabaseClient()
-
-    const { error } = await supabase.rpc("delete_client_by_id", { p_id: id })
-
-    if (error) {
-      console.error("[v0] Error deleting client:", error)
-      throw new Error(error.message)
-    }
+    await execute("DELETE FROM clients WHERE id = $1", [id])
 
     // Send webhook notification
     await sendWebhookNotification('client.deleted', { id })
