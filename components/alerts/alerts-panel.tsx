@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -57,7 +57,6 @@ export function AlertsPanel() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [severityFilter, setSeverityFilter] = useState<string>('all')
-  const [isPending, startTransition] = useTransition()
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -69,20 +68,19 @@ export function AlertsPanel() {
   }, [typeFilter, severityFilter])
 
   async function loadAlerts() {
-    startTransition(async () => {
-      try {
-        const data = await getAlerts({
-          type: typeFilter !== 'all' ? typeFilter : undefined,
-          severity: severityFilter !== 'all' ? severityFilter : undefined,
-          is_resolved: false,
-        })
-        setAlerts(data)
-      } catch (error) {
-        console.error('[v0] Error loading alerts:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    })
+    setIsLoading(true)
+    try {
+      const data = await getAlerts({
+        type: typeFilter !== 'all' ? typeFilter : undefined,
+        severity: severityFilter !== 'all' ? severityFilter : undefined,
+        is_resolved: false,
+      })
+      setAlerts(data)
+    } catch (error) {
+      console.error('[v0] Error loading alerts:', error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   async function handleResolve(id: string) {

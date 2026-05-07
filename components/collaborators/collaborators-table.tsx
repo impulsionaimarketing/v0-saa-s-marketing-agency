@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -50,7 +50,6 @@ export function CollaboratorsTable() {
   const [searchQuery, setSearchQuery] = useState('')
   const [areaFilter, setAreaFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [isPending, startTransition] = useTransition()
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -65,20 +64,19 @@ export function CollaboratorsTable() {
   }, [searchQuery, areaFilter, statusFilter])
 
   async function loadUsers() {
-    startTransition(async () => {
-      try {
-        const data = await getUsers({
-          area: areaFilter,
-          status: statusFilter,
-          search: searchQuery,
-        })
-        setUsers(data)
-      } catch (error) {
-        console.error('[v0] Error loading users:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    })
+    setIsLoading(true)
+    try {
+      const data = await getUsers({
+        area: areaFilter !== 'all' ? areaFilter : undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: searchQuery || undefined,
+      })
+      setUsers(data)
+    } catch (error) {
+      console.error('[v0] Error loading users:', error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const activeCount = users.filter((u) => u.status === 'Ativo').length
