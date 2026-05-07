@@ -1,4 +1,4 @@
--- Corrigir as constraints da tabela clients para aceitar valores do Notion
+eciso-- Corrigir as constraints da tabela clients para aceitar valores do Notion
 
 -- Remover a constraint antiga de contract_status
 ALTER TABLE public.clients 

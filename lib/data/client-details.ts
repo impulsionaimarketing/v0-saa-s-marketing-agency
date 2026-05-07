@@ -20,7 +20,7 @@ export interface MonthlyPlan {
 // Get onboarding tasks for a client
 export async function getOnboardingTasks(clientId: string): Promise<OnboardingTask[]> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data, error } = await supabase
       .from('client_onboarding_tasks')
       .select('*')
@@ -38,7 +38,7 @@ export async function getOnboardingTasks(clientId: string): Promise<OnboardingTa
 // Toggle onboarding task completion
 export async function toggleOnboardingTask(taskId: string, completed: boolean): Promise<OnboardingTask> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data, error } = await supabase
       .from('client_onboarding_tasks')
       .update({
@@ -60,7 +60,7 @@ export async function toggleOnboardingTask(taskId: string, completed: boolean): 
 // Get monthly plan for a client
 export async function getMonthlyPlan(clientId: string, month: number, year: number): Promise<MonthlyPlan | null> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data, error } = await supabase
       .from('client_monthly_plans')
       .select('*')
@@ -85,7 +85,7 @@ export async function saveMonthlyPlan(
   content: string
 ): Promise<MonthlyPlan> {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data, error } = await supabase
       .from('client_monthly_plans')
       .upsert({
@@ -108,7 +108,7 @@ export async function saveMonthlyPlan(
 // Get client by ID
 export async function getClientById(clientId: string) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data, error } = await supabase
       .from('clients')
       .select('*')
@@ -126,7 +126,7 @@ export async function getClientById(clientId: string) {
 // Get client meta ads data
 export async function getClientMetaAdsData(clientId: string) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data, error } = await supabase
       .from('meta_ads_insights_full')
       .select('*')
