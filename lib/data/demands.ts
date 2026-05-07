@@ -1,6 +1,6 @@
 "use server"
 
-import { query, queryOne, execute } from "@/lib/db"
+import { createClient } from "@/lib/supabase/server"
 import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
 
 export interface Demand {
@@ -28,108 +28,121 @@ export async function getDemands(filters?: {
   current_user_role?: string
 }): Promise<Demand[]> {
   try {
-    let sql = `
-      SELECT d.*, c.name as client_name, u.name as responsible_name
-      FROM demands d
-      LEFT JOIN clients c ON d.client_id = c.id
-      LEFT JOIN users u ON d.responsible_id = u.id
-    `
-    const params: unknown[] = []
-    let paramCount = 1
-    const conditions: string[] = []
+    const supabase = await createClient()
+    
+    let query = supabase
+      .from("demands")
+      .select(`
+        *,
+        clients:client_id (name),
+        users:responsible_id (name)
+      `)
+      .order("created_at", { ascending: false })
 
     // Filter by user role: Colaboradores only see their own tasks
     if (filters?.current_user_role === 'Colaborador' && filters?.current_user_id) {
-      conditions.push(`d.responsible_id = $${paramCount}`)
-      params.push(filters.current_user_id)
-      paramCount++
+      query = query.eq("responsible_id", filters.current_user_id)
     }
 
     if (filters?.client_id) {
-      conditions.push(`d.client_id = $${paramCount}`)
-      params.push(filters.client_id)
-      paramCount++
+      query = query.eq("client_id", filters.client_id)
     }
 
     if (filters?.area && filters.area !== "all") {
-      conditions.push(`d.area = $${paramCount}`)
-      params.push(filters.area)
-      paramCount++
+      query = query.eq("area", filters.area)
     }
 
-    if (filters?.status) {
-      conditions.push(`d.status = $${paramCount}`)
-      params.push(filters.status)
-      paramCount++
+    if (filters?.status && filters.status !== "all") {
+      query = query.eq("status", filters.status)
     }
 
     if (filters?.responsible_id) {
-      conditions.push(`d.responsible_id = $${paramCount}`)
-      params.push(filters.responsible_id)
-      paramCount++
+      query = query.eq("responsible_id", filters.responsible_id)
     }
 
-    if (conditions.length > 0) {
-      sql += ` WHERE ${conditions.join(" AND ")}`
+    const { data, error } = await query
+
+    if (error) {
+      console.error("[v0] Error fetching demands:", error)
+      return []
     }
 
-    sql += ` ORDER BY d.deadline ASC NULLS LAST`
-
-    const demands = await query<Demand>(sql, params)
-    return demands
+    return (data || []).map((item: any) => ({
+      ...item,
+      client_name: item.clients?.name || null,
+      responsible_name: item.users?.name || null,
+    })) as Demand[]
   } catch (error) {
     console.error("[v0] Error fetching demands:", error)
     return []
   }
 }
 
-export async function getDemandsByStatus(): Promise<Record<string, Demand[]>> {
-  const demands = await getDemands()
+export async function getDemandById(id: string): Promise<Demand | null> {
+  try {
+    const supabase = await createClient()
+    
+    const { data, error } = await supabase
+      .from("demands")
+      .select(`
+        *,
+        clients:client_id (name),
+        users:responsible_id (name)
+      `)
+      .eq("id", id)
+      .single()
 
-  const grouped: Record<string, Demand[]> = {
-    "A Fazer": [],
-    "Em Produção": [],
-    "Em Revisão": [],
-    Aprovado: [],
-    Publicado: [],
-    Atrasado: [],
-  }
-
-  for (const demand of demands) {
-    if (grouped[demand.status]) {
-      grouped[demand.status].push(demand)
+    if (error) {
+      console.error("[v0] Error fetching demand:", error)
+      return null
     }
-  }
 
-  return grouped
+    return {
+      ...data,
+      client_name: data.clients?.name || null,
+      responsible_name: data.users?.name || null,
+    } as Demand
+  } catch (error) {
+    console.error("[v0] Error fetching demand:", error)
+    return null
+  }
 }
 
 export async function createDemand(data: Partial<Demand>): Promise<Demand | null> {
   try {
-    const result = await queryOne<Demand>(
-      `INSERT INTO demands (name, description, client_id, area, responsible_id, deadline, status, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
-      [
-        data.name,
-        data.description || null,
-        data.client_id,
-        data.area,
-        data.responsible_id || null,
-        data.deadline || null,
-        data.status || "A Fazer",
-        data.priority || "medium",
-      ]
-    )
+    const supabase = await createClient()
+    
+    const { data: result, error } = await supabase
+      .from("demands")
+      .insert({
+        name: data.name,
+        description: data.description || null,
+        client_id: data.client_id,
+        area: data.area,
+        responsible_id: data.responsible_id || null,
+        deadline: data.deadline || null,
+        status: data.status || "A Fazer",
+        priority: data.priority || "medium",
+      })
+      .select(`
+        *,
+        clients:client_id (name),
+        users:responsible_id (name)
+      `)
+      .single()
 
-    if (!result) {
-      throw new Error("Failed to create demand")
+    if (error) {
+      console.error("[v0] Error creating demand:", error)
+      throw new Error(error.message)
     }
 
-    // Send webhook notification
     await sendWebhookNotification('demand.created', result)
 
-    return result
+    return {
+      ...result,
+      client_name: result.clients?.name || null,
+      responsible_name: result.users?.name || null,
+    } as Demand
   } catch (error) {
     console.error("[v0] Error creating demand:", error)
     throw error
@@ -138,104 +151,64 @@ export async function createDemand(data: Partial<Demand>): Promise<Demand | null
 
 export async function updateDemand(id: string, data: Partial<Demand>): Promise<Demand | null> {
   try {
-    const updates: string[] = []
-    const params: unknown[] = []
-    let paramCount = 1
-
-    const fields: (keyof Demand)[] = ['name', 'description', 'client_id', 'area', 'responsible_id', 'deadline', 'status', 'priority']
+    const supabase = await createClient()
+    
+    const updateData: any = {}
+    const fields: (keyof Demand)[] = ['name', 'description', 'area', 'responsible_id', 'deadline', 'status', 'priority']
 
     for (const field of fields) {
       if (field in data) {
-        updates.push(`${field} = $${paramCount}`)
-        params.push(data[field])
-        paramCount++
+        updateData[field] = data[field]
       }
     }
 
-    if (updates.length === 0) {
-      return await queryOne<Demand>("SELECT * FROM demands WHERE id = $1", [id])
+    if (Object.keys(updateData).length === 0) {
+      return await getDemandById(id)
     }
 
-    updates.push(`updated_at = NOW()`)
-    params.push(id)
+    const { data: result, error } = await supabase
+      .from("demands")
+      .update(updateData)
+      .eq("id", id)
+      .select(`
+        *,
+        clients:client_id (name),
+        users:responsible_id (name)
+      `)
+      .single()
 
-    const result = await queryOne<Demand>(
-      `UPDATE demands SET ${updates.join(", ")} WHERE id = $${paramCount} RETURNING *`,
-      params
-    )
-
-    if (!result) {
-      throw new Error("Failed to update demand")
+    if (error) {
+      console.error("[v0] Error updating demand:", error)
+      throw new Error(error.message)
     }
 
-    // Check if there's a production linked to this demand
-    const linkedProduction = await queryOne<{ id: string }>(
-      "SELECT id FROM productions WHERE demand_id = $1",
-      [id]
-    )
-
-    // If there's a linked production, sync the changes
-    if (linkedProduction) {
-      console.log('[v0] Syncing demand changes to linked production:', linkedProduction.id)
-      await execute(
-        `UPDATE productions SET responsible_id = $1, status = $2, post_date = $3, updated_at = NOW() WHERE id = $4`,
-        [
-          data.responsible_id,
-          mapDemandStatusToProductionStatus(data.status),
-          data.deadline,
-          linkedProduction.id
-        ]
-      )
-    }
-
-    // Send webhook notification
     await sendWebhookNotification('demand.updated', { id, ...result })
 
-    return result
+    return {
+      ...result,
+      client_name: result.clients?.name || null,
+      responsible_name: result.users?.name || null,
+    } as Demand
   } catch (error) {
     console.error("[v0] Error updating demand:", error)
     throw error
   }
 }
 
-// Helper function to map demand status to production status
-function mapDemandStatusToProductionStatus(demandStatus?: string): string {
-  const statusMap: Record<string, string> = {
-    'A Fazer': 'Planejamento',
-    'Em Produção': 'Produção',
-    'Em Revisão': 'Revisão',
-    'Aprovado': 'Aprovado',
-    'Publicado': 'Publicado'
-  }
-  return demandStatus ? (statusMap[demandStatus] || 'Planejamento') : 'Planejamento'
-}
-
-export async function updateDemandStatus(id: string, status: Demand["status"]): Promise<Demand | null> {
-  try {
-    const result = await queryOne<Demand>(
-      `UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [status, id]
-    )
-
-    if (!result) {
-      throw new Error("Failed to update demand status")
-    }
-
-    // Send webhook notification
-    await sendWebhookNotification('demand.status_changed', { id, status, ...result })
-
-    return result
-  } catch (error) {
-    console.error("[v0] Error updating demand status:", error)
-    throw error
-  }
-}
-
 export async function deleteDemand(id: string): Promise<void> {
   try {
-    await execute("DELETE FROM demands WHERE id = $1", [id])
+    const supabase = await createClient()
+    
+    const { error } = await supabase
+      .from("demands")
+      .delete()
+      .eq("id", id)
 
-    // Send webhook notification
+    if (error) {
+      console.error("[v0] Error deleting demand:", error)
+      throw new Error(error.message)
+    }
+
     await sendWebhookNotification('demand.deleted', { id })
   } catch (error) {
     console.error("[v0] Error deleting demand:", error)
