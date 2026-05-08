@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { MediaPreview } from './media-preview'
 import { QuickInfo } from './quick-info'
 import { StatusPipeline } from './status-pipeline'
+import { StatusButtons } from './status-buttons'
 import { ActionButtons } from './action-buttons'
 import { HistoryList } from './history-list'
 import { Production } from '@/lib/data/productions'
@@ -80,22 +81,28 @@ export function ProductionCard({ production, onUpdateStatus, isLoading }: Produc
         <QuickInfo production={production} />
         
         {/* 3. Status visual */}
-        <StatusPipeline 
-          currentStatus={production.status}
-          statusOrder={STATUS_ORDER}
-          statusColors={STATUS_COLORS}
-        />
+        <StatusPipeline
+                  currentStatus={production.status}
+                  statusOrder={STATUS_ORDER}
+                  statusColors={STATUS_COLORS}
+                  onStatusClick={handleStatusChange}
+                />
         
         {/* 4. Botões operacionais */}
-        <ActionButtons
-          currentStatus={production.status}
-          nextStatus={nextStatus}
-          onStatusChange={handleStatusChange}
-          isUpdating={isUpdating}
-          showHistory={showHistory}
-          setShowHistory={setShowHistory}
-          user={user}
-        />
+                <StatusButtons
+                  currentStatus={production.status}
+                  onStatusChange={handleStatusChange}
+                  isUpdating={isUpdating}
+                />
+                
+                {/* Botão de histórico */}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="w-full h-10 text-xs font-medium rounded-xl border-gray-200 text-gray-600 hover:bg-gray-50"
+                >
+                  {showHistory ? 'Ocultar Histórico' : 'Ver Histórico'}
+                </Button>
         
         {/* 5. Histórico */}
         {showHistory && (

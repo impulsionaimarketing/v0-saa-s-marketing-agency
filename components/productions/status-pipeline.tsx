@@ -7,9 +7,10 @@ interface StatusPipelineProps {
   currentStatus: string
   statusOrder: string[]
   statusColors: Record<string, string>
+  onStatusClick?: (status: string) => void
 }
 
-export function StatusPipeline({ currentStatus, statusOrder, statusColors }: StatusPipelineProps) {
+export function StatusPipeline({ currentStatus, statusOrder, statusColors, onStatusClick }: StatusPipelineProps) {
   const currentIdx = statusOrder.indexOf(currentStatus)
 
   return (
@@ -29,13 +30,17 @@ export function StatusPipeline({ currentStatus, statusOrder, statusColors }: Sta
           return (
             <div key={status} className="flex items-center gap-1 flex-shrink-0">
               <Badge
-                className={`
-                  text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap
-                  ${isCurrent ? 'ring-2 ring-offset-1 ring-blue-400 scale-105' : ''}
-                  ${isPast ? 'opacity-60' : ''}
-                  ${colorClass}
-                `}
-              >
+                              className={`
+                                text-[10px] font-medium px-2 py-1 rounded-full border whitespace-nowrap
+                                ${isCurrent ? 'ring-2 ring-offset-1 ring-blue-400 scale-105' : ''}
+                                ${isPast ? 'opacity-60' : ''}
+                                ${colorClass}
+                              `}
+                              onClick={() => onStatusClick && onStatusClick(status)}
+                              role="button"
+                              tabIndex={0}
+                              aria-pressed={isCurrent}
+                              >
                 {isPast && <Check className="w-2.5 h-2.5 mr-0.5" />}
                 {status}
               </Badge>
