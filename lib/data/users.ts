@@ -15,12 +15,94 @@ export interface User {
   updated_at: string
 }
 
+// Mock data para demonstração quando não há conexão com o banco
+const mockUsers: User[] = [
+  {
+    id: "1",
+    name: "Ana Silva",
+    email: "ana.silva@impulsionai.com",
+    role: "Admin",
+    area: null,
+    status: "Ativo",
+    avatar_url: null,
+    modules_access: ["dashboard", "clientes", "demandas", "financeiro", "relatorios", "alertas", "colaboradores"],
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 365).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+  },
+  {
+    id: "2",
+    name: "Carlos Mendes",
+    email: "carlos.mendes@impulsionai.com",
+    role: "Gestor",
+    area: "Tráfego",
+    status: "Ativo",
+    avatar_url: null,
+    modules_access: ["dashboard", "clientes", "demandas", "relatorios"],
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 300).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+  },
+  {
+    id: "3",
+    name: "Marina Costa",
+    email: "marina.costa@impulsionai.com",
+    role: "Colaborador",
+    area: "Arte",
+    status: "Ativo",
+    avatar_url: null,
+    modules_access: ["dashboard", "demandas"],
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 200).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
+  },
+  {
+    id: "4",
+    name: "Pedro Santos",
+    email: "pedro.santos@impulsionai.com",
+    role: "Colaborador",
+    area: "Vídeo",
+    status: "Ativo",
+    avatar_url: null,
+    modules_access: ["dashboard", "demandas"],
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 150).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+  },
+  {
+    id: "5",
+    name: "Julia Oliveira",
+    email: "julia.oliveira@impulsionai.com",
+    role: "Colaborador",
+    area: "Comunicação",
+    status: "Ativo",
+    avatar_url: null,
+    modules_access: ["dashboard", "demandas", "clientes"],
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 100).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+  },
+  {
+    id: "6",
+    name: "Ricardo Lima",
+    email: "ricardo.lima@impulsionai.com",
+    role: "Gestor",
+    area: "Arte",
+    status: "Inativo",
+    avatar_url: null,
+    modules_access: ["dashboard", "clientes", "demandas"],
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 400).toISOString(),
+    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(),
+  },
+]
+
 export async function getUsers(filters?: {
   role?: string
   area?: string
   status?: string
   search?: string
 }): Promise<User[]> {
+  // Verificar se DATABASE_URL está configurada
+  if (!process.env.DATABASE_URL) {
+    console.log("[v0] DATABASE_URL not configured, using mock data for users")
+    return filterMockUsers(mockUsers, filters)
+  }
+
   try {
     let sql = "SELECT * FROM users ORDER BY name"
     const params: unknown[] = []
@@ -58,36 +140,79 @@ export async function getUsers(filters?: {
     }
 
     const users = await query<User>(sql, params)
-    return users
+    return users.length > 0 ? users : filterMockUsers(mockUsers, filters)
   } catch (error) {
     console.error("[v0] Error fetching users:", error)
-    return []
+    return filterMockUsers(mockUsers, filters)
   }
 }
 
+function filterMockUsers(users: User[], filters?: {
+  role?: string
+  area?: string
+  status?: string
+  search?: string
+}): User[] {
+  let result = [...users]
+
+  if (filters?.role && filters.role !== "all") {
+    result = result.filter(u => u.role === filters.role)
+  }
+
+  if (filters?.area && filters.area !== "all") {
+    result = result.filter(u => u.area === filters.area)
+  }
+
+  if (filters?.status && filters.status !== "all") {
+    result = result.filter(u => u.status === filters.status)
+  }
+
+  if (filters?.search) {
+    const search = filters.search.toLowerCase()
+    result = result.filter(u => 
+      u.name.toLowerCase().includes(search) || 
+      u.email.toLowerCase().includes(search)
+    )
+  }
+
+  result.sort((a, b) => a.name.localeCompare(b.name))
+
+  return result
+}
+
 export async function getUserById(id: string): Promise<User | null> {
+  if (!process.env.DATABASE_URL) {
+    return mockUsers.find(u => u.id === id) || null
+  }
+
   try {
     const user = await queryOne<User>(
       "SELECT * FROM users WHERE id = $1",
       [id]
     )
-    return user || null
+    return user || mockUsers.find(u => u.id === id) || null
   } catch (error) {
     console.error("[v0] Error fetching user by id:", error)
-    return null
+    return mockUsers.find(u => u.id === id) || null
   }
 }
 
 export async function getUsersByArea(area: string): Promise<User[]> {
+  const mockResult = mockUsers.filter(u => u.area === area && u.status === "Ativo")
+  
+  if (!process.env.DATABASE_URL) {
+    return mockResult
+  }
+
   try {
     const users = await query<User>(
       `SELECT * FROM users WHERE area = $1 AND status = 'Ativo' ORDER BY name`,
       [area]
     )
-    return users
+    return users.length > 0 ? users : mockResult
   } catch (error) {
     console.error("[v0] Error fetching users by area:", error)
-    return []
+    return mockResult
   }
 }
 

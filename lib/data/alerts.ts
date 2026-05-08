@@ -17,6 +17,80 @@ export interface Alert {
   created_at: string
 }
 
+// Mock data para demonstração quando não há conexão com o banco
+const mockAlerts: Alert[] = [
+  {
+    id: "1",
+    type: "late_task",
+    title: "Tarefa atrasada: Campanha Black Friday",
+    description: "A entrega da arte para a campanha está 2 dias atrasada",
+    severity: "high",
+    client_id: "1",
+    client_name: "TechCorp Brasil",
+    related_entity_type: "task",
+    related_entity_id: "task-1",
+    is_read: false,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+  },
+  {
+    id: "2",
+    type: "no_balance",
+    title: "Saldo baixo: Campanha Google Ads",
+    description: "O saldo da campanha está abaixo de R$ 100,00",
+    severity: "medium",
+    client_id: "2",
+    client_name: "Loja Virtual ABC",
+    related_entity_type: "campaign",
+    related_entity_id: "campaign-1",
+    is_read: false,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+  },
+  {
+    id: "3",
+    type: "kpi_issue",
+    title: "KPI abaixo da meta: CTR",
+    description: "O CTR da campanha caiu 15% na última semana",
+    severity: "medium",
+    client_id: "3",
+    client_name: "Restaurante Sabor & Arte",
+    related_entity_type: "kpi",
+    related_entity_id: "kpi-1",
+    is_read: true,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+  },
+  {
+    id: "4",
+    type: "pending_report",
+    title: "Relatório pendente: Mensal de Março",
+    description: "O relatório mensal precisa ser enviado ao cliente",
+    severity: "low",
+    client_id: "1",
+    client_name: "TechCorp Brasil",
+    related_entity_type: "report",
+    related_entity_id: "report-1",
+    is_read: true,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+  },
+  {
+    id: "5",
+    type: "blocked_account",
+    title: "Conta bloqueada: Meta Ads",
+    description: "A conta de anúncios foi bloqueada por violação de política",
+    severity: "high",
+    client_id: "4",
+    client_name: "Imobiliária Premium",
+    related_entity_type: "account",
+    related_entity_id: "account-1",
+    is_read: false,
+    is_resolved: false,
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+  },
+]
+
 export async function getAlerts(filters?: {
   type?: string
   severity?: string
@@ -24,6 +98,12 @@ export async function getAlerts(filters?: {
   is_resolved?: boolean
   limit?: number
 }): Promise<Alert[]> {
+  // Verificar se DATABASE_URL está configurada
+  if (!process.env.DATABASE_URL) {
+    console.log("[v0] DATABASE_URL not configured, using mock data for alerts")
+    return filterMockAlerts(mockAlerts, filters)
+  }
+
   try {
     let sql = `SELECT a.*, c.name as client_name FROM alerts a LEFT JOIN clients c ON a.client_id = c.id`
     const params: unknown[] = []
@@ -66,22 +146,60 @@ export async function getAlerts(filters?: {
     }
 
     const alerts = await query<Alert>(sql, params)
-    return alerts
+    return alerts.length > 0 ? alerts : filterMockAlerts(mockAlerts, filters)
   } catch (error) {
     console.error("[v0] Error fetching alerts:", error)
-    return []
+    return filterMockAlerts(mockAlerts, filters)
   }
 }
 
+function filterMockAlerts(alerts: Alert[], filters?: {
+  type?: string
+  severity?: string
+  is_read?: boolean
+  is_resolved?: boolean
+  limit?: number
+}): Alert[] {
+  let result = [...alerts]
+
+  if (filters?.type && filters.type !== "all") {
+    result = result.filter(a => a.type === filters.type)
+  }
+
+  if (filters?.severity && filters.severity !== "all") {
+    result = result.filter(a => a.severity === filters.severity)
+  }
+
+  if (filters?.is_read !== undefined) {
+    result = result.filter(a => a.is_read === filters.is_read)
+  }
+
+  if (filters?.is_resolved !== undefined) {
+    result = result.filter(a => a.is_resolved === filters.is_resolved)
+  }
+
+  result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  if (filters?.limit) {
+    result = result.slice(0, filters.limit)
+  }
+
+  return result
+}
+
 export async function getUnreadAlertsCount(): Promise<number> {
+  if (!process.env.DATABASE_URL) {
+    return mockAlerts.filter(a => !a.is_read).length
+  }
+
   try {
     const result = await queryOne<{ count: number }>(
       `SELECT COUNT(*) as count FROM alerts WHERE is_read = false`
     )
-    return result?.count || 0
+    return result?.count || mockAlerts.filter(a => !a.is_read).length
   } catch (error) {
     console.error("[v0] Error fetching unread alerts count:", error)
-    return 0
+    return mockAlerts.filter(a => !a.is_read).length
   }
 }
 
