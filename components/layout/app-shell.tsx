@@ -38,7 +38,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <AppContext.Provider value={{ currentRole, setCurrentRole, sidebarCollapsed, setSidebarCollapsed }}>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background relative">
         <Sidebar 
           mobileOpen={mobileOpen} 
           setMobileOpen={setMobileOpen}
@@ -58,8 +58,9 @@ export function AppShell({ children }: AppShellProps) {
             {children}
           </main>
         </div>
-        <AgentChat />
       </div>
+      {/* Agent Chat fora do container principal para garantir que não seja cortado */}
+      <AgentChat />
     </AppContext.Provider>
   )
 }

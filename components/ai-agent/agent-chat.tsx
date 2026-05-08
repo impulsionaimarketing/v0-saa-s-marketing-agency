@@ -279,12 +279,13 @@ export function AgentChat() {
       {isOpen && (
         <div 
           className={cn(
-            "fixed z-50 bg-card border border-border shadow-xl flex flex-col overflow-hidden",
+            "fixed bg-card border border-border shadow-xl flex flex-col overflow-hidden",
             "animate-in slide-in-from-bottom-4 fade-in duration-300",
             isFullscreen 
               ? "inset-0 rounded-none" 
               : "bottom-24 right-6 w-[380px] h-[520px] rounded-2xl max-sm:inset-4 max-sm:w-auto max-sm:h-auto max-sm:bottom-20"
           )}
+          style={{ zIndex: 9998 }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
@@ -470,9 +471,10 @@ export function AgentChat() {
         onClick={() => setIsOpen(!isOpen)}
         size="icon-lg"
         className={cn(
-          "fixed bottom-6 right-6 z-50 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105",
+          "fixed bottom-6 right-6 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105",
           isOpen && "bg-secondary text-secondary-foreground hover:bg-secondary/80"
         )}
+        style={{ zIndex: 9999 }}
       >
         {isOpen ? <X className="size-5" /> : <Sparkles className="size-5" />}
       </Button>
