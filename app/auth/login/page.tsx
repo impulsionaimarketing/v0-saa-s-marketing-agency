@@ -26,6 +26,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { setAuthCookie } from '@/lib/auth/cookies'
+import { AgentChat } from '@/components/ai-agent/agent-chat'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -145,6 +146,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4 sm:p-6 md:p-8">
+      <AgentChat />
       <Card className="w-full max-w-sm bg-card border-border">
         <CardHeader className="space-y-4 text-center">
           <div className="flex justify-center">
