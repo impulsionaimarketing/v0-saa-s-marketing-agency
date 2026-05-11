@@ -16,6 +16,7 @@ import { ChevronDown, X } from 'lucide-react'
 import { type Payment } from '@/lib/data/payments'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { cn } from '@/lib/utils'
 
 interface PaymentFiltersProps {
   payments: Payment[]
@@ -26,6 +27,7 @@ export function PaymentFilters({ payments, onFiltersChange }: PaymentFiltersProp
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [selectedStatus, setSelectedStatus] = useState<Set<string>>(new Set())
   const [selectedClient, setSelectedClient] = useState<string>('')
+  const [allFiltersExpanded, setAllFiltersExpanded] = useState<boolean>(true)
 
   // Get unique months from payments
   const availableMonths = useMemo(() => {
@@ -101,142 +103,158 @@ export function PaymentFilters({ payments, onFiltersChange }: PaymentFiltersProp
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
-      {/* Month Filter */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
-            Mês: {selectedMonth || 'Todos'}
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuItem onClick={() => setSelectedMonth('')}>
-            Todos os meses
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {availableMonths.map((month) => (
-            <DropdownMenuItem
-              key={month}
-              onClick={() => setSelectedMonth(month)}
-              className={selectedMonth === month ? 'bg-accent' : ''}
-            >
-              {month}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {/* Status Filter */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
-            Status: {selectedStatus.size > 0 ? selectedStatus.size : 'Todos'}
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-48">
-          <DropdownMenuCheckboxItem
-            checked={selectedStatus.size === 0}
-            onCheckedChange={() => setSelectedStatus(new Set())}
-          >
-            Todos os status
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuCheckboxItem
-            checked={selectedStatus.has('pago')}
-            onCheckedChange={() => toggleStatus('pago')}
-          >
-            Pago
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={selectedStatus.has('pendente')}
-            onCheckedChange={() => toggleStatus('pendente')}
-          >
-            Pendente
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={selectedStatus.has('atrasado')}
-            onCheckedChange={() => toggleStatus('atrasado')}
-          >
-            Atrasado
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {/* Client Filter */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="gap-2">
-            Cliente: {selectedClient ? selectedClient.substring(0, 15) + '...' : 'Todos'}
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuItem onClick={() => setSelectedClient('')}>
-            Todos os clientes
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {uniqueClients.map((client) => (
-            <DropdownMenuItem
-              key={client}
-              onClick={() => setSelectedClient(client)}
-              className={selectedClient === client ? 'bg-accent' : ''}
-            >
-              {client}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {/* Clear Filters Button */}
-      {isFiltered && (
+    <div className="flex flex-col gap-3">
+      {/* Toggle All Filters Button */}
+      <div className="flex gap-2 items-center">
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={handleClearFilters}
-          className="gap-2 text-destructive hover:text-destructive"
+          onClick={() => setAllFiltersExpanded(!allFiltersExpanded)}
+          className="gap-2"
         >
-          Limpar Filtros
-          <X className="h-4 w-4" />
+          {allFiltersExpanded ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+          <ChevronDown className={cn('h-4 w-4 transition-transform', !allFiltersExpanded && '-rotate-90')} />
         </Button>
-      )}
+        {isFiltered && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearFilters}
+            className="gap-2 text-destructive hover:text-destructive"
+          >
+            Limpar Filtros
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
 
-      {/* Active Filters Display */}
-      {isFiltered && (
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-          {selectedMonth && (
-            <Badge variant="secondary" className="gap-1">
-              Mês: {selectedMonth}
-              <button
-                onClick={() => setSelectedMonth('')}
-                className="ml-1 hover:text-destructive"
+      {/* Filters Container */}
+      {allFiltersExpanded && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-wrap">
+          {/* Month Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                Mês: {selectedMonth || 'Todos'}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuItem onClick={() => setSelectedMonth('')}>
+                Todos os meses
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {availableMonths.map((month) => (
+                <DropdownMenuItem
+                  key={month}
+                  onClick={() => setSelectedMonth(month)}
+                  className={selectedMonth === month ? 'bg-accent' : ''}
+                >
+                  {month}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Status Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                Status: {selectedStatus.size > 0 ? selectedStatus.size : 'Todos'}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48">
+              <DropdownMenuCheckboxItem
+                checked={selectedStatus.size === 0}
+                onCheckedChange={() => setSelectedStatus(new Set())}
               >
-                ✕
-              </button>
-            </Badge>
-          )}
-          {selectedStatus.size > 0 && (
-            <Badge variant="secondary" className="gap-1">
-              Status: {Array.from(selectedStatus).join(', ')}
-              <button
-                onClick={() => setSelectedStatus(new Set())}
-                className="ml-1 hover:text-destructive"
+                Todos os status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={selectedStatus.has('pago')}
+                onCheckedChange={() => toggleStatus('pago')}
               >
-                ✕
-              </button>
-            </Badge>
-          )}
-          {selectedClient && (
-            <Badge variant="secondary" className="gap-1">
-              {selectedClient}
-              <button
-                onClick={() => setSelectedClient('')}
-                className="ml-1 hover:text-destructive"
+                Pago
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={selectedStatus.has('pendente')}
+                onCheckedChange={() => toggleStatus('pendente')}
               >
-                ✕
-              </button>
-            </Badge>
+                Pendente
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={selectedStatus.has('atrasado')}
+                onCheckedChange={() => toggleStatus('atrasado')}
+              >
+                Atrasado
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Client Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                Cliente: {selectedClient ? selectedClient.substring(0, 15) + '...' : 'Todos'}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem onClick={() => setSelectedClient('')}>
+                Todos os clientes
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {uniqueClients.map((client) => (
+                <DropdownMenuItem
+                  key={client}
+                  onClick={() => setSelectedClient(client)}
+                  className={selectedClient === client ? 'bg-accent' : ''}
+                >
+                  {client}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Active Filters Display */}
+          {isFiltered && (
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              {selectedMonth && (
+                <Badge variant="secondary" className="gap-1">
+                  Mês: {selectedMonth}
+                  <button
+                    onClick={() => setSelectedMonth('')}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    ✕
+                  </button>
+                </Badge>
+              )}
+              {selectedStatus.size > 0 && (
+                <Badge variant="secondary" className="gap-1">
+                  Status: {Array.from(selectedStatus).join(', ')}
+                  <button
+                    onClick={() => setSelectedStatus(new Set())}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    ✕
+                  </button>
+                </Badge>
+              )}
+              {selectedClient && (
+                <Badge variant="secondary" className="gap-1">
+                  {selectedClient}
+                  <button
+                    onClick={() => setSelectedClient('')}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    ✕
+                  </button>
+                </Badge>
+              )}
+            </div>
           )}
         </div>
       )}

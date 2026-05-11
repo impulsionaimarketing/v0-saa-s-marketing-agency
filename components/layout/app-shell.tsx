@@ -47,7 +47,7 @@ export function AppShell({ children }: AppShellProps) {
         />
         <div className={cn(
           "transition-all duration-300",
-          sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
+          sidebarCollapsed ? "lg:pl-0" : "lg:pl-64"
         )}>
           <Topbar
             currentRole={currentRole}
