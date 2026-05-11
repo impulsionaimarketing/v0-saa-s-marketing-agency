@@ -48,10 +48,6 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      if (!email || !password) {
-        throw new Error('Email e senha são obrigatórios')
-      }
-
       // Usar RPC function de autenticação contra a tabela users
       const { data, error: rpcError } = await supabase.rpc('authenticate_user', {
         p_email: email,
@@ -59,29 +55,23 @@ export default function LoginPage() {
       })
 
       if (rpcError) {
-        console.error('[v0] RPC Error:', rpcError)
-        throw new Error('Erro ao conectar. Tente novamente.')
-      }
-
-      // Verificar se retornou dados e se a autenticação foi bem-sucedida
-      if (!data || data.length === 0) {
         throw new Error('Email ou senha incorretos')
       }
 
-      const result = Array.isArray(data) ? data[0] : data
-
-      if (!result.authenticated) {
+      if (!data || data.length === 0 || !data[0].authenticated) {
         throw new Error('Email ou senha incorretos')
       }
+
+      const user = data[0]
 
       // Dados do usuário autenticado
       const userData = {
-        id: result.id,
-        email: result.email || email,
-        name: result.name || '',
-        role: result.role || 'Colaborador',
-        area: result.area || '',
-        modules_access: result.modules_access || [],
+        id: user.id,
+        email: user.email || '',
+        name: user.name || '',
+        role: user.role || 'Colaborador',
+        area: user.area || '',
+        modules_access: user.modules_access || [],
       }
 
       // Armazenar informações do usuário no localStorage
@@ -107,12 +97,6 @@ export default function LoginPage() {
     setForgotSuccess(false)
     setIsForgotLoading(true)
 
-    if (!forgotEmail) {
-      setForgotError('Email é obrigatório')
-      setIsForgotLoading(false)
-      return
-    }
-
     if (newPassword !== confirmPassword) {
       setForgotError('As senhas não correspondem')
       setIsForgotLoading(false)
@@ -133,31 +117,23 @@ export default function LoginPage() {
       })
 
       if (rpcError) {
-        console.error('[v0] RPC Error:', rpcError)
-        throw new Error('Erro ao resetar senha. Tente novamente.')
-      }
-
-      // Verificar a resposta
-      if (!data || data.length === 0) {
         throw new Error('Erro ao resetar senha')
       }
 
-      const result = Array.isArray(data) ? data[0] : data
-
-      if (!result.success) {
-        throw new Error(result.message || 'Email não encontrado')
+      if (data?.success) {
+        setForgotSuccess(true)
+        setForgotEmail('')
+        setNewPassword('')
+        setConfirmPassword('')
+        
+        // Fechar modal após 2 segundos
+        setTimeout(() => {
+          setShowForgotPassword(false)
+          setForgotSuccess(false)
+        }, 2000)
+      } else {
+        throw new Error(data?.message || 'Email não encontrado')
       }
-
-      setForgotSuccess(true)
-      setForgotEmail('')
-      setNewPassword('')
-      setConfirmPassword('')
-      
-      // Fechar modal após 2 segundos
-      setTimeout(() => {
-        setShowForgotPassword(false)
-        setForgotSuccess(false)
-      }, 2000)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erro ao resetar senha'
       setForgotError(message)
