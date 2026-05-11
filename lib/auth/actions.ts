@@ -44,13 +44,13 @@ export async function loginUser(email: string, password: string) {
 
     // Armazenar no cookie
     const cookieStore = await cookies()
-    cookieStore.set('auth_user', JSON.stringify(userData), {
+    cookieStore.set('user', JSON.stringify(userData), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 dias
     })
-
+    
     return { success: true, user: userData }
   } catch (error) {
     console.error('[v0] Login error:', error)

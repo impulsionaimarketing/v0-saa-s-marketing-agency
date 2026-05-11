@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Para todas as outras rotas, verifica se usuário está logado
-  const user = request.cookies.get('user')?.value
+  const user = request.cookies.get('auth_user')?.value || request.cookies.get('user')?.value
 
   // Se não está logado e tenta acessar rota protegida, redireciona para login
   if (!user) {
