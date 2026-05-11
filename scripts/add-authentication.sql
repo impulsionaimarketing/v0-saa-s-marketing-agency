@@ -17,19 +17,32 @@ RETURNS TABLE (
   modules_access TEXT[],
   authenticated BOOLEAN
 ) AS $$
+DECLARE
+  v_user_id UUID;
+  v_email VARCHAR;
+  v_name VARCHAR;
+  v_role VARCHAR;
+  v_area VARCHAR;
+  v_modules_access TEXT[];
+  v_password_hash VARCHAR;
+  v_authenticated BOOLEAN;
 BEGIN
-  RETURN QUERY
-  SELECT 
-    u.id,
-    u.email,
-    u.name,
-    u.role,
-    u.area,
-    u.modules_access,
-    (u.password_hash IS NOT NULL AND u.password_hash = crypt(p_password, u.password_hash)) as authenticated
+  -- Buscar usuário por email
+  SELECT u.id, u.email, u.name, u.role, u.area, u.modules_access, u.password_hash
+  INTO v_user_id, v_email, v_name, v_role, v_area, v_modules_access, v_password_hash
   FROM public.users u
-  WHERE u.email = p_email 
-    AND u.status = 'Ativo';
+  WHERE u.email = p_email AND u.status = 'Ativo';
+
+  -- Se não encontrou usuário, retornar com authenticated = false
+  IF v_user_id IS NULL THEN
+    RETURN QUERY SELECT NULL::UUID, NULL::VARCHAR, NULL::VARCHAR, NULL::VARCHAR, NULL::VARCHAR, NULL::TEXT[], false::BOOLEAN;
+    RETURN;
+  END IF;
+
+  -- Verificar se a senha está correta
+  v_authenticated := (v_password_hash = crypt(p_password, v_password_hash));
+
+  RETURN QUERY SELECT v_user_id, v_email, v_name, v_role, v_area, v_modules_access, v_authenticated;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
