@@ -601,14 +601,14 @@ export async function getLeads(pipelineId: string, filters?: {
     leads.forEach(lead => {
       lead.tags = leadTags
         ?.filter(lt => lt.lead_id === lead.id)
-        .map(lt => lt.tag as CRMTag) || []
+        .map(lt => lt.tag as unknown as CRMTag) || []
     })
   }
 
   // Filter by tags if specified
   if (filters?.tagIds && filters.tagIds.length > 0) {
     return leads.filter(lead => 
-      lead.tags?.some(tag => filters.tagIds!.includes(tag.id))
+      lead.tags?.some((tag: CRMTag) => filters.tagIds!.includes(tag.id))
     )
   }
 
@@ -645,7 +645,7 @@ export async function getLead(id: string): Promise<CRMLeadV2 | null> {
 
   return {
     ...data,
-    tags: leadTags?.map(lt => lt.tag as CRMTag) || [],
+    tags: leadTags?.map(lt => lt.tag as unknown as CRMTag) || [],
     custom_values: customValues || [],
   }
 }
@@ -808,12 +808,15 @@ export async function moveLead(id: string, columnId: string, position: number): 
       .eq('id', columnId)
       .single()
 
+    const oldColumnName = (oldLead.column as { name?: string } | null)?.name
+    const newColumnName = (newColumn as { name?: string } | null)?.name
+    
     await logActivity(
       id, 
       'stage_changed', 
-      `Movido de "${oldLead.column?.name}" para "${newColumn?.name}"`,
-      oldLead.column?.name,
-      newColumn?.name
+      `Movido de "${oldColumnName}" para "${newColumnName}"`,
+      oldColumnName,
+      newColumnName
     )
   }
 }
