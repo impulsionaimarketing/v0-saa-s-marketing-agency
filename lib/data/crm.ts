@@ -3,6 +3,11 @@
 import { createClient } from "@/lib/supabase/server"
 
 // =============================================
+// DEMO MODE FLAG - Set to true to use demo data when tables don't exist
+// =============================================
+let useDemoData = false
+
+// =============================================
 // TYPES
 // =============================================
 
@@ -102,6 +107,41 @@ export const PRIORITY_CONFIG: Record<LeadPriority, { label: string; color: strin
 }
 
 // =============================================
+// DEMO DATA (used when tables don't exist)
+// =============================================
+
+const DEMO_PIPELINE: CRMPipeline = {
+  id: 'demo-pipeline-1',
+  name: 'Funil de Vendas (Demo)',
+  color: '#3b82f6',
+  position: 0,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
+const DEMO_COLUMNS: CRMColumn[] = [
+  { id: 'demo-col-1', pipeline_id: 'demo-pipeline-1', name: 'Novos Leads', color: '#6b7280', position: 0, lead_limit: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'demo-col-2', pipeline_id: 'demo-pipeline-1', name: 'Em Contato', color: '#3b82f6', position: 1, lead_limit: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'demo-col-3', pipeline_id: 'demo-pipeline-1', name: 'Proposta Enviada', color: '#8b5cf6', position: 2, lead_limit: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'demo-col-4', pipeline_id: 'demo-pipeline-1', name: 'Negociação', color: '#f59e0b', position: 3, lead_limit: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  { id: 'demo-col-5', pipeline_id: 'demo-pipeline-1', name: 'Fechado', color: '#22c55e', position: 4, lead_limit: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+]
+
+const DEMO_TAGS: CRMTag[] = [
+  { id: 'demo-tag-1', name: 'Quente', color: '#ef4444', created_at: new Date().toISOString() },
+  { id: 'demo-tag-2', name: 'Indicação', color: '#22c55e', created_at: new Date().toISOString() },
+  { id: 'demo-tag-3', name: 'Site', color: '#3b82f6', created_at: new Date().toISOString() },
+]
+
+const DEMO_LEADS: CRMLeadV2[] = [
+  { id: 'demo-lead-1', pipeline_id: 'demo-pipeline-1', column_id: 'demo-col-1', name: 'João Silva', company: 'Tech Solutions', phone: '(11) 99999-1234', whatsapp: '5511999991234', email: 'joao@techsolutions.com', value: 15000, priority: 'high', assigned_to: null, notes: 'Interessado em automação', position: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), tags: [DEMO_TAGS[0], DEMO_TAGS[2]] },
+  { id: 'demo-lead-2', pipeline_id: 'demo-pipeline-1', column_id: 'demo-col-1', name: 'Maria Santos', company: 'Marketing Pro', phone: '(21) 98888-5678', whatsapp: '5521988885678', email: 'maria@marketingpro.com', value: 8500, priority: 'medium', assigned_to: null, notes: null, position: 1, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), tags: [DEMO_TAGS[1]] },
+  { id: 'demo-lead-3', pipeline_id: 'demo-pipeline-1', column_id: 'demo-col-2', name: 'Pedro Costa', company: 'Startup XYZ', phone: '(31) 97777-9012', whatsapp: null, email: 'pedro@startupxyz.com', value: 25000, priority: 'urgent', assigned_to: null, notes: 'Reunião agendada para sexta', position: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), tags: [DEMO_TAGS[0]] },
+  { id: 'demo-lead-4', pipeline_id: 'demo-pipeline-1', column_id: 'demo-col-3', name: 'Ana Oliveira', company: 'Consultoria ABC', phone: '(41) 96666-3456', whatsapp: '5541966663456', email: 'ana@consultoriaabc.com', value: 12000, priority: 'medium', assigned_to: null, notes: null, position: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), tags: [] },
+  { id: 'demo-lead-5', pipeline_id: 'demo-pipeline-1', column_id: 'demo-col-4', name: 'Carlos Ferreira', company: 'Indústria 4.0', phone: '(51) 95555-7890', whatsapp: '5551955557890', email: 'carlos@industria40.com', value: 45000, priority: 'high', assigned_to: null, notes: 'Aguardando aprovação do financeiro', position: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), tags: [DEMO_TAGS[1], DEMO_TAGS[0]] },
+]
+
+// =============================================
 // PIPELINES (FUNIS)
 // =============================================
 
@@ -113,6 +153,12 @@ export async function getPipelines(): Promise<CRMPipeline[]> {
     .order('position', { ascending: true })
 
   if (error) {
+    // Check if error is because table doesn't exist
+    if (error.code === '42P01' || error.message?.includes('does not exist') || error.message?.includes('relation')) {
+      console.warn('[CRM] Tables not found, using demo data. Run scripts/crm-schema.sql to create tables.')
+      useDemoData = true
+      return [DEMO_PIPELINE]
+    }
     console.error('[CRM] Error fetching pipelines:', error)
     return []
   }
@@ -232,6 +278,10 @@ export async function duplicatePipeline(id: string): Promise<CRMPipeline | null>
 // =============================================
 
 export async function getColumns(pipelineId: string): Promise<CRMColumn[]> {
+  if (useDemoData || pipelineId === 'demo-pipeline-1') {
+    return DEMO_COLUMNS.filter(c => c.pipeline_id === pipelineId)
+  }
+  
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('crm_columns')
@@ -240,6 +290,9 @@ export async function getColumns(pipelineId: string): Promise<CRMColumn[]> {
     .order('position', { ascending: true })
 
   if (error) {
+    if (error.code === '42P01' || error.message?.includes('does not exist')) {
+      return DEMO_COLUMNS.filter(c => c.pipeline_id === pipelineId)
+    }
     console.error('[CRM] Error fetching columns:', error)
     return []
   }
@@ -326,6 +379,10 @@ export async function reorderColumns(columnIds: string[]): Promise<void> {
 // =============================================
 
 export async function getTags(): Promise<CRMTag[]> {
+  if (useDemoData) {
+    return DEMO_TAGS
+  }
+  
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('crm_tags')
@@ -333,6 +390,10 @@ export async function getTags(): Promise<CRMTag[]> {
     .order('name', { ascending: true })
 
   if (error) {
+    if (error.code === '42P01' || error.message?.includes('does not exist')) {
+      useDemoData = true
+      return DEMO_TAGS
+    }
     console.error('[CRM] Error fetching tags:', error)
     return []
   }
@@ -477,6 +538,18 @@ export async function getLeads(pipelineId: string, filters?: {
   priority?: LeadPriority
   assignedTo?: string
 }): Promise<CRMLeadV2[]> {
+  if (useDemoData || pipelineId === 'demo-pipeline-1') {
+    let demoLeads = DEMO_LEADS.filter(l => l.pipeline_id === pipelineId)
+    if (filters?.columnId) demoLeads = demoLeads.filter(l => l.column_id === filters.columnId)
+    if (filters?.search) {
+      const q = filters.search.toLowerCase()
+      demoLeads = demoLeads.filter(l => l.name.toLowerCase().includes(q) || l.company?.toLowerCase().includes(q))
+    }
+    if (filters?.priority) demoLeads = demoLeads.filter(l => l.priority === filters.priority)
+    if (filters?.tagIds?.length) demoLeads = demoLeads.filter(l => l.tags?.some(t => filters.tagIds!.includes(t.id)))
+    return demoLeads
+  }
+  
   const supabase = await createClient()
   
   let query = supabase
@@ -507,6 +580,10 @@ export async function getLeads(pipelineId: string, filters?: {
   const { data, error } = await query
 
   if (error) {
+    if (error.code === '42P01' || error.message?.includes('does not exist')) {
+      useDemoData = true
+      return DEMO_LEADS.filter(l => l.pipeline_id === pipelineId)
+    }
     console.error('[CRM] Error fetching leads:', error)
     return []
   }
