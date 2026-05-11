@@ -6,6 +6,7 @@ import { useState, useEffect, useTransition } from 'react'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -138,6 +139,9 @@ export function PaymentFormDialog({
           <DialogTitle className="text-lg sm:text-xl">
             {payment ? 'Editar Pagamento' : 'Novo Pagamento'}
           </DialogTitle>
+          <DialogDescription>
+            {payment ? 'Atualize os dados do pagamento' : 'Crie um novo registro de pagamento'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           {/* Tab for selecting payment type */}

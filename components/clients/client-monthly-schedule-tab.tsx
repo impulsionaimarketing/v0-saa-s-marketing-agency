@@ -22,7 +22,7 @@ import {
 import { createVideoScript, deleteAllVideoScriptsByClient } from '@/lib/data/video-scripts'
 import { createArteBrief, deleteAllArteBriefsByClient } from '@/lib/data/arte-briefs'
 import { Calendar, Plus, Trash2, Video, ImageIcon, DollarSign, Check, Pencil, Download } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
 import { RoteirosSection } from './roteiros-section'
 import { ExportPdfSection } from './export-pdf-section'
 import { getVideoScripts, type VideoScript } from '@/lib/data/video-scripts'

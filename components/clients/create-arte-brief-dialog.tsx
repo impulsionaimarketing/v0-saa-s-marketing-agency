@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { 
   Dialog, 
-  DialogContent, 
+  DialogContent,
+  DialogDescription,
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog'
@@ -71,6 +72,9 @@ export function CreateArteBriefDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo Briefing de Arte</DialogTitle>
+          <DialogDescription>
+            Preencha os detalhes do briefing de arte para criar um novo projeto
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

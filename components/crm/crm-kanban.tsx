@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -70,6 +71,9 @@ function LeadDetailModal({
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-left leading-tight">{lead.name}</DialogTitle>
+              <DialogDescription>
+                Detalhes do prospect
+              </DialogDescription>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className={cn('text-xs', statusConfig.color)}>
                   {statusConfig.label}
