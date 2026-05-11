@@ -32,7 +32,6 @@ import { useDragScroll } from '@/lib/hooks/use-drag-scroll'
 
 type DemandStatus = Demand['status']
 
-// Only two columns: A Fazer and Feito
 const columns: { id: DemandStatus; title: string; color: string }[] = [
   { id: 'A Fazer', title: 'A Fazer', color: 'bg-muted' },
   { id: 'Publicado', title: 'Feito', color: 'bg-success' },
@@ -49,8 +48,15 @@ function isOverdue(deadline: string | null, status: DemandStatus): boolean {
   if (!deadline || status === 'Publicado') return false
   const now = new Date()
   now.setHours(0, 0, 0, 0)
-  const d = new Date(deadline + 'T00:00:00')
+  const d = new Date(deadline.includes('T') ? deadline : deadline + 'T00:00:00')
   return d < now
+}
+
+function formatDeadline(deadline: string | null): string {
+  if (!deadline) return ''
+  const d = new Date(deadline.includes('T') ? deadline : deadline + 'T00:00:00')
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
 // ─── Detail Modal ────────────────────────────────────────────────────────────
@@ -118,7 +124,6 @@ function DemandDetailModal({
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          {/* Meta */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-xs text-muted-foreground mb-1">Cliente</p>
@@ -132,14 +137,19 @@ function DemandDetailModal({
               <p className="text-xs text-muted-foreground mb-1">Prazo</p>
               <p className={cn('font-medium', overdue && 'text-destructive')}>
                 {demand.deadline
-                  ? new Date(demand.deadline).toLocaleString('pt-BR', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour12: false,
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })
+                  ? (() => {
+                      const raw = demand.deadline
+                      const d = new Date(raw.includes('T') ? raw : raw + 'T00:00:00')
+                      if (isNaN(d.getTime())) return '—'
+                      return d.toLocaleString('pt-BR', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    })()
                   : '—'}
               </p>
             </div>
@@ -158,7 +168,6 @@ function DemandDetailModal({
             </div>
           )}
 
-          {/* Video Script */}
           {demand.area === 'Vídeo' && (
             <div className="border border-border rounded-lg overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2 bg-chart-2/10 border-b border-border">
@@ -212,7 +221,6 @@ function DemandDetailModal({
             </div>
           )}
 
-          {/* Arte Brief */}
           {demand.area === 'Arte' && (
             <div className="border border-border rounded-lg overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-2 bg-chart-3/10 border-b border-border">
@@ -343,7 +351,6 @@ export function DemandsKanban() {
     }
   }
 
-  // Mark as published via checkbox — optimistic
   const handlePublish = (e: React.MouseEvent, demand: Demand) => {
     e.stopPropagation()
     if (demand.status === 'Publicado') return
@@ -362,11 +369,10 @@ export function DemandsKanban() {
   const filteredDemands = useMemo(() => {
     const { searchQuery, clientFilter, areaFilter, responsibleFilter, dateFrom, dateTo, statusFilter } = filters
     return demandItems.filter((demand) => {
-      if (demand.status === 'Atrasado') return false // legacy status
+      if (demand.status === 'Atrasado') return false
       const overdue = isOverdue(demand.deadline, demand.status)
       const isFeito = demand.status === 'Publicado'
 
-      // Status filter
       if (statusFilter === 'a-fazer' && isFeito) return false
       if (statusFilter === 'feito' && !isFeito) return false
       if (statusFilter === 'atrasado' && (!overdue || isFeito)) return false
@@ -379,7 +385,7 @@ export function DemandsKanban() {
 
       let matchesDate = true
       if (demand.deadline) {
-        const demandDate = new Date(demand.deadline + 'T00:00:00')
+        const demandDate = new Date(demand.deadline.includes('T') ? demand.deadline : demand.deadline + 'T00:00:00')
         if (dateFrom) {
           if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
         }
@@ -444,11 +450,9 @@ export function DemandsKanban() {
       const draggedIndex = items.findIndex((d) => d.id === draggedItem.id)
       if (draggedIndex === -1) return prev
 
-      // Remove dragged item
       const [removed] = items.splice(draggedIndex, 1)
       removed.status = newStatus
 
-      // If dropped over a specific card, insert before it
       if (dragOverId) {
         const targetIndex = items.findIndex((d) => d.id === dragOverId)
         if (targetIndex !== -1) {
@@ -462,7 +466,6 @@ export function DemandsKanban() {
       return items
     })
 
-    // Persist status change if column changed
     if (draggedItem.status !== newStatus) {
       startTransition(async () => {
         try {
@@ -559,7 +562,6 @@ export function DemandsKanban() {
                 </SelectContent>
               </Select>
 
-              {/* Multi-select Area */}
               <div className="relative">
                 <button
                   type="button"
@@ -684,7 +686,6 @@ export function DemandsKanban() {
 
           return (
             <div key={column.id} className="flex-shrink-0 w-72">
-              {/* Column header */}
               <div className="flex items-center gap-2 mb-3 px-1">
                 <div className={cn('h-3 w-3 rounded-full', column.color)} />
                 <h3 className="font-semibold text-sm">{column.title}</h3>
@@ -713,7 +714,6 @@ export function DemandsKanban() {
                 </button>
               </div>
 
-              {/* Column content */}
               <div
                 className="space-y-2 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide rounded-lg bg-secondary/30 p-2"
                 onDragOver={isReorganizing ? undefined : handleDragOver}
@@ -725,7 +725,6 @@ export function DemandsKanban() {
                   const isVideo = demand.area === 'Vídeo'
                   const isArte = demand.area === 'Arte'
 
-                  /* ── Compact reorganize card ── */
                   if (isReorganizing) {
                     return (
                       <div
@@ -753,7 +752,6 @@ export function DemandsKanban() {
                     )
                   }
 
-                  /* ── Full card (normal mode) ── */
                   return (
                     <Card
                       key={demand.id}
@@ -773,7 +771,6 @@ export function DemandsKanban() {
                           <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0">
 
-                            {/* Overdue tag */}
                             {overdue && (
                               <div className="flex items-center gap-1 mb-2 text-xs text-destructive font-medium">
                                 <AlertTriangle className="h-3 w-3" />
@@ -781,7 +778,6 @@ export function DemandsKanban() {
                               </div>
                             )}
 
-                            {/* Title row with click to open detail */}
                             <button
                               type="button"
                               onClick={() => openDetail(demand)}
@@ -820,16 +816,12 @@ export function DemandsKanban() {
                                   overdue ? 'text-destructive font-medium' : 'text-muted-foreground'
                                 )}>
                                   <Calendar className="h-3 w-3" />
-                                  <span>
-                                    {new Date(demand.deadline + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                  </span>
+                                  <span>{formatDeadline(demand.deadline)}</span>
                                 </div>
                               )}
                             </div>
 
-                            {/* Action row */}
                             <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border">
-                              {/* Publish checkbox */}
                               <button
                                 type="button"
                                 onClick={(e) => handlePublish(e, demand)}
@@ -847,7 +839,7 @@ export function DemandsKanban() {
                                 )}>
                                   {isPublished && <Check className="h-3 w-3 text-white" />}
                                 </div>
-                                  {isPublished ? 'Feito' : 'Marcar como feito'}
+                                {isPublished ? 'Feito' : 'Marcar como feito'}
                               </button>
 
                               <DemandFormDialog
