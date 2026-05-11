@@ -1,8 +1,6 @@
 'use client'
 
 import React from "react"
-
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -25,7 +23,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { setAuthCookie } from '@/lib/auth/cookies'
+import { loginUser } from '@/lib/auth/actions'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -43,42 +41,16 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      // Usar RPC function de autenticação contra a tabela users
-      const { data, error: rpcError } = await supabase.rpc('authenticate_user', {
-        p_email: email,
-        p_password: password,
-      })
+      const result = await loginUser(email, password)
 
-      if (rpcError) {
-        throw new Error('Email ou senha incorretos')
+      if (!result.success) {
+        setError(result.error || 'Erro ao fazer login')
+        return
       }
-
-      if (!data || data.length === 0 || !data[0].authenticated) {
-        throw new Error('Email ou senha incorretos')
-      }
-
-      const user = data[0]
-
-      // Dados do usuário autenticado
-      const userData = {
-        id: user.id,
-        email: user.email || '',
-        name: user.name || '',
-        role: user.role || 'Colaborador',
-        area: user.area || '',
-        modules_access: user.modules_access || [],
-      }
-
-      // Armazenar informações do usuário no localStorage
-      localStorage.setItem('user', JSON.stringify(userData))
-
-      // Armazenar em cookie para autenticação server-side
-      await setAuthCookie(userData)
 
       // Redirecionar para dashboard
       router.push('/')
@@ -93,54 +65,8 @@ export default function LoginPage() {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    setForgotError(null)
-    setForgotSuccess(false)
-    setIsForgotLoading(true)
-
-    if (newPassword !== confirmPassword) {
-      setForgotError('As senhas não correspondem')
-      setIsForgotLoading(false)
-      return
-    }
-
-    if (newPassword.length < 6) {
-      setForgotError('A senha deve ter pelo menos 6 caracteres')
-      setIsForgotLoading(false)
-      return
-    }
-
-    try {
-      const supabase = createClient()
-      const { data, error: rpcError } = await supabase.rpc('reset_user_password', {
-        p_email: forgotEmail,
-        p_new_password: newPassword,
-      })
-
-      if (rpcError) {
-        throw new Error('Erro ao resetar senha')
-      }
-
-      if (data?.success) {
-        setForgotSuccess(true)
-        setForgotEmail('')
-        setNewPassword('')
-        setConfirmPassword('')
-        
-        // Fechar modal após 2 segundos
-        setTimeout(() => {
-          setShowForgotPassword(false)
-          setForgotSuccess(false)
-        }, 2000)
-      } else {
-        throw new Error(data?.message || 'Email não encontrado')
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erro ao resetar senha'
-      setForgotError(message)
-      console.error('[v0] Forgot password error:', error)
-    } finally {
-      setIsForgotLoading(false)
-    }
+    setForgotError('Esta funcionalidade será implementada em breve')
+    setIsForgotLoading(false)
   }
 
   return (
