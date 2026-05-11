@@ -31,7 +31,7 @@ export default function RootLayout({
     <html lang="pt-BR">
 <head>
   <meta charSet="utf-8" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Impulsionaí" />
   <link rel="apple-touch-icon" href="/apple-icon.png" />
