@@ -55,6 +55,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
     company: '',
     source: '',
     notes: '',
+    value: '',
     status: (defaultStatus || 'lead_novo') as CRMStatus,
   })
 
@@ -67,6 +68,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         company: lead?.company || '',
         source: lead?.source || '',
         notes: lead?.notes || '',
+        value: lead?.value ? String(lead.value) : '',
         status: lead?.status || defaultStatus || 'lead_novo',
       })
     }
@@ -84,6 +86,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
+          value: formData.value ? parseFloat(formData.value.replace(/[^\d.,]/g, '').replace(',', '.')) : 0,
           status: formData.status,
         }
 
@@ -104,6 +107,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             company: '',
             source: '',
             notes: '',
+            value: '',
             status: defaultStatus || 'lead_novo',
           })
         }
@@ -194,17 +198,34 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="source">Origem</Label>
-              <Input
-                id="source"
-                value={formData.source}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, source: e.target.value }))
-                }
-                placeholder="Ex: Instagram, Indicação, Google..."
-                className="bg-secondary border-border"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="source">Origem</Label>
+                <Input
+                  id="source"
+                  value={formData.source}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, source: e.target.value }))
+                  }
+                  placeholder="Ex: Instagram, Indicação..."
+                  className="bg-secondary border-border"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="value">Valor (R$)</Label>
+                <Input
+                  id="value"
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, value: e.target.value }))
+                  }
+                  placeholder="0,00"
+                  className="bg-secondary border-border"
+                />
+              </div>
             </div>
 
             <div className="grid gap-2">
@@ -278,6 +299,7 @@ export function CRMLeadFormDialogControlled({
     company: '',
     source: '',
     notes: '',
+    value: '',
     status: 'lead_novo' as CRMStatus,
   })
 
@@ -290,6 +312,7 @@ export function CRMLeadFormDialogControlled({
         company: lead.company || '',
         source: lead.source || '',
         notes: lead.notes || '',
+        value: lead.value ? String(lead.value) : '',
         status: lead.status || 'lead_novo',
       })
     }
@@ -307,6 +330,7 @@ export function CRMLeadFormDialogControlled({
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
+          value: formData.value ? parseFloat(formData.value.replace(/[^\d.,]/g, '').replace(',', '.')) : 0,
           status: formData.status,
         }
 
@@ -397,17 +421,34 @@ export function CRMLeadFormDialogControlled({
               </div>
             </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="source-controlled">Origem</Label>
-              <Input
-                id="source-controlled"
-                value={formData.source}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, source: e.target.value }))
-                }
-                placeholder="Ex: Instagram, Indicação, Google..."
-                className="bg-secondary border-border"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="source-controlled">Origem</Label>
+                <Input
+                  id="source-controlled"
+                  value={formData.source}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, source: e.target.value }))
+                  }
+                  placeholder="Ex: Instagram, Indicação..."
+                  className="bg-secondary border-border"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="value-controlled">Valor (R$)</Label>
+                <Input
+                  id="value-controlled"
+                  type="text"
+                  inputMode="decimal"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, value: e.target.value }))
+                  }
+                  placeholder="0,00"
+                  className="bg-secondary border-border"
+                />
+              </div>
             </div>
 
             <div className="grid gap-2">

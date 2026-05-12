@@ -56,6 +56,7 @@ export async function POST(request: Request) {
         source: body.source || null,
         notes: body.notes || null,
         status: body.status || 'lead_novo',
+        value: body.value || 0,
       })
       .select('*')
       .single()

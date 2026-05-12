@@ -15,8 +15,20 @@ export interface CRMLead {
   source: string | null
   notes: string | null
   status: CRMStatus
+  value: number
   created_at: string
   updated_at: string
+  // Flag para identificar se é um cliente importado
+  isClient?: boolean
+  clientId?: string
+}
+
+export interface CRMClient {
+  id: string
+  name: string
+  monthly_value: number
+  contract_status: 'Ativo' | 'Pausado' | 'Perdido'
+  ad_account_name: string | null
 }
 
 export const CRM_STATUS_CONFIG: Record<
@@ -172,5 +184,48 @@ export async function deleteCRMLead(id: string): Promise<void> {
   } catch (error) {
     console.error('[v0] Error deleting CRM lead:', error)
     throw error
+  }
+}
+
+// Buscar clientes para exibição no CRM
+export async function getCRMClients(): Promise<CRMClient[]> {
+  try {
+    const response = await fetch('/api/crm/clients')
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to fetch clients')
+    }
+
+    const data = await response.json()
+    return Array.isArray(data) ? data : []
+  } catch (error) {
+    console.error('[v0] Error fetching CRM clients:', error)
+    return []
+  }
+}
+
+// Converte um cliente para o formato de CRMLead para exibição no kanban
+export function clientToCRMLead(client: CRMClient): CRMLead {
+  const statusMap: Record<string, CRMStatus> = {
+    'Ativo': 'contrato_ativo',
+    'Pausado': 'contrato_pausado',
+    'Perdido': 'contrato_cancelado',
+  }
+
+  return {
+    id: `client-${client.id}`,
+    name: client.name,
+    phone: null,
+    email: null,
+    company: client.ad_account_name,
+    source: 'Cliente',
+    notes: null,
+    status: statusMap[client.contract_status] || 'contrato_ativo',
+    value: client.monthly_value || 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    isClient: true,
+    clientId: client.id,
   }
 }

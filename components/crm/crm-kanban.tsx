@@ -30,9 +30,13 @@ import {
   MoreVertical,
   ExternalLink,
   Calendar,
+  DollarSign,
+  Users,
 } from 'lucide-react'
 import {
   getCRMLeads,
+  getCRMClients,
+  clientToCRMLead,
   updateCRMLeadStatus,
   deleteCRMLead,
   type CRMLead,
@@ -88,6 +92,17 @@ function LeadDetailModal({
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
+          {/* Value */}
+          {lead.value > 0 && (
+            <div className="bg-success/10 border border-success/20 rounded-lg p-3">
+              <p className="text-xs text-muted-foreground mb-1">Valor</p>
+              <p className="text-lg font-bold text-success flex items-center gap-1">
+                <DollarSign className="h-4 w-4" />
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.value)}
+              </p>
+            </div>
+          )}
+
           {/* Contact Info */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             {lead.company && (
@@ -177,17 +192,20 @@ function LeadCard({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const isClient = lead.isClient
+
   return (
     <Card
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      draggable={!isClient}
+      onDragStart={isClient ? undefined : onDragStart}
+      onDragEnd={isClient ? undefined : onDragEnd}
       onDragOver={onDragOver}
       onClick={onClick}
       className={cn(
         'cursor-pointer hover:border-primary/50 transition-all',
         isDragging && 'opacity-50 rotate-2 scale-105',
-        isDragOver && 'border-primary border-2'
+        isDragOver && 'border-primary border-2',
+        isClient && 'border-chart-4/30 bg-chart-4/5'
       )}
     >
       <CardContent className="p-3">
@@ -204,29 +222,45 @@ function LeadCard({
               )}
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!isClient && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
+        {/* Value display */}
+        {lead.value > 0 && (
+          <div className="mt-2 flex items-center gap-1 text-xs font-medium text-success">
+            <DollarSign className="h-3 w-3" />
+            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.value)}
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
+          {lead.isClient && (
+            <span className="inline-flex items-center gap-1 text-xs text-chart-4 bg-chart-4/10 px-1.5 py-0.5 rounded">
+              <Users className="h-3 w-3" />
+              Cliente
+            </span>
+          )}
           {lead.phone && (
             <a
               href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`}
@@ -247,7 +281,7 @@ function LeadCard({
               <Mail className="h-3 w-3" />
             </a>
           )}
-          {lead.source && (
+          {lead.source && !lead.isClient && (
             <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
               {lead.source}
             </span>
@@ -286,9 +320,24 @@ export function CRMKanban() {
 
   async function loadLeads() {
     try {
-      const data = await getCRMLeads()
-      // Ensure data is always an array
-      setLeads(Array.isArray(data) ? data : [])
+      // Buscar leads do CRM e clientes em paralelo
+      const [leadsData, clientsData] = await Promise.all([
+        getCRMLeads(),
+        getCRMClients(),
+      ])
+
+      // Garantir que são arrays
+      const leads = Array.isArray(leadsData) ? leadsData : []
+      const clients = Array.isArray(clientsData) ? clientsData : []
+
+      // Converter clientes para o formato de CRMLead
+      const clientLeads = clients.map(clientToCRMLead)
+
+      // Combinar leads e clientes, evitando duplicatas
+      // Clientes vêm do sistema de clientes, então ficam nas colunas de contrato
+      const allLeads = [...leads, ...clientLeads]
+
+      setLeads(allLeads)
     } catch (error) {
       console.error('[v0] Error loading leads:', error)
       setLeads([])
@@ -311,6 +360,22 @@ export function CRMKanban() {
 
   const getColumnLeads = (status: CRMStatus) =>
     filteredLeads.filter((lead) => lead.status === status)
+
+  // Calcular soma dos valores por coluna
+  const getColumnTotal = (status: CRMStatus) => {
+    const columnLeads = getColumnLeads(status)
+    return columnLeads.reduce((sum, lead) => sum + (lead.value || 0), 0)
+  }
+
+  // Formatar valor em BRL
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, lead: CRMLead) => {
@@ -339,6 +404,13 @@ export function CRMKanban() {
   const handleDrop = (e: React.DragEvent, newStatus: CRMStatus) => {
     e.preventDefault()
     if (!draggedItem) return
+
+    // Não permitir arrastar clientes (eles são gerenciados na aba Clientes)
+    if (draggedItem.isClient) {
+      setDraggedItem(null)
+      setDragOverId(null)
+      return
+    }
 
     const oldStatus = draggedItem.status
 
@@ -454,6 +526,7 @@ export function CRMKanban() {
           {CRM_COLUMNS.map((column) => {
             const columnLeads = getColumnLeads(column.id)
             const statusConfig = CRM_STATUS_CONFIG[column.id]
+            const columnTotal = getColumnTotal(column.id)
 
             return (
               <div
@@ -463,24 +536,33 @@ export function CRMKanban() {
                 onDrop={(e) => handleDrop(e, column.id)}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
-                      {column.title}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      ({columnLeads.length})
-                    </span>
+                <div className="mb-3 px-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
+                        {column.title}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({columnLeads.length})
+                      </span>
+                    </div>
+                    <CRMLeadFormDialog
+                      defaultStatus={column.id}
+                      onSuccess={loadLeads}
+                      trigger={
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
                   </div>
-                  <CRMLeadFormDialog
-                    defaultStatus={column.id}
-                    onSuccess={loadLeads}
-                    trigger={
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    }
-                  />
+                  {/* Column Total */}
+                  {columnTotal > 0 && (
+                    <div className="flex items-center gap-1 mt-1.5 text-xs font-medium text-success">
+                      <DollarSign className="h-3 w-3" />
+                      {formatCurrency(columnTotal)}
+                    </div>
+                  )}
                 </div>
 
                 {/* Column Content */}
