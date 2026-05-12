@@ -1,4 +1,4 @@
-import { query } from '@/lib/db'
+import { query, queryOne } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
 interface Client {
@@ -11,11 +11,11 @@ interface Client {
 
 export async function GET() {
   try {
-    // Busca clientes com contrato ativo, pausado ou perdido
+    // Busca clientes com contrato ativo ou pausado para exibir no CRM
     const clients = await query<Client>(
-      `SELECT id, name, monthly_value, contract_status, ad_account_name 
+      `SELECT id, name, monthly_value, contract_status, ad_account_name
        FROM clients 
-       WHERE contract_status IN ('Ativo', 'Pausado', 'Perdido')
+       WHERE contract_status IN ('Ativo', 'Pausado')
        ORDER BY name`
     )
 

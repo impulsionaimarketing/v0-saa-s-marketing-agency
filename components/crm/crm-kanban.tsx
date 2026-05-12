@@ -38,11 +38,13 @@ import {
   getCRMClients,
   clientToCRMLead,
   updateCRMLeadStatus,
+  updateClientStatus,
   deleteCRMLead,
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
   CRM_COLUMNS,
+  CLIENT_ALLOWED_STATUSES,
 } from '@/lib/data/crm-leads'
 import { CRMLeadFormDialog, CRMLeadFormDialogControlled } from './crm-lead-form-dialog'
 import { DeleteDialog } from '@/components/shared/delete-dialog'
@@ -196,9 +198,9 @@ function LeadCard({
 
   return (
     <Card
-      draggable={!isClient}
-      onDragStart={isClient ? undefined : onDragStart}
-      onDragEnd={isClient ? undefined : onDragEnd}
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onDragOver={onDragOver}
       onClick={onClick}
       className={cn(
@@ -405,8 +407,11 @@ export function CRMKanban() {
     e.preventDefault()
     if (!draggedItem) return
 
-    // Não permitir arrastar clientes (eles são gerenciados na aba Clientes)
-    if (draggedItem.isClient) {
+    const isClient = draggedItem.isClient
+    const clientId = draggedItem.clientId
+
+    // Clientes só podem ser movidos para colunas de contrato
+    if (isClient && !CLIENT_ALLOWED_STATUSES.includes(newStatus)) {
       setDraggedItem(null)
       setDragOverId(null)
       return
@@ -425,7 +430,13 @@ export function CRMKanban() {
     if (oldStatus !== newStatus) {
       startTransition(async () => {
         try {
-          await updateCRMLeadStatus(draggedItem.id, newStatus)
+          if (isClient && clientId) {
+            // Atualizar status na tabela de clientes
+            await updateClientStatus(clientId, newStatus)
+          } else {
+            // Atualizar status na tabela de leads do CRM
+            await updateCRMLeadStatus(draggedItem.id, newStatus)
+          }
         } catch {
           // Rollback on error
           loadLeads()

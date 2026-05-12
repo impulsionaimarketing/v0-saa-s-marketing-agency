@@ -229,3 +229,37 @@ export function clientToCRMLead(client: CRMClient): CRMLead {
     clientId: client.id,
   }
 }
+
+// Status permitidos para clientes (só podem ficar em colunas de contrato)
+export const CLIENT_ALLOWED_STATUSES: CRMStatus[] = [
+  'contrato_ativo',
+  'contrato_pausado',
+  'contrato_cancelado',
+]
+
+// Atualizar status de um cliente via API
+export async function updateClientStatus(
+  clientId: string,
+  status: CRMStatus
+): Promise<void> {
+  // Verificar se o status é permitido para clientes
+  if (!CLIENT_ALLOWED_STATUSES.includes(status)) {
+    throw new Error('Clientes só podem ser movidos para colunas de contrato (Ativo, Pausado ou Cancelado)')
+  }
+
+  try {
+    const response = await fetch(`/api/crm/clients/${clientId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(errorData.error || 'Failed to update client status')
+    }
+  } catch (error) {
+    console.error('[v0] Error updating client status:', error)
+    throw error
+  }
+}
