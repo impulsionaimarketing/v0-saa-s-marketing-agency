@@ -298,9 +298,11 @@ export function CRMKanban() {
   }
 
   const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads
+    // Ensure leads is always an array
+    const safeLeads = Array.isArray(leads) ? leads : []
+    if (!searchQuery) return safeLeads
     const query = searchQuery.toLowerCase()
-    return leads.filter(
+    return safeLeads.filter(
       (lead) =>
         lead.name.toLowerCase().includes(query) ||
         lead.company?.toLowerCase().includes(query) ||
@@ -309,8 +311,10 @@ export function CRMKanban() {
     )
   }, [leads, searchQuery])
 
-  const getColumnLeads = (status: CRMStatus) =>
-    filteredLeads.filter((lead) => lead.status === status)
+  const getColumnLeads = (status: CRMStatus) => {
+    const safeFilteredLeads = Array.isArray(filteredLeads) ? filteredLeads : []
+    return safeFilteredLeads.filter((lead) => lead.status === status)
+  }
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, lead: CRMLead) => {
