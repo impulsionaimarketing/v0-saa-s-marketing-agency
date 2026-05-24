@@ -3,10 +3,6 @@
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import type { CRMLead, CRMStatus } from "./crm-constants"
 
-// Re-export types and constants for convenience
-export type { CRMLead, CRMStatus } from "./crm-constants"
-export { CRM_STATUS_CONFIG, CRM_COLUMNS } from "./crm-constants"
-
 export async function getCRMLeads(filters?: {
   status?: CRMStatus | "all"
   search?: string
