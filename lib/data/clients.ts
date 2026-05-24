@@ -121,7 +121,7 @@ export async function getClientById(id: string): Promise<ClientWithResponsibles 
   }
 }
 
-export async function createClient(data: Partial<Client>): Promise<Client | null> {
+export async function createNewClient(data: Partial<Client>): Promise<Client | null> {
   try {
     const supabase = await createClient()
 
