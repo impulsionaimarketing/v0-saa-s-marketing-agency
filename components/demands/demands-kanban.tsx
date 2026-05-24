@@ -387,15 +387,21 @@ export function DemandsKanban() {
       // Filtra todos os cards pelo prazo (deadline)
       if (demand.deadline) {
         const demandDate = new Date(demand.deadline.includes('T') ? demand.deadline : demand.deadline + 'T00:00:00')
+        console.log('[v0] Filtering demand:', demand.name, 'deadline:', demand.deadline, 'demandDate:', demandDate, 'dateFrom:', dateFrom, 'dateTo:', dateTo)
         if (dateFrom) {
-          if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
+          const fromDate = new Date(dateFrom + 'T00:00:00')
+          console.log('[v0] Comparing:', demandDate, '<', fromDate, '=', demandDate < fromDate)
+          if (demandDate < fromDate) matchesDate = false
         }
         if (dateTo) {
-          if (demandDate > new Date(dateTo + 'T23:59:59')) matchesDate = false
+          const toDate = new Date(dateTo + 'T23:59:59')
+          console.log('[v0] Comparing:', demandDate, '>', toDate, '=', demandDate > toDate)
+          if (demandDate > toDate) matchesDate = false
         }
       } else if (dateFrom || dateTo) {
         matchesDate = false
       }
+      console.log('[v0] matchesDate:', matchesDate)
 
       return matchesSearch && matchesClient && matchesArea && matchesResponsible && matchesDate
     })
