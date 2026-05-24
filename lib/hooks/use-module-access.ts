@@ -57,8 +57,6 @@ export function useModuleAccess(moduleName: string) {
 
       if (moduleError || !moduleData) {
         // Se o módulo não existe na tabela, permite acesso por padrão
-        // (tabela modules pode não estar criada ainda)
-        console.log('[v0] Module not found, allowing access by default:', moduleName)
         setAccess({
           canView: true,
           canEdit: true,
@@ -77,26 +75,34 @@ export function useModuleAccess(moduleName: string) {
         .single()
 
       if (permissionError || !permissionData) {
-        console.log('[v0] No permission found for user:', user.id, 'module:', moduleName)
+        // Se não há permissão configurada, permite acesso por padrão
         setAccess({
-          canView: false,
-          canEdit: false,
-          isBlocked: true,
+          canView: true,
+          canEdit: true,
+          isBlocked: false,
         })
       } else {
-        console.log('[v0] Permission found:', permissionData)
-        setAccess({
-          canView: permissionData.can_view || false,
-          canEdit: permissionData.can_edit || false,
-          isBlocked: permissionData.is_blocked || false,
-        })
+        // Verifica se está explicitamente bloqueado
+        if (permissionData.is_blocked) {
+          setAccess({
+            canView: false,
+            canEdit: false,
+            isBlocked: true,
+          })
+        } else {
+          setAccess({
+            canView: permissionData.can_view ?? true,
+            canEdit: permissionData.can_edit ?? true,
+            isBlocked: false,
+          })
+        }
       }
     } catch (error) {
-      console.error('[v0] Error checking module access:', error)
+      // Em caso de erro, permite acesso por padrão
       setAccess({
-        canView: false,
-        canEdit: false,
-        isBlocked: true,
+        canView: true,
+        canEdit: true,
+        isBlocked: false,
       })
     } finally {
       setIsLoading(false)
