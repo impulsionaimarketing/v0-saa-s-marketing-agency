@@ -35,11 +35,13 @@ import {
   getCRMLeads,
   updateCRMLeadStatus,
   deleteCRMLead,
+} from '@/lib/data/crm-leads'
+import {
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
   CRM_COLUMNS,
-} from '@/lib/data/crm-leads'
+} from '@/lib/data/crm-constants'
 import { CRMLeadFormDialog, CRMLeadFormDialogControlled } from './crm-lead-form-dialog'
 import { DeleteDialog } from '@/components/shared/delete-dialog'
 import { cn } from '@/lib/utils'
