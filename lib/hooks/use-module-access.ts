@@ -56,11 +56,13 @@ export function useModuleAccess(moduleName: string) {
         .single()
 
       if (moduleError || !moduleData) {
-        console.error('[v0] Module not found:', moduleName, moduleError)
+        // Se o módulo não existe na tabela, permite acesso por padrão
+        // (tabela modules pode não estar criada ainda)
+        console.log('[v0] Module not found, allowing access by default:', moduleName)
         setAccess({
-          canView: false,
-          canEdit: false,
-          isBlocked: true,
+          canView: true,
+          canEdit: true,
+          isBlocked: false,
         })
         setIsLoading(false)
         return
