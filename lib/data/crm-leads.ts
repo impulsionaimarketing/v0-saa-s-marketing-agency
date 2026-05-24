@@ -64,13 +64,14 @@ export async function getCRMLeads(filters?: {
     const { data, error } = await query
 
     if (error) {
-      console.error("[v0] Error fetching CRM leads:", error)
+      console.error("[v0] Supabase error fetching CRM leads:", error.message, error.code, error.details)
       return []
     }
 
+    console.log("[v0] CRM leads fetched successfully:", data?.length || 0, "leads")
     return (data || []) as CRMLead[]
   } catch (error) {
-    console.error("[v0] Error fetching CRM leads:", error)
+    console.error("[v0] Exception fetching CRM leads:", error)
     return []
   }
 }
