@@ -384,10 +384,9 @@ export function DemandsKanban() {
       const matchesResponsible = responsibleFilter === 'all' || demand.responsible_id === responsibleFilter
 
       let matchesDate = true
-      // Para itens "Feito", usa updated_at (data de conclusão); para outros, usa deadline
-      const dateToCheck = isFeito ? demand.updated_at : demand.deadline
-      if (dateToCheck) {
-        const demandDate = new Date(dateToCheck.includes('T') ? dateToCheck : dateToCheck + 'T00:00:00')
+      // Filtra todos os cards pelo prazo (deadline)
+      if (demand.deadline) {
+        const demandDate = new Date(demand.deadline.includes('T') ? demand.deadline : demand.deadline + 'T00:00:00')
         if (dateFrom) {
           if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
         }
