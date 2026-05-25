@@ -123,30 +123,67 @@ export async function createCRMLead(data: {
 }): Promise<CRMLead | null> {
   try {
     const supabase = await createSupabaseClient()
+    
+    console.log("[v0] Creating CRM lead with data:", data)
 
-    const { data: result, error } = await supabase
+    // First try with proposal_value, if it fails, try without
+    const insertDataWithProposal = {
+      name: data.name,
+      phone: data.phone || null,
+      email: data.email || null,
+      company: data.company || null,
+      source: data.source || null,
+      notes: data.notes || null,
+      proposal_value: data.proposal_value || null,
+      status: data.status || "lead_novo",
+    }
+
+    let result = null
+    let error = null
+
+    // Try inserting with proposal_value first
+    const response1 = await supabase
       .from("crm_leads")
-      .insert({
+      .insert(insertDataWithProposal)
+      .select("*")
+      .single()
+    
+    result = response1.data
+    error = response1.error
+
+    // If there's a column error, try without proposal_value
+    if (error && (error.message.includes("proposal_value") || error.code === "42703")) {
+      console.log("[v0] proposal_value column might not exist, trying without it...")
+      const insertDataWithoutProposal = {
         name: data.name,
         phone: data.phone || null,
         email: data.email || null,
         company: data.company || null,
         source: data.source || null,
         notes: data.notes || null,
-        proposal_value: data.proposal_value || null,
         status: data.status || "lead_novo",
-      })
-      .select("*")
-      .single()
+      }
+      
+      const response2 = await supabase
+        .from("crm_leads")
+        .insert(insertDataWithoutProposal)
+        .select("*")
+        .single()
+      
+      result = response2.data
+      error = response2.error
+    }
 
     if (error) {
-      console.error("[v0] Error creating CRM lead:", error)
+      console.error("[v0] Supabase error creating CRM lead:", error.message, error.details, error.hint)
       throw new Error(error.message)
     }
+    
+    console.log("[v0] CRM lead created successfully:", result)
 
     return result as CRMLead
   } catch (error) {
-    console.error("[v0] Error creating CRM lead:", error)
+    console.error("[v0] Exception creating CRM lead:", error)
     throw error
   }
 }
@@ -159,7 +196,7 @@ export async function updateCRMLead(
     const supabase = await createSupabaseClient()
     
     // Filter only valid table columns (exclude is_client and client_data which are computed)
-    const updateData = {
+    const updateDataWithProposal = {
       ...(data.name !== undefined && { name: data.name }),
       ...(data.phone !== undefined && { phone: data.phone }),
       ...(data.email !== undefined && { email: data.email }),
@@ -171,17 +208,49 @@ export async function updateCRMLead(
       updated_at: new Date().toISOString(),
     }
     
-    console.log("[v0] Updating lead with data:", updateData)
+    console.log("[v0] Updating lead with data:", updateDataWithProposal)
 
-    const { data: result, error } = await supabase
+    let result = null
+    let error = null
+
+    // Try updating with proposal_value first
+    const response1 = await supabase
       .from("crm_leads")
-      .update(updateData)
+      .update(updateDataWithProposal)
       .eq("id", id)
       .select("*")
       .single()
+    
+    result = response1.data
+    error = response1.error
+
+    // If there's a column error, try without proposal_value
+    if (error && (error.message.includes("proposal_value") || error.code === "42703")) {
+      console.log("[v0] proposal_value column might not exist, trying without it...")
+      const updateDataWithoutProposal = {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.phone !== undefined && { phone: data.phone }),
+        ...(data.email !== undefined && { email: data.email }),
+        ...(data.company !== undefined && { company: data.company }),
+        ...(data.source !== undefined && { source: data.source }),
+        ...(data.notes !== undefined && { notes: data.notes }),
+        ...(data.status !== undefined && { status: data.status }),
+        updated_at: new Date().toISOString(),
+      }
+      
+      const response2 = await supabase
+        .from("crm_leads")
+        .update(updateDataWithoutProposal)
+        .eq("id", id)
+        .select("*")
+        .single()
+      
+      result = response2.data
+      error = response2.error
+    }
 
     if (error) {
-      console.error("[v0] Error updating CRM lead:", error)
+      console.error("[v0] Error updating CRM lead:", error.message, error.details, error.hint)
       throw new Error(error.message)
     }
     
