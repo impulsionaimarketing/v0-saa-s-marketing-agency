@@ -35,6 +35,8 @@ import {
   getCRMLeads,
   updateCRMLeadStatus,
   deleteCRMLead,
+  convertLeadToClient,
+  updateClientContractStatus,
 } from '@/lib/data/crm-leads'
 import {
   type CRMLead,
@@ -524,24 +526,35 @@ export function CRMKanban() {
                 onDrop={(e) => handleDrop(e, column.id)}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
-                      {column.title}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      ({columnLeads.length})
-                    </span>
+                <div className="flex flex-col gap-1 mb-3 px-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
+                        {column.title}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({columnLeads.length})
+                      </span>
+                    </div>
+                    <CRMLeadFormDialog
+                      defaultStatus={column.id}
+                      onSuccess={loadLeads}
+                      trigger={
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
                   </div>
-                  <CRMLeadFormDialog
-                    defaultStatus={column.id}
-                    onSuccess={loadLeads}
-                    trigger={
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    }
-                  />
+                  {/* Total de valores da coluna */}
+                  <div className="text-xs font-medium text-success">
+                    R$ {columnLeads.reduce((sum, lead) => {
+                      const value = lead.is_client 
+                        ? (lead.client_data?.monthly_value || 0) 
+                        : (lead.proposal_value || 0)
+                      return sum + value
+                    }, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
                 </div>
 
                 {/* Column Content */}

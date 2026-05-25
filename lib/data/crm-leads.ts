@@ -47,6 +47,7 @@ export async function getCRMLeads(filters?: {
     const leads: CRMLead[] = (leadsData || []).map((lead) => ({
       ...lead,
       is_client: false,
+      proposal_value: lead.proposal_value || null,
     }))
 
     // Busca clientes da tabela clients
@@ -90,6 +91,7 @@ export async function getCRMLeads(filters?: {
       company: client.name,
       source: "Cliente",
       notes: `${client.type} - ${client.plan}`,
+      proposal_value: client.monthly_value || null,
       status: mapClientStatusToCRM(client.contract_status),
       created_at: client.created_at,
       updated_at: client.updated_at,
@@ -116,6 +118,7 @@ export async function createCRMLead(data: {
   company?: string | null
   source?: string | null
   notes?: string | null
+  proposal_value?: number | null
   status?: CRMStatus
 }): Promise<CRMLead | null> {
   try {
@@ -130,6 +133,7 @@ export async function createCRMLead(data: {
         company: data.company || null,
         source: data.source || null,
         notes: data.notes || null,
+        proposal_value: data.proposal_value || null,
         status: data.status || "lead_novo",
       })
       .select("*")
@@ -204,6 +208,88 @@ export async function deleteCRMLead(id: string): Promise<void> {
     }
   } catch (error) {
     console.error("[v0] Error deleting CRM lead:", error)
+    throw error
+  }
+}
+
+// Converte um lead em cliente (quando move para contrato_ativo)
+export async function convertLeadToClient(leadId: string, clientData: {
+  type: string
+  plan: string
+  monthly_value: number
+  campaign_type?: string
+}): Promise<string | null> {
+  try {
+    const supabase = await createSupabaseClient()
+
+    // Busca o lead
+    const { data: lead, error: leadError } = await supabase
+      .from("crm_leads")
+      .select("*")
+      .eq("id", leadId)
+      .single()
+
+    if (leadError || !lead) {
+      console.error("[v0] Error fetching lead for conversion:", leadError)
+      throw new Error("Lead não encontrado")
+    }
+
+    // Cria o cliente
+    const { data: client, error: clientError } = await supabase
+      .from("clients")
+      .insert({
+        name: lead.name,
+        type: clientData.type,
+        campaign_type: clientData.campaign_type || "Mensagem",
+        plan: clientData.plan,
+        monthly_value: clientData.monthly_value,
+        contract_status: "Ativo",
+        month_status: "green",
+      })
+      .select("id")
+      .single()
+
+    if (clientError) {
+      console.error("[v0] Error creating client from lead:", clientError)
+      throw new Error(clientError.message)
+    }
+
+    // Remove o lead
+    const { error: deleteError } = await supabase
+      .from("crm_leads")
+      .delete()
+      .eq("id", leadId)
+
+    if (deleteError) {
+      console.error("[v0] Error deleting converted lead:", deleteError)
+    }
+
+    return client?.id || null
+  } catch (error) {
+    console.error("[v0] Error converting lead to client:", error)
+    throw error
+  }
+}
+
+// Atualiza o status do cliente na tabela clients
+export async function updateClientContractStatus(clientId: string, status: "Ativo" | "Pausado" | "Perdido"): Promise<void> {
+  try {
+    const supabase = await createSupabaseClient()
+
+    const { error } = await supabase
+      .from("clients")
+      .update({ 
+        contract_status: status, 
+        updated_at: new Date().toISOString() 
+      })
+      .eq("id", clientId)
+
+    if (error) {
+      console.error("[v0] Error updating client contract status:", error)
+      throw new Error(error.message)
+    }
+  } catch (error) {
+    console.error("[v0] Error updating client contract status:", error)
     throw error
   }
 }
