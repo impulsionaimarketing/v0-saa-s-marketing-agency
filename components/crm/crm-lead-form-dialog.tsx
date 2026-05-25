@@ -336,12 +336,17 @@ export function CRMLeadFormDialogControlled({
         }
 
         if (lead) {
+          console.log('[v0] Updating lead:', lead.id, data)
           await updateCRMLead(lead.id, data)
+          console.log('[v0] Lead updated successfully')
         } else {
+          console.log('[v0] Creating new lead:', data)
           await createCRMLead(data)
+          console.log('[v0] Lead created successfully')
         }
 
         onOpenChange(false)
+        console.log('[v0] Calling onSuccess callback')
         onSuccess?.()
       } catch (error) {
         console.error('[v0] Error saving lead:', error)
