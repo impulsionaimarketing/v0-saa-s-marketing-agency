@@ -54,6 +54,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
     source: '',
     notes: '',
     status: (defaultStatus || 'lead_novo') as CRMStatus,
+    value: '',
+    proposal_value: '',
   })
 
   useEffect(() => {
@@ -66,6 +68,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         source: lead?.source || '',
         notes: lead?.notes || '',
         status: lead?.status || defaultStatus || 'lead_novo',
+        value: lead?.value != null ? String(lead.value) : '',
+        proposal_value: lead?.proposal_value != null ? String(lead.proposal_value) : '',
       })
     }
   }, [open, lead, defaultStatus])
@@ -83,6 +87,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
           source: formData.source || null,
           notes: formData.notes || null,
           status: formData.status,
+          value: formData.value !== '' ? Number(formData.value) : null,
+          proposal_value: formData.proposal_value !== '' ? Number(formData.proposal_value) : null,
         }
 
         if (lead) {
@@ -113,6 +119,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             source: '',
             notes: '',
             status: defaultStatus || 'lead_novo',
+            value: '',
+            proposal_value: '',
           })
         }
       } catch (error) {
@@ -215,6 +223,39 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="value">Valor do Lead (R$)</Label>
+                <Input
+                  id="value"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, value: e.target.value }))
+                  }
+                  placeholder="0,00"
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="proposal_value">Valor da Proposta (R$)</Label>
+                <Input
+                  id="proposal_value"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.proposal_value}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
+                  }
+                  placeholder="0,00"
+                  className="bg-secondary border-border"
+                />
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="notes">Observações</Label>
               <Textarea
@@ -287,6 +328,8 @@ export function CRMLeadFormDialogControlled({
     source: '',
     notes: '',
     status: 'lead_novo' as CRMStatus,
+    value: '',
+    proposal_value: '',
   })
 
   useEffect(() => {
@@ -299,6 +342,8 @@ export function CRMLeadFormDialogControlled({
         source: lead.source || '',
         notes: lead.notes || '',
         status: lead.status || 'lead_novo',
+        value: lead.value != null ? String(lead.value) : '',
+        proposal_value: lead.proposal_value != null ? String(lead.proposal_value) : '',
       })
     }
   }, [open, lead])
@@ -316,6 +361,8 @@ export function CRMLeadFormDialogControlled({
           source: formData.source || null,
           notes: formData.notes || null,
           status: formData.status,
+          value: formData.value !== '' ? Number(formData.value) : null,
+          proposal_value: formData.proposal_value !== '' ? Number(formData.proposal_value) : null,
         }
 
         if (lead) {
@@ -426,6 +473,39 @@ export function CRMLeadFormDialogControlled({
                 placeholder="Ex: Instagram, Indicação, Google..."
                 className="bg-secondary border-border"
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="value-controlled">Valor do Lead (R$)</Label>
+                <Input
+                  id="value-controlled"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.value}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, value: e.target.value }))
+                  }
+                  placeholder="0,00"
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="proposal_value-controlled">Valor da Proposta (R$)</Label>
+                <Input
+                  id="proposal_value-controlled"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.proposal_value}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
+                  }
+                  placeholder="0,00"
+                  className="bg-secondary border-border"
+                />
+              </div>
             </div>
 
             <div className="grid gap-2">

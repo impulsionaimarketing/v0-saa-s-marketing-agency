@@ -19,6 +19,8 @@ export interface CRMLead {
   source: string | null
   notes: string | null
   status: CRMStatus
+  value: number | null
+  proposal_value: number | null
   created_at: string
   updated_at: string
 }

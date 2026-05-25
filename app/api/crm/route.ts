@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
         source: body.source || null,
         notes: body.notes || null,
         status: body.status || "lead_novo",
+        value: body.value != null ? Number(body.value) : null,
+        proposal_value: body.proposal_value != null ? Number(body.proposal_value) : null,
       })
       .select("*")
       .single()

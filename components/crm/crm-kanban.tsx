@@ -31,6 +31,7 @@ import {
   MoreVertical,
   ExternalLink,
   Calendar,
+  DollarSign,
 } from 'lucide-react'
 import {
   type CRMLead,
@@ -139,6 +140,24 @@ function LeadDetailModal({
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Origem</p>
                 <p className="font-medium">{lead.source}</p>
+              </div>
+            )}
+            {lead.value != null && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Valor do Lead</p>
+                <p className="font-medium flex items-center gap-1 text-success">
+                  <DollarSign className="h-3 w-3" />
+                  {lead.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
+              </div>
+            )}
+            {lead.proposal_value != null && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Valor da Proposta</p>
+                <p className="font-medium flex items-center gap-1 text-chart-4">
+                  <DollarSign className="h-3 w-3" />
+                  {lead.proposal_value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </p>
               </div>
             )}
             <div>
@@ -275,6 +294,22 @@ function LeadCard({
           )}
         </div>
 
+        {(lead.value != null || lead.proposal_value != null) && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {lead.value != null && lead.value > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-success bg-success/10 px-1.5 py-0.5 rounded">
+                <DollarSign className="h-3 w-3" />
+                {lead.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            )}
+            {lead.proposal_value != null && lead.proposal_value > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-chart-4 bg-chart-4/10 px-1.5 py-0.5 rounded">
+                <DollarSign className="h-3 w-3" />
+                {lead.proposal_value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </span>
+            )}
+          </div>
+        )}
         {lead.notes && (
           <p className="text-xs text-muted-foreground mt-2 line-clamp-2 bg-secondary/40 rounded px-2 py-1">
             {lead.notes}
