@@ -31,6 +31,7 @@ import {
   type CRMStatus,
   CRM_STATUS_CONFIG,
 } from '@/lib/data/crm-constants'
+import { toast } from 'sonner'
 
 interface CRMLeadFormDialogProps {
   lead?: CRMLead | null
@@ -99,6 +100,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         }
 
         setOpen(false)
+        toast.success(lead ? 'Lead atualizado com sucesso!' : 'Lead criado com sucesso!')
         onSuccess?.()
 
         if (!lead) {
@@ -115,6 +117,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         }
       } catch (error) {
         console.error('[v0] Error saving lead:', error)
+        toast.error(`Erro ao salvar lead: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
       }
     })
   }
@@ -346,10 +349,12 @@ export function CRMLeadFormDialogControlled({
         }
 
         onOpenChange(false)
+        toast.success(lead ? 'Lead atualizado com sucesso!' : 'Lead criado com sucesso!')
         console.log('[v0] Calling onSuccess callback')
         onSuccess?.()
       } catch (error) {
         console.error('[v0] Error saving lead:', error)
+        toast.error(`Erro ao salvar lead: ${error instanceof Error ? error.message : 'Erro desconhecido'}`)
       }
     })
   }
