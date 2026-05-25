@@ -45,11 +45,12 @@ import { cn } from '@/lib/utils'
 import { useDragScroll } from '@/lib/hooks/use-drag-scroll'
 
 // ─── Fetcher ─────────────────────────────────────────────────────────────────
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error('Falha ao carregar leads')
-    return res.json()
-  })
+const fetcher = async (url: string): Promise<CRMLead[]> => {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Falha ao carregar leads')
+  const json = await res.json()
+  return Array.isArray(json) ? json : []
+}
 
 // ─── Lead Detail Modal ────────────────────────────────────────────────────────
 function LeadDetailModal({

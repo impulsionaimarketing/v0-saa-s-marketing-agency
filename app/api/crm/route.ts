@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data || [])
+    return NextResponse.json(Array.isArray(data) ? data : [])
   } catch (error) {
     console.error("[v0] Unexpected error fetching CRM leads:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
