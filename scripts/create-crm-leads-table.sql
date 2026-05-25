@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS crm_leads (
   company TEXT,
   source TEXT,
   notes TEXT,
+  proposal_value NUMERIC(12, 2) DEFAULT NULL,
   status TEXT NOT NULL DEFAULT 'lead_novo' CHECK (status IN (
     'lead_novo',
     'entrar_em_contato',
@@ -18,6 +19,17 @@ CREATE TABLE IF NOT EXISTS crm_leads (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add proposal_value column if it doesn't exist (for existing tables)
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'crm_leads' AND column_name = 'proposal_value'
+  ) THEN
+    ALTER TABLE crm_leads ADD COLUMN proposal_value NUMERIC(12, 2) DEFAULT NULL;
+  END IF;
+END $$;
 
 -- Create index for faster status queries
 CREATE INDEX IF NOT EXISTS idx_crm_leads_status ON crm_leads(status);

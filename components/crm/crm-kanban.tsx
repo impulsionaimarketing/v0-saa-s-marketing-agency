@@ -30,6 +30,11 @@ import {
   MoreVertical,
   ExternalLink,
   Calendar,
+  UserPlus,
+  PauseCircle,
+  XCircle,
+  PlayCircle,
+  DollarSign,
 } from 'lucide-react'
 import {
   getCRMLeads,
@@ -124,6 +129,16 @@ function LeadDetailModal({
               </div>
             </div>
           )}
+          
+          {/* Proposal Value for Leads */}
+          {!isClient && lead.proposal_value && lead.proposal_value > 0 && (
+            <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
+              <p className="text-xs text-muted-foreground mb-1">Valor da Proposta</p>
+              <p className="font-medium text-lg text-primary">
+                R$ {lead.proposal_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          )}
 
           {/* Contact Info */}
           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -203,6 +218,8 @@ function LeadCard({
   onClick,
   onEdit,
   onDelete,
+  onConvertToClient,
+  onChangeClientStatus,
 }: {
   lead: CRMLead
   onDragStart: (e: React.DragEvent) => void
@@ -213,8 +230,11 @@ function LeadCard({
   onClick: () => void
   onEdit: () => void
   onDelete: () => void
+  onConvertToClient: () => void
+  onChangeClientStatus: (status: "Ativo" | "Pausado" | "Perdido") => void
 }) {
   const isClient = lead.is_client === true
+  const hasProposalValue = !isClient && lead.proposal_value && lead.proposal_value > 0
 
   return (
     <Card
@@ -249,6 +269,12 @@ function LeadCard({
                   {lead.company}
                 </p>
               )}
+              {hasProposalValue && (
+                <p className="text-xs text-success font-medium flex items-center gap-1 mt-0.5">
+                  <DollarSign className="h-3 w-3" />
+                  R$ {lead.proposal_value!.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              )}
               {isClient && lead.client_data && (
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {lead.client_data.plan} - R$ {lead.client_data.monthly_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -256,28 +282,55 @@ function LeadCard({
               )}
             </div>
           </div>
-          {!isClient && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Editar
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  className="text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isClient ? (
+                <>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Editar
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onConvertToClient(); }}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Converter em Cliente
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  {lead.status !== 'contrato_ativo' && (
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onChangeClientStatus("Ativo"); }}>
+                      <PlayCircle className="h-4 w-4 mr-2 text-success" />
+                      Mover para Ativo
+                    </DropdownMenuItem>
+                  )}
+                  {lead.status !== 'contrato_pausado' && (
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onChangeClientStatus("Pausado"); }}>
+                      <PauseCircle className="h-4 w-4 mr-2 text-warning" />
+                      Mover para Pausado
+                    </DropdownMenuItem>
+                  )}
+                  {lead.status !== 'contrato_cancelado' && (
+                    <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onChangeClientStatus("Perdido"); }}>
+                      <XCircle className="h-4 w-4 mr-2 text-destructive" />
+                      Mover para Cancelado
+                    </DropdownMenuItem>
+                  )}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -338,6 +391,15 @@ export function CRMKanban() {
   
   // Delete dialog
   const [deletingLead, setDeletingLead] = useState<CRMLead | null>(null)
+  
+  // Convert to client dialog
+  const [convertingLead, setConvertingLead] = useState<CRMLead | null>(null)
+  const [convertFormData, setConvertFormData] = useState({
+    type: 'Servico' as 'Servico' | 'Infoproduto' | 'Local',
+    plan: '',
+    monthly_value: '',
+    campaign_type: 'Mensagem' as 'Mensagem' | 'Venda' | 'Alcance',
+  })
 
   useEffect(() => {
     loadLeads()
@@ -450,6 +512,56 @@ export function CRMKanban() {
       console.error('[v0] Error deleting lead:', error)
     }
   }
+  
+  // Handler para converter lead em cliente
+  const handleConvertToClient = async () => {
+    if (!convertingLead) return
+    try {
+      await convertLeadToClient(convertingLead.id, {
+        type: convertFormData.type === 'Servico' ? 'Serviço' : convertFormData.type,
+        plan: convertFormData.plan,
+        monthly_value: parseFloat(convertFormData.monthly_value) || convertingLead.proposal_value || 0,
+        campaign_type: convertFormData.campaign_type,
+      })
+      setConvertingLead(null)
+      setConvertFormData({
+        type: 'Servico',
+        plan: '',
+        monthly_value: '',
+        campaign_type: 'Mensagem',
+      })
+      loadLeads()
+    } catch (error) {
+      console.error('[v0] Error converting lead to client:', error)
+    }
+  }
+  
+  // Handler para alterar status do cliente
+  const handleChangeClientStatus = async (clientId: string, newStatus: "Ativo" | "Pausado" | "Perdido") => {
+    // Optimistic update
+    setLeads((prev) =>
+      prev.map((lead) => {
+        if (lead.id === clientId && lead.is_client) {
+          const statusMap: Record<string, CRMStatus> = {
+            'Ativo': 'contrato_ativo',
+            'Pausado': 'contrato_pausado',
+            'Perdido': 'contrato_cancelado',
+          }
+          return { ...lead, status: statusMap[newStatus] }
+        }
+        return lead
+      })
+    )
+    
+    startTransition(async () => {
+      try {
+        await updateClientContractStatus(clientId, newStatus)
+      } catch (error) {
+        console.error('[v0] Error updating client status:', error)
+        loadLeads() // Rollback
+      }
+    })
+  }
 
   if (isLoading) {
     return (
@@ -491,6 +603,77 @@ export function CRMKanban() {
         title="Excluir Lead"
         description={`Tem certeza que deseja excluir "${deletingLead?.name}"? Esta ação não pode ser desfeita.`}
       />
+
+      {/* Convert to Client Dialog */}
+      <Dialog open={!!convertingLead} onOpenChange={(open) => !open && setConvertingLead(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Converter Lead em Cliente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <p className="text-sm text-muted-foreground">
+              Convertendo <strong>{convertingLead?.name}</strong> em cliente.
+            </p>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Tipo de Cliente</label>
+              <select
+                value={convertFormData.type}
+                onChange={(e) => setConvertFormData(prev => ({ ...prev, type: e.target.value as 'Servico' | 'Infoproduto' | 'Local' }))}
+                className="flex h-10 w-full rounded-md border border-input bg-secondary px-3 py-2 text-sm"
+              >
+                <option value="Servico">Servico</option>
+                <option value="Infoproduto">Infoproduto</option>
+                <option value="Local">Local</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Tipo de Campanha</label>
+              <select
+                value={convertFormData.campaign_type}
+                onChange={(e) => setConvertFormData(prev => ({ ...prev, campaign_type: e.target.value as 'Mensagem' | 'Venda' | 'Alcance' }))}
+                className="flex h-10 w-full rounded-md border border-input bg-secondary px-3 py-2 text-sm"
+              >
+                <option value="Mensagem">Mensagem</option>
+                <option value="Venda">Venda</option>
+                <option value="Alcance">Alcance</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Plano</label>
+              <Input
+                value={convertFormData.plan}
+                onChange={(e) => setConvertFormData(prev => ({ ...prev, plan: e.target.value }))}
+                placeholder="Ex: Basico, Premium..."
+                className="bg-secondary"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Valor Mensal (R$)</label>
+              <Input
+                type="number"
+                step="0.01"
+                value={convertFormData.monthly_value}
+                onChange={(e) => setConvertFormData(prev => ({ ...prev, monthly_value: e.target.value }))}
+                placeholder={convertingLead?.proposal_value?.toString() || "0,00"}
+                className="bg-secondary"
+              />
+              {convertingLead?.proposal_value && (
+                <p className="text-xs text-muted-foreground">
+                  Valor da proposta: R$ {convertingLead.proposal_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setConvertingLead(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleConvertToClient} disabled={!convertFormData.plan}>
+                Converter em Cliente
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Filters */}
       <Card className="bg-card border-border mb-4">
@@ -576,6 +759,14 @@ export function CRMKanban() {
                         onClick={() => openDetail(lead)}
                         onEdit={() => handleEdit(lead)}
                         onDelete={() => setDeletingLead(lead)}
+                        onConvertToClient={() => {
+                          setConvertingLead(lead)
+                          setConvertFormData(prev => ({
+                            ...prev,
+                            monthly_value: lead.proposal_value?.toString() || '',
+                          }))
+                        }}
+                        onChangeClientStatus={(status) => handleChangeClientStatus(lead.id, status)}
                       />
                     ))
                   )}
