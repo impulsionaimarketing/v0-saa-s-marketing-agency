@@ -23,8 +23,6 @@ import {
 } from '@/components/ui/select'
 import { Plus, Loader2 } from 'lucide-react'
 import {
-  createCRMLead,
-  updateCRMLead,
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
@@ -77,7 +75,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
 
     startTransition(async () => {
       try {
-        const data = {
+        const payload = {
           name: formData.name,
           phone: formData.phone || null,
           email: formData.email || null,
@@ -88,9 +86,19 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         }
 
         if (lead) {
-          await updateCRMLead(lead.id, data)
+          const res = await fetch(`/api/crm/${lead.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error('Falha ao atualizar lead')
         } else {
-          await createCRMLead(data)
+          const res = await fetch('/api/crm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error('Falha ao criar lead')
         }
 
         setOpen(false)
@@ -300,7 +308,7 @@ export function CRMLeadFormDialogControlled({
 
     startTransition(async () => {
       try {
-        const data = {
+        const payload = {
           name: formData.name,
           phone: formData.phone || null,
           email: formData.email || null,
@@ -311,9 +319,19 @@ export function CRMLeadFormDialogControlled({
         }
 
         if (lead) {
-          await updateCRMLead(lead.id, data)
+          const res = await fetch(`/api/crm/${lead.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error('Falha ao atualizar lead')
         } else {
-          await createCRMLead(data)
+          const res = await fetch('/api/crm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          if (!res.ok) throw new Error('Falha ao criar lead')
         }
 
         onOpenChange(false)

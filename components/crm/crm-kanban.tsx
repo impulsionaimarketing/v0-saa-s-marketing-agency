@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useTransition } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
+import useSWR from 'swr'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -32,9 +33,6 @@ import {
   Calendar,
 } from 'lucide-react'
 import {
-  getCRMLeads,
-  updateCRMLeadStatus,
-  deleteCRMLead,
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
@@ -44,6 +42,13 @@ import { CRMLeadFormDialog, CRMLeadFormDialogControlled } from './crm-lead-form-
 import { DeleteDialog } from '@/components/shared/delete-dialog'
 import { cn } from '@/lib/utils'
 import { useDragScroll } from '@/lib/hooks/use-drag-scroll'
+
+// ─── Fetcher ─────────────────────────────────────────────────────────────────
+const fetcher = (url: string) =>
+  fetch(url).then((res) => {
+    if (!res.ok) throw new Error('Falha ao carregar leads')
+    return res.json()
+  })
 
 // ─── Lead Detail Modal ────────────────────────────────────────────────────────
 function LeadDetailModal({
@@ -80,7 +85,12 @@ function LeadDetailModal({
               <Button variant="outline" size="sm" onClick={onEdit}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={onDelete}
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -88,7 +98,6 @@ function LeadDetailModal({
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
-          {/* Contact Info */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             {lead.company && (
               <div>
@@ -211,12 +220,20 @@ function LeadCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEdit()
+                }}
+              >
                 <Pencil className="h-4 w-4 mr-2" />
                 Editar
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete()
+                }}
                 className="text-destructive"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -234,8 +251,10 @@ function LeadCard({
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+              title={lead.phone}
             >
               <Phone className="h-3 w-3" />
+              <span className="text-xs">{lead.phone}</span>
             </a>
           )}
           {lead.email && (
@@ -243,8 +262,10 @@ function LeadCard({
               href={`mailto:${lead.email}`}
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+              title={lead.email}
             >
               <Mail className="h-3 w-3" />
+              <span className="text-xs truncate max-w-[120px]">{lead.email}</span>
             </a>
           )}
           {lead.source && (
@@ -253,6 +274,12 @@ function LeadCard({
             </span>
           )}
         </div>
+
+        {lead.notes && (
+          <p className="text-xs text-muted-foreground mt-2 line-clamp-2 bg-secondary/40 rounded px-2 py-1">
+            {lead.notes}
+          </p>
+        )}
       </CardContent>
     </Card>
   )
@@ -260,57 +287,50 @@ function LeadCard({
 
 // ─── Main CRM Kanban ──────────────────────────────────────────────────────────
 export function CRMKanban() {
-  const [leads, setLeads] = useState<CRMLead[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isPending, startTransition] = useTransition()
   const [searchQuery, setSearchQuery] = useState('')
-  
+
   // Drag state
   const [draggedItem, setDraggedItem] = useState<CRMLead | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const { onDragStart: dragScrollStart, onDragEnd: dragScrollEnd } = useDragScroll()
-  
+
   // Detail modal
   const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
-  
+
   // Edit modal
   const [editingLead, setEditingLead] = useState<CRMLead | null>(null)
-  
+
   // Delete dialog
   const [deletingLead, setDeletingLead] = useState<CRMLead | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
-  useEffect(() => {
-    loadLeads()
-  }, [])
+  // SWR for data fetching
+  const { data: leads, isLoading, mutate } = useSWR<CRMLead[]>(
+    '/api/crm',
+    fetcher,
+    { fallbackData: [] }
+  )
 
-  async function loadLeads() {
-    try {
-      const data = await getCRMLeads()
-      // Ensure data is always an array
-      setLeads(Array.isArray(data) ? data : [])
-    } catch (error) {
-      console.error('[v0] Error loading leads:', error)
-      setLeads([])
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const safeLeads = Array.isArray(leads) ? leads : []
 
   const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads
+    if (!searchQuery) return safeLeads
     const query = searchQuery.toLowerCase()
-    return leads.filter(
+    return safeLeads.filter(
       (lead) =>
         lead.name.toLowerCase().includes(query) ||
         lead.company?.toLowerCase().includes(query) ||
         lead.email?.toLowerCase().includes(query) ||
         lead.source?.toLowerCase().includes(query)
     )
-  }, [leads, searchQuery])
+  }, [safeLeads, searchQuery])
 
-  const getColumnLeads = (status: CRMStatus) =>
-    filteredLeads.filter((lead) => lead.status === status)
+  const getColumnLeads = useCallback(
+    (status: CRMStatus) => filteredLeads.filter((lead) => lead.status === status),
+    [filteredLeads]
+  )
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, lead: CRMLead) => {
@@ -336,33 +356,43 @@ export function CRMKanban() {
     if (draggedItem?.id !== targetId) setDragOverId(targetId)
   }
 
-  const handleDrop = (e: React.DragEvent, newStatus: CRMStatus) => {
+  const handleDrop = async (e: React.DragEvent, newStatus: CRMStatus) => {
     e.preventDefault()
     if (!draggedItem) return
 
     const oldStatus = draggedItem.status
+    if (oldStatus === newStatus) {
+      setDraggedItem(null)
+      setDragOverId(null)
+      return
+    }
 
     // Optimistic update
-    setLeads((prev) =>
-      prev.map((lead) =>
+    mutate(
+      safeLeads.map((lead) =>
         lead.id === draggedItem.id ? { ...lead, status: newStatus } : lead
-      )
+      ),
+      false
     )
-
-    // Persist if status changed
-    if (oldStatus !== newStatus) {
-      startTransition(async () => {
-        try {
-          await updateCRMLeadStatus(draggedItem.id, newStatus)
-        } catch {
-          // Rollback on error
-          loadLeads()
-        }
-      })
-    }
 
     setDraggedItem(null)
     setDragOverId(null)
+    setIsUpdatingStatus(true)
+
+    try {
+      const res = await fetch(`/api/crm/${draggedItem.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) throw new Error('Falha ao atualizar status')
+      await mutate()
+    } catch (error) {
+      console.error('[v0] Error updating lead status:', error)
+      await mutate()
+    } finally {
+      setIsUpdatingStatus(false)
+    }
   }
 
   // Actions
@@ -374,17 +404,23 @@ export function CRMKanban() {
   const handleEdit = (lead: CRMLead) => {
     setEditingLead(lead)
     setDetailOpen(false)
+    setSelectedLead(null)
   }
 
   const handleDeleteConfirm = async () => {
     if (!deletingLead) return
+    setIsDeleting(true)
     try {
-      await deleteCRMLead(deletingLead.id)
-      setLeads((prev) => prev.filter((l) => l.id !== deletingLead.id))
+      const res = await fetch(`/api/crm/${deletingLead.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Falha ao excluir lead')
+      await mutate()
       setDeletingLead(null)
       setDetailOpen(false)
+      setSelectedLead(null)
     } catch (error) {
       console.error('[v0] Error deleting lead:', error)
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -402,20 +438,25 @@ export function CRMKanban() {
       <LeadDetailModal
         lead={selectedLead}
         open={detailOpen}
-        onClose={() => setDetailOpen(false)}
+        onClose={() => {
+          setDetailOpen(false)
+          setSelectedLead(null)
+        }}
         onEdit={() => selectedLead && handleEdit(selectedLead)}
         onDelete={() => {
           if (selectedLead) setDeletingLead(selectedLead)
         }}
       />
 
-      {/* Edit Modal - controlled externally */}
+      {/* Edit Modal */}
       <CRMLeadFormDialogControlled
         lead={editingLead}
         open={!!editingLead}
-        onOpenChange={(open) => !open && setEditingLead(null)}
+        onOpenChange={(open) => {
+          if (!open) setEditingLead(null)
+        }}
         onSuccess={() => {
-          loadLeads()
+          mutate()
           setEditingLead(null)
         }}
       />
@@ -443,7 +484,7 @@ export function CRMKanban() {
                 className="pl-9 bg-secondary border-border"
               />
             </div>
-            <CRMLeadFormDialog onSuccess={loadLeads} />
+            <CRMLeadFormDialog onSuccess={() => mutate()} />
           </div>
         </CardContent>
       </Card>
@@ -465,7 +506,10 @@ export function CRMKanban() {
                 {/* Column Header */}
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
+                    <Badge
+                      variant="outline"
+                      className={cn('text-xs font-medium', statusConfig.color)}
+                    >
                       {column.title}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
@@ -474,7 +518,7 @@ export function CRMKanban() {
                   </div>
                   <CRMLeadFormDialog
                     defaultStatus={column.id}
-                    onSuccess={loadLeads}
+                    onSuccess={() => mutate()}
                     trigger={
                       <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                         <Plus className="h-4 w-4" />
@@ -512,9 +556,9 @@ export function CRMKanban() {
         </div>
       </div>
 
-      {/* Loading overlay */}
-      {isPending && (
-        <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-50">
+      {/* Loading overlay for status update */}
+      {isUpdatingStatus && (
+        <div className="fixed inset-0 bg-background/50 flex items-center justify-center z-50 pointer-events-none">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       )}
