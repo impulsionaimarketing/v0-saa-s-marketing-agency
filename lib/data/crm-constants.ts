@@ -19,6 +19,13 @@ export interface CRMLead {
   status: CRMStatus
   created_at: string
   updated_at: string
+  // Campo para identificar se é um cliente ou lead
+  is_client?: boolean
+  client_data?: {
+    type: string
+    plan: string
+    monthly_value: number
+  }
 }
 
 export const CRM_STATUS_CONFIG: Record<CRMStatus, { label: string; color: string }> = {
