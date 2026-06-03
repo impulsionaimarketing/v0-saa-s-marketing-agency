@@ -1,5 +1,6 @@
 import { CRMKanban } from '@/components/crm/crm-kanban'
-import { getCRMLeads, type CRMLead } from '@/lib/data/crm-leads'
+import { getCRMLeads } from '@/lib/data/crm-leads'
+import type { CRMLead } from '@/lib/data/crm-config'
 
 export default async function CRMPage() {
   let initialLeads: CRMLead[] = []

@@ -25,10 +25,12 @@ import { Plus, Loader2 } from 'lucide-react'
 import {
   createCRMLead,
   updateCRMLead,
+} from '@/lib/data/crm-leads'
+import {
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
-} from '@/lib/data/crm-leads'
+} from '@/lib/data/crm-config'
 
 interface CRMLeadFormDialogProps {
   lead?: CRMLead | null
