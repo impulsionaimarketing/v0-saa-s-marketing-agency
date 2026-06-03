@@ -47,6 +47,11 @@ export async function getCRMLeads(filters?: {
 }): Promise<CRMLead[]> {
   try {
     const supabase = await createSupabaseClient()
+    
+    if (!supabase) {
+      console.error("[v0] Failed to create Supabase client")
+      return []
+    }
 
     let query = supabase
       .from("crm_leads")
