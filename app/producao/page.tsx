@@ -101,6 +101,7 @@ export default function ProducaoPage() {
         
         if (!productionsRes.ok) throw new Error('Falha ao carregar produções')
         const productionsData = await productionsRes.json()
+        console.log('[v0] Productions loaded:', productionsData)
         setProductions(productionsData)
         
         if (clientsRes.ok) {
