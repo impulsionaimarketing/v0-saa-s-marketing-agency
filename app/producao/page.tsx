@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { PlusCircle } from 'lucide-react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
@@ -108,9 +111,17 @@ export default function ProducaoPage() {
         <AppShell>
           <div className="space-y-6">
             {/* Page header */}
-            <div>
-              <h1 className="text-2xl font-bold">Produção de Conteúdo</h1>
-              <p className="text-muted-foreground">Pipeline visual de criativos</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">Produção de Conteúdo</h1>
+                <p className="text-muted-foreground">Pipeline visual de criativos</p>
+              </div>
+              <Button asChild className="gap-2">
+                <Link href="/producao/aprovacao">
+                  <PlusCircle className="h-4 w-4" />
+                  Nova Produção
+                </Link>
+              </Button>
             </div>
 
             {/* Production Cards Grid */}
