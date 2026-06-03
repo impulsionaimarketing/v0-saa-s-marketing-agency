@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { CheckCircle2 } from 'lucide-react'
+import { PlusCircle } from 'lucide-react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
@@ -118,8 +118,8 @@ export default function ProducaoPage() {
               </div>
               <Button asChild className="gap-2">
                 <Link href="/producao/aprovacao">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Central de Aprovação
+                  <PlusCircle className="h-4 w-4" />
+                  Nova Produção
                 </Link>
               </Button>
             </div>

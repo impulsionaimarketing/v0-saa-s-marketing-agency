@@ -131,10 +131,37 @@ const HISTORY = [
 // Componente principal
 // ---------------------------------------------------------------------------
 
-export function ContentApproval() {
-  const [status, setStatus] = useState<string>(PRODUCTION.status)
-  const [caption, setCaption] = useState(DEFAULT_CAPTION)
-  const [captionDraft, setCaptionDraft] = useState(DEFAULT_CAPTION)
+export interface ContentApprovalData {
+  title: string
+  client: string
+  responsible: string
+  postDate: string
+  caption: string
+  poster: string | null
+  videoName?: string
+}
+
+export function ContentApproval({ data }: { data?: ContentApprovalData }) {
+  const production = data
+    ? {
+        title: data.title,
+        client: data.client,
+        responsible: data.responsible,
+        postDate: data.postDate || 'A definir',
+        status: 'Aprovação do Cliente',
+        poster: data.poster || PRODUCTION.poster,
+        approvalLink: PRODUCTION.approvalLink,
+      }
+    : PRODUCTION
+  const initialCaption = data?.caption?.trim() ? data.caption : DEFAULT_CAPTION
+  const isUploadedVideo = Boolean(
+    data?.poster &&
+      (data.poster.startsWith('blob:') || /\.(mp4|mov|webm)$/i.test(data.videoName || '')),
+  )
+
+  const [status, setStatus] = useState<string>(production.status)
+  const [caption, setCaption] = useState(initialCaption)
+  const [captionDraft, setCaptionDraft] = useState(initialCaption)
   const [isEditingCaption, setIsEditingCaption] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES)
   const [newMessage, setNewMessage] = useState('')
@@ -156,7 +183,7 @@ export function ContentApproval() {
   }
 
   const handleCopyLink = () => {
-    navigator.clipboard?.writeText(PRODUCTION.approvalLink).catch(() => {})
+    navigator.clipboard?.writeText(production.approvalLink).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
   }
@@ -176,28 +203,39 @@ export function ContentApproval() {
             <div className="flex flex-col items-center">
               <div className="relative w-full max-w-[300px] overflow-hidden rounded-2xl border border-border bg-secondary shadow-sm">
                 <div className="relative aspect-[9/16] w-full">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={PRODUCTION.poster || '/placeholder.svg'}
-                    alt={`Capa do vídeo ${PRODUCTION.title}`}
-                    className="h-full w-full object-cover"
-                  />
-                  {/* Botão play decorativo */}
-                  <div className="absolute inset-0 flex items-center justify-center bg-background/20">
-                    <button
-                      type="button"
-                      aria-label="Reproduzir vídeo"
-                      className="flex h-16 w-16 items-center justify-center rounded-full bg-background/70 backdrop-blur-sm transition-transform hover:scale-105"
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        className="ml-1 h-7 w-7 fill-foreground"
-                        aria-hidden="true"
-                      >
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </button>
-                  </div>
+                  {isUploadedVideo ? (
+                    <video
+                      src={production.poster}
+                      className="h-full w-full object-cover"
+                      controls
+                      playsInline
+                    />
+                  ) : (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={production.poster || '/placeholder.svg'}
+                        alt={`Capa do vídeo ${production.title}`}
+                        className="h-full w-full object-cover"
+                      />
+                      {/* Botão play decorativo */}
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/20">
+                        <button
+                          type="button"
+                          aria-label="Reproduzir vídeo"
+                          className="flex h-16 w-16 items-center justify-center rounded-full bg-background/70 backdrop-blur-sm transition-transform hover:scale-105"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            className="ml-1 h-7 w-7 fill-foreground"
+                            aria-hidden="true"
+                          >
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -208,17 +246,17 @@ export function ContentApproval() {
             <div className="space-y-4">
               <div>
                 <h2 className="text-balance text-xl font-semibold text-foreground">
-                  {PRODUCTION.title}
+                  {production.title}
                 </h2>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <MetaItem icon={Building2} label="Cliente" value={PRODUCTION.client} />
-                <MetaItem icon={User} label="Responsável" value={PRODUCTION.responsible} />
+                <MetaItem icon={Building2} label="Cliente" value={production.client} />
+                <MetaItem icon={User} label="Responsável" value={production.responsible} />
                 <MetaItem
                   icon={CalendarClock}
                   label="Data prevista de postagem"
-                  value={PRODUCTION.postDate}
+                  value={production.postDate}
                 />
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
@@ -387,7 +425,7 @@ export function ContentApproval() {
             <CardContent className="space-y-3">
               <Input
                 readOnly
-                value={PRODUCTION.approvalLink}
+                value={production.approvalLink}
                 className="bg-secondary/40 text-xs text-muted-foreground"
               />
               <div className="grid grid-cols-2 gap-2">
