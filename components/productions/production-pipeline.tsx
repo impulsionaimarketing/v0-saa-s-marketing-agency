@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
+// Production pipeline component - v2024
+import React, { useState, useEffect, useTransition, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,12 +14,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from '@/components/ui/dialog'
 import {
   Search,
   Video,
@@ -26,16 +27,12 @@ import {
   Calendar,
   User,
   Loader2,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  FileText,
-  Send,
-  Play,
-  LayoutGrid,
-  List,
-  Plus,
+  ChevronLeft,
+  ChevronRight,
+  Trash2,
+  X,
+  GripVertical,
+  Pencil,
 } from 'lucide-react'
 import {
   getProductions,
@@ -48,70 +45,31 @@ import { getClients, type Client } from '@/lib/data/clients'
 import { ProductionFormDialog } from './production-form-dialog'
 import { DeleteDialog } from '@/components/shared/delete-dialog'
 import { cn } from '@/lib/utils'
+import { getDemands, type Demand } from '@/lib/data/demands' // Import Demand
 import { VideoUploadSection } from './video-upload-section'
 import { getProductionFiles, type ProductionFile } from '@/lib/data/production-files'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { usePersistedFilters } from '@/lib/hooks/use-persisted-filters'
+import { useDragScroll } from '@/lib/hooks/use-drag-scroll'
 
-const statusConfig: Record<string, { color: string; bg: string; icon: React.ElementType; label: string }> = {
-  'Planejamento': { color: 'text-slate-700', bg: 'bg-slate-100', icon: FileText, label: 'Planejamento' },
-  'Aprovação do Cliente': { color: 'text-amber-700', bg: 'bg-amber-100', icon: Clock, label: 'Aguardando Aprovação' },
-  'Captação': { color: 'text-orange-700', bg: 'bg-orange-100', icon: Video, label: 'Em Captação' },
-  'Edição': { color: 'text-blue-700', bg: 'bg-blue-100', icon: Play, label: 'Em Edição' },
-  'Revisão': { color: 'text-purple-700', bg: 'bg-purple-100', icon: Eye, label: 'Em Revisão' },
-  'Legenda': { color: 'text-indigo-700', bg: 'bg-indigo-100', icon: FileText, label: 'Criando Legenda' },
-  'Programado': { color: 'text-cyan-700', bg: 'bg-cyan-100', icon: Calendar, label: 'Programado' },
-  'Publicado': { color: 'text-emerald-700', bg: 'bg-emerald-100', icon: CheckCircle2, label: 'Publicado' },
-  'Em Tráfego': { color: 'text-green-700', bg: 'bg-green-100', icon: Send, label: 'Em Tráfego' },
-  'Finalizado': { color: 'text-teal-700', bg: 'bg-teal-100', icon: CheckCircle2, label: 'Finalizado' },
+const statusColors: Record<string, string> = {
+  Planejamento: 'bg-slate-500',
+  'Aprovação do Cliente': 'bg-yellow-500',
+  Captação: 'bg-orange-500',
+  Edição: 'bg-blue-500',
+  Revisão: 'bg-purple-500',
+  Legenda: 'bg-indigo-500',
+  Programado: 'bg-cyan-500',
+  Publicado: 'bg-green-500',
+  'Em Tráfego': 'bg-emerald-500',
+  Finalizado: 'bg-teal-500',
 }
-
-// Agrupar status para a visualização simplificada
-const statusGroups = [
-  { 
-    key: 'pending', 
-    label: 'Aguardando Aprovação', 
-    statuses: ['Aprovação do Cliente'],
-    color: 'border-amber-400',
-    bgColor: 'bg-amber-50',
-    textColor: 'text-amber-700',
-    icon: Clock
-  },
-  { 
-    key: 'production', 
-    label: 'Em Produção', 
-    statuses: ['Planejamento', 'Captação', 'Edição', 'Revisão', 'Legenda'],
-    color: 'border-blue-400',
-    bgColor: 'bg-blue-50',
-    textColor: 'text-blue-700',
-    icon: Play
-  },
-  { 
-    key: 'scheduled', 
-    label: 'Programados', 
-    statuses: ['Programado'],
-    color: 'border-cyan-400',
-    bgColor: 'bg-cyan-50',
-    textColor: 'text-cyan-700',
-    icon: Calendar
-  },
-  { 
-    key: 'published', 
-    label: 'Publicados', 
-    statuses: ['Publicado', 'Em Tráfego', 'Finalizado'],
-    color: 'border-emerald-400',
-    bgColor: 'bg-emerald-50',
-    textColor: 'text-emerald-700',
-    icon: CheckCircle2
-  },
-]
 
 export function ProductionPipeline() {
   const { user } = useAuth()
   const [productions, setProductions] = useState<Production[]>([])
   const [clients, setClients] = useState<Client[]>([])
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [activeGroup, setActiveGroup] = useState('pending')
+  const [demands, setDemands] = useState<Demand[]>([]) // Declare Demand
 
   const [filters, setFilter, resetFilters] = usePersistedFilters('productions-filters', {
     search: '',
@@ -122,19 +80,27 @@ export function ProductionPipeline() {
   })
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null)
   const [productionFiles, setProductionFiles] = useState<ProductionFile[]>([])
+  const [draggedItem, setDraggedItem] = useState<Production | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { onDragStart: dragScrollStart, onDragEnd: dragScrollEnd } = useDragScroll()
 
   const loadData = () => {
     startTransition(async () => {
-      const [productionsData, clientsData] = await Promise.all([
+      const [productionsData, clientsData, demandsData] = await Promise.all([
         getProductions({
           current_user_id: user?.id,
           current_user_role: user?.role
         }),
         getClients(),
+        getDemands({
+          current_user_id: user?.id,
+          current_user_role: user?.role
+        }),
       ])
       setProductions(productionsData)
       setClients(clientsData)
+      setDemands(demandsData) // Set Demands
     })
   }
 
@@ -172,6 +138,7 @@ export function ProductionPipeline() {
       filterClient === 'all' || production.client_id === filterClient
     const matchesType = filterType === 'all' || production.type === filterType
 
+    // Date filtering on post_date
     let matchesDate = true
     if (production.post_date) {
       const postDate = new Date(production.post_date)
@@ -190,437 +157,408 @@ export function ProductionPipeline() {
     return matchesSearch && matchesClient && matchesType && matchesDate
   })
 
-  const getProductionsByGroup = (groupKey: string) => {
-    const group = statusGroups.find(g => g.key === groupKey)
-    if (!group) return []
-    return filteredProductions.filter(p => group.statuses.includes(p.status))
+  const getProductionsByStatus = (status: string) => {
+    return filteredProductions.filter((p) => p.status === status)
   }
 
-  const handleStatusChange = async (production: Production, newStatus: string) => {
-    try {
-      await updateProductionStatus(production.id, newStatus)
-      loadData()
-    } catch (error) {
-      console.error('[v0] Error updating status:', error)
-    }
+  const handleMoveStatus = (production: Production, direction: 'prev' | 'next') => {
+    const currentIndex = PRODUCTION_STATUSES.indexOf(production.status)
+    if (currentIndex === -1) return
+
+    const newIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1
+    if (newIndex < 0 || newIndex >= PRODUCTION_STATUSES.length) return
+
+    const newStatus = PRODUCTION_STATUSES[newIndex]
+    updateProductionStatus(production.id, newStatus).then(loadData)
   }
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR', { 
-      day: '2-digit', 
-      month: 'short'
+  const handleDragStart = (e: React.DragEvent, production: Production) => {
+    setDraggedItem(production)
+    e.dataTransfer.effectAllowed = 'move'
+    dragScrollStart()
+  }
+
+  const handleDragEnd = () => {
+    dragScrollEnd()
+    setDraggedItem(null)
+    setDragOverId(null)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleCardDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (draggedItem?.id !== targetId) setDragOverId(targetId)
+  }
+
+  const handleDrop = (e: React.DragEvent, newStatus: string) => {
+    e.preventDefault()
+    if (!draggedItem) return
+
+    const statusChanged = draggedItem.status !== newStatus
+
+    // Reorder optimistically
+    setProductions((prev) => {
+      const items = [...prev]
+      const draggedIndex = items.findIndex((p) => p.id === draggedItem.id)
+      if (draggedIndex === -1) return prev
+      const [removed] = items.splice(draggedIndex, 1)
+      removed.status = newStatus
+      if (dragOverId) {
+        const targetIndex = items.findIndex((p) => p.id === dragOverId)
+        if (targetIndex !== -1) {
+          items.splice(targetIndex, 0, removed)
+        } else {
+          items.push(removed)
+        }
+      } else {
+        items.push(removed)
+      }
+      return items
     })
-  }
 
-  const ContentCard = ({ production }: { production: Production }) => {
-    const config = statusConfig[production.status] || statusConfig['Planejamento']
-    const StatusIcon = config.icon
-    
-    return (
-      <div
-        onClick={() => setSelectedProduction(production)}
-        className="group cursor-pointer rounded-xl border border-border bg-card hover:border-primary/30 hover:shadow-md transition-all duration-200"
-      >
-        {/* Thumbnail */}
-        <div className="aspect-square relative overflow-hidden rounded-t-xl bg-muted">
-          {production.type === 'Vídeo' ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500/10 to-purple-500/10">
-              <Video className="h-12 w-12 text-blue-500/40" />
-            </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-pink-500/10 to-orange-500/10">
-              <ImageIcon className="h-12 w-12 text-pink-500/40" />
-            </div>
-          )}
-          
-          {/* Type Badge */}
-          <div className="absolute top-2 left-2">
-            <Badge variant="secondary" className="text-[10px] font-medium bg-background/80 backdrop-blur-sm">
-              {production.type}
-            </Badge>
-          </div>
-          
-          {/* Status Badge */}
-          <div className="absolute bottom-2 right-2">
-            <Badge className={cn('text-[10px] font-medium', config.bg, config.color)}>
-              <StatusIcon className="h-3 w-3 mr-1" />
-              {config.label}
-            </Badge>
-          </div>
-        </div>
+    if (statusChanged) {
+      startTransition(async () => {
+        await updateProductionStatus(draggedItem.id, newStatus)
+      })
+    }
 
-        {/* Info */}
-        <div className="p-3 space-y-2">
-          <p className="font-medium text-sm truncate text-foreground">
-            {production.client_name || 'Sem cliente'}
-          </p>
-          
-          {production.notes && (
-            <p className="text-xs text-muted-foreground line-clamp-2">
-              {production.notes}
-            </p>
-          )}
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
-            <div className="flex items-center gap-1">
-              <User className="h-3 w-3" />
-              <span className="truncate max-w-[80px]">
-                {production.responsible_name || 'Sem responsável'}
-              </span>
-            </div>
-            {production.post_date && (
-              <div className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                <span>{formatDate(production.post_date)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const ContentListItem = ({ production }: { production: Production }) => {
-    const config = statusConfig[production.status] || statusConfig['Planejamento']
-    const StatusIcon = config.icon
-    
-    return (
-      <div
-        onClick={() => setSelectedProduction(production)}
-        className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/30 hover:shadow-sm cursor-pointer transition-all duration-200"
-      >
-        {/* Thumbnail */}
-        <div className="h-16 w-16 rounded-lg bg-muted flex items-center justify-center shrink-0">
-          {production.type === 'Vídeo' ? (
-            <Video className="h-6 w-6 text-blue-500/60" />
-          ) : (
-            <ImageIcon className="h-6 w-6 text-pink-500/60" />
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0 space-y-1">
-          <div className="flex items-center gap-2">
-            <p className="font-medium text-sm truncate text-foreground">
-              {production.client_name || 'Sem cliente'}
-            </p>
-            <Badge variant="outline" className="text-[10px] shrink-0">
-              {production.type}
-            </Badge>
-          </div>
-          
-          {production.notes && (
-            <p className="text-xs text-muted-foreground truncate">
-              {production.notes}
-            </p>
-          )}
-
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <User className="h-3 w-3" />
-              <span>{production.responsible_name || 'Sem responsável'}</span>
-            </div>
-            {production.post_date && (
-              <div className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                <span>{formatDate(production.post_date)}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Status */}
-        <Badge className={cn('text-xs font-medium shrink-0', config.bg, config.color)}>
-          <StatusIcon className="h-3 w-3 mr-1" />
-          {config.label}
-        </Badge>
-      </div>
-    )
+    setDraggedItem(null)
+    setDragOverId(null)
   }
 
   return (
     <div className="space-y-6">
-      {/* Header with filters */}
-      <Card className="border-border">
+      {/* Filters */}
+      <Card className="bg-card border-border">
         <CardContent className="p-4">
-          <div className="flex flex-col gap-4">
-            {/* Search and filters */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar conteúdos..."
-                  value={filters.search}
-                  onChange={(e) => setFilter('search', e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              
-              <div className="flex gap-2 flex-wrap">
-                <Select value={filters.filterClient} onValueChange={(v) => setFilter('filterClient', v)}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={filters.filterType} onValueChange={(v) => setFilter('filterType', v)}>
-                  <SelectTrigger className="w-[120px]">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="Vídeo">Vídeo</SelectItem>
-                    <SelectItem value="Arte">Arte</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {(filters.filterClient !== 'all' || filters.filterType !== 'all' || filters.search) && (
-                  <Button variant="ghost" size="sm" onClick={resetFilters} className="text-xs">
-                    Limpar filtros
-                  </Button>
-                )}
-
-                {isPending && <Loader2 className="h-4 w-4 animate-spin self-center" />}
-              </div>
+          <div className="space-y-3">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar criativos..."
+                value={filters.search}
+                onChange={(e) => setFilter('search', e.target.value)}
+                className="pl-9 w-full"
+              />
             </div>
 
-            {/* View toggle and new button */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 p-1 bg-muted rounded-lg">
-                <Button
-                  variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                  className="h-8 px-3"
-                >
-                  <LayoutGrid className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                  className="h-8 px-3"
-                >
-                  <List className="h-4 w-4" />
-                </Button>
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+              <Select value={filters.filterClient} onValueChange={(v) => setFilter('filterClient', v)}>
+                <SelectTrigger className="w-full sm:w-36 text-xs sm:text-sm">
+                  <SelectValue placeholder="Cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filters.filterType} onValueChange={(v) => setFilter('filterType', v)}>
+                <SelectTrigger className="w-full sm:w-32 text-xs sm:text-sm">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="Vídeo">Vídeo</SelectItem>
+                  <SelectItem value="Arte">Arte</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-muted-foreground whitespace-nowrap">De</label>
+                <Input
+                  type="date"
+                  value={filters.dateFrom}
+                  onChange={(e) => setFilter('dateFrom', e.target.value)}
+                  className="w-full sm:w-36 text-xs sm:text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-muted-foreground whitespace-nowrap">Até</label>
+                <Input
+                  type="date"
+                  value={filters.dateTo}
+                  onChange={(e) => setFilter('dateTo', e.target.value)}
+                  className="w-full sm:w-36 text-xs sm:text-sm"
+                />
               </div>
 
-              <ProductionFormDialog onSuccess={loadData} />
+              {(filters.dateFrom || filters.dateTo || filters.filterClient !== 'all' || filters.filterType !== 'all') && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="text-xs text-muted-foreground hover:text-foreground underline whitespace-nowrap self-center"
+                >
+                  Limpar filtros
+                </button>
+              )}
+
+              {isPending && <div className="flex items-center justify-center"><Loader2 className="h-4 w-4 animate-spin" /></div>}
+
+              <div className="col-span-2 sm:col-span-1 sm:ml-auto">
+                <ProductionFormDialog onSuccess={loadData} />
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Status Groups Tabs */}
-      <Tabs value={activeGroup} onValueChange={setActiveGroup} className="w-full">
-        <TabsList className="w-full justify-start bg-muted/50 p-1 rounded-xl overflow-x-auto">
-          {statusGroups.map((group) => {
-            const count = getProductionsByGroup(group.key).length
-            const GroupIcon = group.icon
-            return (
-              <TabsTrigger
-                key={group.key}
-                value={group.key}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg data-[state=active]:shadow-sm transition-all",
-                  "data-[state=active]:bg-background"
-                )}
-              >
-                <GroupIcon className="h-4 w-4" />
-                <span className="font-medium">{group.label}</span>
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {count}
-                </Badge>
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
+      {/* Pipeline Status Bar */}
+      <div className="flex gap-1 overflow-x-auto pb-2">
+        {PRODUCTION_STATUSES.map((status, index) => (
+          <div
+            key={status}
+            className={cn(
+              'flex-1 min-w-[100px] h-2 rounded-full',
+              statusColors[status]
+            )}
+            title={status}
+          />
+        ))}
+      </div>
 
-        {statusGroups.map((group) => {
-          const groupProductions = getProductionsByGroup(group.key)
-          
-          return (
-            <TabsContent key={group.key} value={group.key} className="mt-6">
-              {groupProductions.length === 0 ? (
-                <Card className={cn('border-2 border-dashed', group.color)}>
-                  <CardContent className="py-12 text-center">
-                    <div className={cn('inline-flex p-4 rounded-full mb-4', group.bgColor)}>
-                      <group.icon className={cn('h-8 w-8', group.textColor)} />
-                    </div>
-                    <p className="text-muted-foreground">
-                      Nenhum conteúdo {group.label.toLowerCase()}
-                    </p>
-                    <ProductionFormDialog 
-                      onSuccess={loadData} 
-                      trigger={
-                        <Button variant="outline" size="sm" className="mt-4">
-                          <Plus className="h-4 w-4 mr-2" />
-                          Criar novo conteúdo
-                        </Button>
-                      }
+      {/* Pipeline Columns */}
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {PRODUCTION_STATUSES.map((status, statusIndex) => (
+          <div key={status} className="flex-shrink-0 w-[280px]">
+            <Card className="bg-card border-border h-full">
+              <CardHeader className="p-3 pb-2">
+                <CardTitle className="text-sm font-medium flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <div
+                      className={cn('w-3 h-3 rounded-full', statusColors[status])}
                     />
-                  </CardContent>
-                </Card>
-              ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {groupProductions.map((production) => (
-                    <ContentCard key={production.id} production={production} />
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {groupProductions.map((production) => (
-                    <ContentListItem key={production.id} production={production} />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-          )
-        })}
-      </Tabs>
-
-      {/* Production Details Sheet */}
-      <Sheet open={selectedProduction !== null} onOpenChange={(open) => !open && setSelectedProduction(null)}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader className="space-y-1">
-            <div className="flex items-center gap-2">
-              {selectedProduction?.type === 'Vídeo' ? (
-                <Video className="h-5 w-5 text-blue-500" />
-              ) : (
-                <ImageIcon className="h-5 w-5 text-pink-500" />
-              )}
-              <SheetTitle>{selectedProduction?.client_name || 'Detalhes'}</SheetTitle>
-            </div>
-          </SheetHeader>
-
-          {selectedProduction && (
-            <div className="mt-6 space-y-6">
-              {/* Preview */}
-              <div className="aspect-video rounded-xl bg-muted flex items-center justify-center">
-                {selectedProduction.type === 'Vídeo' ? (
-                  <div className="text-center">
-                    <Video className="h-16 w-16 text-blue-500/40 mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">Preview do vídeo</p>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <ImageIcon className="h-16 w-16 text-pink-500/40 mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">Preview da arte</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Info Cards */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-xs text-muted-foreground mb-1">Tipo</p>
-                  <Badge variant="outline">{selectedProduction.type}</Badge>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-xs text-muted-foreground mb-1">Status</p>
-                  <Badge className={cn(
-                    statusConfig[selectedProduction.status]?.bg,
-                    statusConfig[selectedProduction.status]?.color
-                  )}>
-                    {selectedProduction.status}
+                    {status}
+                  </span>
+                  <Badge variant="secondary" className="text-xs">
+                    {getProductionsByStatus(status).length}
                   </Badge>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-4">
-                {selectedProduction.notes && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-2">Observações</p>
-                    <p className="text-sm bg-muted/50 p-3 rounded-lg">{selectedProduction.notes}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Responsável</p>
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{selectedProduction.responsible_name || 'Não atribuído'}</span>
-                    </div>
-                  </div>
-                  
-                  {selectedProduction.post_date && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Data</p>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">
-                          {new Date(selectedProduction.post_date).toLocaleDateString('pt-BR')}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Status Change */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-3">Alterar Status</p>
-                <div className="flex flex-wrap gap-2">
-                  {PRODUCTION_STATUSES.map((status) => {
-                    const config = statusConfig[status]
-                    const isActive = selectedProduction.status === status
-                    return (
-                      <Button
-                        key={status}
-                        variant={isActive ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => handleStatusChange(selectedProduction, status)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent 
+                className="p-2 space-y-2 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, status)}
+              >
+                {getProductionsByStatus(status).length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">
+                    Nenhum criativo
+                  </p>
+                ) : (
+                  <>
+                    {/* Render Productions */}
+                    {getProductionsByStatus(status).map((production) => (
+                      <Card 
+                        key={production.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, production)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={(e) => handleCardDragOver(e, production.id)}
                         className={cn(
-                          'text-xs',
-                          isActive && config?.bg,
-                          isActive && config?.color
+                          "bg-secondary/50 border-border cursor-grab active:cursor-grabbing hover:bg-secondary/70 transition-all hover:border-primary/50",
+                          draggedItem?.id === production.id && 'opacity-50',
+                          dragOverId === production.id && draggedItem?.id !== production.id && 'border-t-2 border-t-primary'
                         )}
                       >
-                        {status}
-                      </Button>
-                    )
-                  })}
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-2">
+                            <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  {production.type === 'Vídeo' ? (
+                                    <Video className="h-4 w-4 text-blue-400" />
+                                  ) : (
+                                    <ImageIcon className="h-4 w-4 text-pink-400" />
+                                  )}
+                                  <span className="font-medium text-sm truncate max-w-[150px]">
+                                    {production.client_name || 'Cliente'}
+                                  </span>
+                                </div>
+                                <Badge variant="outline" className="text-xs">
+                                  {production.type}
+                                </Badge>
+                              </div>
+
+                              {production.notes && (
+                                <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                                  {production.notes}
+                                </p>
+                              )}
+
+                              <div className="flex items-center justify-between text-xs text-muted-foreground mt-3 pt-3 border-t border-border">
+                                <div className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  <span className="truncate max-w-[80px]">
+                                    {production.responsible_name || 'Não atribuído'}
+                                  </span>
+                                </div>
+                                {production.post_date && (
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>
+                                      {new Date(production.post_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="flex items-center gap-1 mt-2 pt-2 border-t border-border">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedProduction(production)
+                                  }}
+                                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground p-1 rounded hover:bg-secondary"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                  Ver detalhes
+                                </button>
+                                <DeleteDialog
+                                  title="Excluir Criativo"
+                                  description="Tem certeza que deseja excluir este criativo? Esta ação não pode ser desfeita."
+                                  onConfirm={() => deleteProduction(production.id)}
+                                  onSuccess={loadData}
+                                  trigger={
+                                    <button
+                                      type="button"
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="flex items-center gap-1 text-xs text-destructive hover:text-destructive/80 p-1 rounded hover:bg-destructive/10 ml-auto"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                      Excluir
+                                    </button>
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        ))}
+      </div>
+
+      {/* Production Details Dialog */}
+      <Dialog open={selectedProduction !== null} onOpenChange={(open) => !open && setSelectedProduction(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedProduction?.type === 'Vídeo' ? (
+                <Video className="h-5 w-5 text-blue-400" />
+              ) : (
+                <ImageIcon className="h-5 w-5 text-pink-400" />
+              )}
+              {selectedProduction?.client_name || 'Produção'}
+            </DialogTitle>
+            <DialogClose />
+          </DialogHeader>
+
+          {selectedProduction && (
+            <div className="space-y-4">
+              {/* Header Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Tipo</p>
+                  <Badge className={selectedProduction.type === 'Vídeo' ? 'bg-blue-500/20 text-blue-600' : 'bg-pink-500/20 text-pink-600'}>
+                    {selectedProduction.type}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Status</p>
+                  <Badge variant="secondary">{selectedProduction.status}</Badge>
                 </div>
               </div>
 
-              {/* Files */}
-              <VideoUploadSection
-                productionId={selectedProduction.id}
-                files={productionFiles}
-                onUpdate={() => loadFiles(selectedProduction.id)}
-              />
+              {/* Notes */}
+              {selectedProduction.notes && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Observações</p>
+                  <p className="text-sm text-foreground bg-secondary/50 p-3 rounded">
+                    {selectedProduction.notes}
+                  </p>
+                </div>
+              )}
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t">
-                <DeleteDialog
-                  title="Excluir Conteúdo"
-                  description="Tem certeza que deseja excluir este conteúdo? Esta ação não pode ser desfeita."
-                  onConfirm={() => deleteProduction(selectedProduction.id)}
-                  onSuccess={() => {
-                    setSelectedProduction(null)
-                    loadData()
-                  }}
-                  trigger={
-                    <Button variant="destructive" size="sm" className="flex-1">
-                      Excluir
-                    </Button>
-                  }
-                />
+              {/* Client Info */}
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Cliente</p>
+                <p className="text-sm text-foreground">
+                  {selectedProduction.client_name}
+                </p>
               </div>
+
+              {/* Responsible */}
+              {selectedProduction.responsible_name && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Responsável</p>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm text-foreground">
+                      {selectedProduction.responsible_name}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Post Date */}
+              {selectedProduction.post_date && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Data de Publicação</p>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm text-foreground">
+                      {new Date(selectedProduction.post_date).toLocaleDateString('pt-BR', { 
+                        day: '2-digit', 
+                        month: '2-digit',
+                        year: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Created At */}
+              {selectedProduction.created_at && (
+                <div className="text-xs text-muted-foreground border-t border-border pt-3">
+                  Criada em {new Date(selectedProduction.created_at).toLocaleDateString('pt-BR', { 
+                    day: '2-digit', 
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </div>
+              )}
+
+              {/* Video Upload Section */}
+              {selectedProduction.id && (
+                <VideoUploadSection
+                  productionId={selectedProduction.id}
+                  files={productionFiles}
+                  onUpdate={() => loadFiles(selectedProduction.id)}
+                />
+              )}
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
