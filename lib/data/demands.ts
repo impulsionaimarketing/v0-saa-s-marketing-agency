@@ -1,6 +1,6 @@
 "use server"
 
-import { query, queryOne, execute } from "@/lib/db"
+import { createClient } from "@/lib/supabase/server"
 import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
 
 export interface Demand {
@@ -28,54 +28,46 @@ export async function getDemands(filters?: {
   current_user_role?: string
 }): Promise<Demand[]> {
   try {
-    let sql = `
-      SELECT d.*, c.name as client_name, u.name as responsible_name
-      FROM demands d
-      LEFT JOIN clients c ON d.client_id = c.id
-      LEFT JOIN users u ON d.responsible_id = u.id
-    `
-    const params: unknown[] = []
-    let paramCount = 1
-    const conditions: string[] = []
+    const supabase = await createClient()
 
-    // Filter by user role: Colaboradores only see their own tasks
+    // Use RPC to get demands with joined names (same as dashboard uses)
+    const { data, error } = await supabase.rpc('get_all_demands')
+
+    if (error) {
+      console.error("[v0] Error fetching demands:", error)
+      return []
+    }
+
+    let demands = (data as Demand[]) || []
+
+    // Apply filters
     if (filters?.current_user_role === 'Colaborador' && filters?.current_user_id) {
-      conditions.push(`d.responsible_id = $${paramCount}`)
-      params.push(filters.current_user_id)
-      paramCount++
+      demands = demands.filter(d => d.responsible_id === filters.current_user_id)
     }
 
     if (filters?.client_id) {
-      conditions.push(`d.client_id = $${paramCount}`)
-      params.push(filters.client_id)
-      paramCount++
+      demands = demands.filter(d => d.client_id === filters.client_id)
     }
 
     if (filters?.area && filters.area !== "all") {
-      conditions.push(`d.area = $${paramCount}`)
-      params.push(filters.area)
-      paramCount++
+      demands = demands.filter(d => d.area === filters.area)
     }
 
     if (filters?.status) {
-      conditions.push(`d.status = $${paramCount}`)
-      params.push(filters.status)
-      paramCount++
+      demands = demands.filter(d => d.status === filters.status)
     }
 
     if (filters?.responsible_id) {
-      conditions.push(`d.responsible_id = $${paramCount}`)
-      params.push(filters.responsible_id)
-      paramCount++
+      demands = demands.filter(d => d.responsible_id === filters.responsible_id)
     }
 
-    if (conditions.length > 0) {
-      sql += ` WHERE ${conditions.join(" AND ")}`
-    }
+    // Sort by deadline
+    demands.sort((a, b) => {
+      if (!a.deadline) return 1
+      if (!b.deadline) return -1
+      return new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+    })
 
-    sql += ` ORDER BY d.deadline ASC NULLS LAST`
-
-    const demands = await query<Demand>(sql, params)
     return demands
   } catch (error) {
     console.error("[v0] Error fetching demands:", error)
@@ -106,30 +98,32 @@ export async function getDemandsByStatus(): Promise<Record<string, Demand[]>> {
 
 export async function createDemand(data: Partial<Demand>): Promise<Demand | null> {
   try {
-    const result = await queryOne<Demand>(
-      `INSERT INTO demands (name, description, client_id, area, responsible_id, deadline, status, priority)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
-      [
-        data.name,
-        data.description || null,
-        data.client_id,
-        data.area,
-        data.responsible_id || null,
-        data.deadline || null,
-        data.status || "A Fazer",
-        data.priority || "medium",
-      ]
-    )
+    const supabase = await createClient()
 
-    if (!result) {
+    const { data: result, error } = await supabase
+      .from('demands')
+      .insert({
+        name: data.name,
+        description: data.description || null,
+        client_id: data.client_id,
+        area: data.area,
+        responsible_id: data.responsible_id || null,
+        deadline: data.deadline || null,
+        status: data.status || "A Fazer",
+        priority: data.priority || "medium",
+      })
+      .select()
+      .single()
+
+    if (error || !result) {
+      console.error("[v0] Error creating demand:", error)
       throw new Error("Failed to create demand")
     }
 
     // Send webhook notification
     await sendWebhookNotification('demand.created', result)
 
-    return result
+    return result as Demand
   } catch (error) {
     console.error("[v0] Error creating demand:", error)
     throw error
@@ -138,60 +132,64 @@ export async function createDemand(data: Partial<Demand>): Promise<Demand | null
 
 export async function updateDemand(id: string, data: Partial<Demand>): Promise<Demand | null> {
   try {
-    const updates: string[] = []
-    const params: unknown[] = []
-    let paramCount = 1
+    const supabase = await createClient()
 
+    const updateData: Record<string, unknown> = {}
     const fields: (keyof Demand)[] = ['name', 'description', 'client_id', 'area', 'responsible_id', 'deadline', 'status', 'priority']
 
     for (const field of fields) {
       if (field in data) {
-        updates.push(`${field} = $${paramCount}`)
-        params.push(data[field])
-        paramCount++
+        updateData[field] = data[field]
       }
     }
 
-    if (updates.length === 0) {
-      return await queryOne<Demand>("SELECT * FROM demands WHERE id = $1", [id])
+    if (Object.keys(updateData).length === 0) {
+      const { data: existing } = await supabase
+        .from('demands')
+        .select('*')
+        .eq('id', id)
+        .single()
+      return existing as Demand
     }
 
-    updates.push(`updated_at = NOW()`)
-    params.push(id)
+    updateData.updated_at = new Date().toISOString()
 
-    const result = await queryOne<Demand>(
-      `UPDATE demands SET ${updates.join(", ")} WHERE id = $${paramCount} RETURNING *`,
-      params
-    )
+    const { data: result, error } = await supabase
+      .from('demands')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
 
-    if (!result) {
+    if (error || !result) {
+      console.error("[v0] Error updating demand:", error)
       throw new Error("Failed to update demand")
     }
 
-    // Check if there's a production linked to this demand
-    const linkedProduction = await queryOne<{ id: string }>(
-      "SELECT id FROM productions WHERE demand_id = $1",
-      [id]
-    )
+    // Check if there's a production linked to this demand and sync
+    const { data: linkedProduction } = await supabase
+      .from('productions')
+      .select('id')
+      .eq('demand_id', id)
+      .single()
 
-    // If there's a linked production, sync the changes
     if (linkedProduction) {
       console.log('[v0] Syncing demand changes to linked production:', linkedProduction.id)
-      await execute(
-        `UPDATE productions SET responsible_id = $1, status = $2, post_date = $3, updated_at = NOW() WHERE id = $4`,
-        [
-          data.responsible_id,
-          mapDemandStatusToProductionStatus(data.status),
-          data.deadline,
-          linkedProduction.id
-        ]
-      )
+      await supabase
+        .from('productions')
+        .update({
+          responsible_id: data.responsible_id,
+          status: mapDemandStatusToProductionStatus(data.status),
+          post_date: data.deadline,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', linkedProduction.id)
     }
 
     // Send webhook notification
     await sendWebhookNotification('demand.updated', { id, ...result })
 
-    return result
+    return result as Demand
   } catch (error) {
     console.error("[v0] Error updating demand:", error)
     throw error
@@ -212,19 +210,24 @@ function mapDemandStatusToProductionStatus(demandStatus?: string): string {
 
 export async function updateDemandStatus(id: string, status: Demand["status"]): Promise<Demand | null> {
   try {
-    const result = await queryOne<Demand>(
-      `UPDATE demands SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [status, id]
-    )
+    const supabase = await createClient()
 
-    if (!result) {
+    const { data: result, error } = await supabase
+      .from('demands')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error || !result) {
+      console.error("[v0] Error updating demand status:", error)
       throw new Error("Failed to update demand status")
     }
 
     // Send webhook notification
     await sendWebhookNotification('demand.status_changed', { id, status, ...result })
 
-    return result
+    return result as Demand
   } catch (error) {
     console.error("[v0] Error updating demand status:", error)
     throw error
@@ -233,7 +236,17 @@ export async function updateDemandStatus(id: string, status: Demand["status"]): 
 
 export async function deleteDemand(id: string): Promise<void> {
   try {
-    await execute("DELETE FROM demands WHERE id = $1", [id])
+    const supabase = await createClient()
+
+    const { error } = await supabase
+      .from('demands')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error("[v0] Error deleting demand:", error)
+      throw error
+    }
 
     // Send webhook notification
     await sendWebhookNotification('demand.deleted', { id })
