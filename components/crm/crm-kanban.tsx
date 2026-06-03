@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useTransition } from 'react'
+import React, { useState, useMemo, useTransition } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -259,9 +259,13 @@ function LeadCard({
 }
 
 // ─── Main CRM Kanban ──────────────────────────────────────────────────────────
-export function CRMKanban() {
-  const [leads, setLeads] = useState<CRMLead[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+interface CRMKanbanProps {
+  initialLeads?: CRMLead[]
+}
+
+export function CRMKanban({ initialLeads = [] }: CRMKanbanProps) {
+  const [leads, setLeads] = useState<CRMLead[]>(Array.isArray(initialLeads) ? initialLeads : [])
+  const [isLoading, setIsLoading] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [searchQuery, setSearchQuery] = useState('')
   
@@ -279,10 +283,6 @@ export function CRMKanban() {
   
   // Delete dialog
   const [deletingLead, setDeletingLead] = useState<CRMLead | null>(null)
-
-  useEffect(() => {
-    loadLeads()
-  }, [])
 
   async function loadLeads() {
     try {
