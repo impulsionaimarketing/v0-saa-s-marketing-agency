@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Loader2, Building2, MessageSquare, TrendingUp, Trash2, Smartphone } from 'lucide-react'
-import { createClient, updateClient, type Client, type WhatsAppInstance } from '@/lib/data/clients'
+import { createClientRecord, updateClient, type Client, type WhatsAppInstance } from '@/lib/data/clients'
 
 interface ClientFormDialogProps {
   client?: Client | null
@@ -126,7 +126,7 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
         if (client) {
           await updateClient(client.id, data)
         } else {
-          await createClient(data)
+          await createClientRecord(data)
         }
 
         setOpen(false)

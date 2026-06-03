@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
 
 export interface WhatsAppInstance {
@@ -52,7 +52,7 @@ export async function getClients(filters?: {
   search?: string
 }): Promise<Client[]> {
   try {
-    const supabase = await createClient()
+    const supabase = await createSupabaseClient()
     
     let query = supabase.from('clients').select('*').order('name')
 
@@ -84,7 +84,7 @@ export async function getClients(filters?: {
 
 export async function getClientById(id: string): Promise<ClientWithResponsibles | null> {
   try {
-    const supabase = await createClient()
+    const supabase = await createSupabaseClient()
 
     const { data: client, error } = await supabase
       .from('clients')
@@ -121,9 +121,9 @@ export async function getClientById(id: string): Promise<ClientWithResponsibles 
   }
 }
 
-export async function createClient(data: Partial<Client>): Promise<Client | null> {
+export async function createClientRecord(data: Partial<Client>): Promise<Client | null> {
   try {
-    const supabase = await createClient()
+    const supabase = await createSupabaseClient()
 
     const { data: result, error } = await supabase
       .from('clients')
@@ -163,7 +163,7 @@ export async function createClient(data: Partial<Client>): Promise<Client | null
 
 export async function updateClient(id: string, data: Partial<Client>): Promise<Client | null> {
   try {
-    const supabase = await createClient()
+    const supabase = await createSupabaseClient()
 
     const updateData: Record<string, unknown> = {}
     const fields: (keyof Client)[] = [
@@ -214,7 +214,7 @@ export async function updateClient(id: string, data: Partial<Client>): Promise<C
 
 export async function deleteClient(id: string): Promise<void> {
   try {
-    const supabase = await createClient()
+    const supabase = await createSupabaseClient()
 
     const { error } = await supabase
       .from('clients')
