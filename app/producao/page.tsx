@@ -33,6 +33,15 @@ import { ProductionDetailDrawer } from '@/components/productions/production-deta
 import { useAuth } from '@/lib/hooks/use-auth'
 import { cn } from '@/lib/utils'
 
+interface ProductionFile {
+  id: string
+  filename: string
+  url: string
+  file_size?: number
+  file_type?: string
+  uploaded_at?: string
+}
+
 interface Production {
   id: string
   client_id: string
@@ -46,12 +55,9 @@ interface Production {
   demand_id?: string
   created_at: string
   title?: string
-  priority?: string
-  script?: string
-  description?: string
-  reference_url?: string
-  media_url?: string
-  final_url?: string
+  caption?: string
+  approval_token?: string
+  files?: ProductionFile[]
 }
 
 interface Client {
@@ -101,7 +107,6 @@ export default function ProducaoPage() {
         
         if (!productionsRes.ok) throw new Error('Falha ao carregar produções')
         const productionsData = await productionsRes.json()
-        console.log('[v0] Productions loaded:', productionsData)
         setProductions(productionsData)
         
         if (clientsRes.ok) {

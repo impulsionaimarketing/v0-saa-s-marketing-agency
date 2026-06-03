@@ -27,6 +27,15 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface ProductionFile {
+  id: string
+  filename: string
+  url: string
+  file_size?: number
+  file_type?: string
+  uploaded_at?: string
+}
+
 interface Production {
   id: string
   client_id: string
@@ -40,12 +49,9 @@ interface Production {
   demand_id?: string
   created_at: string
   title?: string
-  priority?: string
-  script?: string
-  description?: string
-  reference_url?: string
-  media_url?: string
-  final_url?: string
+  caption?: string
+  approval_token?: string
+  files?: ProductionFile[]
 }
 
 interface ProductionDetailDrawerProps {
@@ -94,8 +100,9 @@ export function ProductionDetailDrawer({ production, open, onClose, onUpdateStat
   if (!production) return null
 
   const statusColor = getStatusColor(production.status)
-  const thumbnailUrl = production.media_url || production.final_url || null
-  const isVideo = production.type === 'Vídeo'
+  const firstFile = production.files?.[0]
+  const thumbnailUrl = firstFile?.url || null
+  const isVideo = production.type === 'Vídeo' || firstFile?.file_type?.startsWith('video/')
 
   const handleApprove = async () => {
     setIsSubmitting(true)
@@ -219,37 +226,47 @@ export function ProductionDetailDrawer({ production, open, onClose, onUpdateStat
               </div>
             </div>
 
-            {/* Description/Script */}
-            {(production.script || production.description || production.notes) && (
+            {/* Description/Caption */}
+            {(production.caption || production.notes) && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <FileText className="w-4 h-4" />
-                  <span className="text-xs font-medium uppercase tracking-wide">Legenda / Roteiro</span>
+                  <span className="text-xs font-medium uppercase tracking-wide">Legenda / Descrição</span>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-4">
                   <p className="text-sm text-foreground whitespace-pre-wrap">
-                    {production.script || production.description || production.notes}
+                    {production.caption || production.notes}
                   </p>
                 </div>
               </div>
             )}
 
-            {/* Reference URL */}
-            {production.reference_url && (
+            {/* All Files */}
+            {production.files && production.files.length > 1 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <LinkIcon className="w-4 h-4" />
-                  <span className="text-xs font-medium uppercase tracking-wide">Referência</span>
+                  <span className="text-xs font-medium uppercase tracking-wide">Arquivos ({production.files.length})</span>
                 </div>
-                <a
-                  href={production.reference_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  {production.reference_url}
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                <div className="space-y-2">
+                  {production.files.map((file) => (
+                    <a
+                      key={file.id}
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-primary hover:underline bg-muted/50 rounded-lg p-3"
+                    >
+                      {file.file_type?.startsWith('video/') ? (
+                        <Video className="w-4 h-4" />
+                      ) : (
+                        <ImageIcon className="w-4 h-4" />
+                      )}
+                      <span className="truncate flex-1">{file.filename}</span>
+                      <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
 

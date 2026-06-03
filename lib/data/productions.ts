@@ -20,6 +20,15 @@ async function getProductionFilesForWebhook(productionId: string) {
   }
 }
 
+export interface ProductionFile {
+  id: string
+  filename: string
+  url: string
+  file_size?: number
+  file_type?: string
+  uploaded_at?: string
+}
+
 export interface Production {
   id: string
   client_id: string
@@ -32,6 +41,10 @@ export interface Production {
   notes?: string
   demand_id?: string
   created_at: string
+  title?: string
+  caption?: string
+  approval_token?: string
+  files?: ProductionFile[]
 }
 
 export async function getProductions(filters?: {
@@ -54,6 +67,39 @@ export async function getProductions(filters?: {
     if (filters?.current_user_role === 'Colaborador' && filters?.current_user_id) {
       console.log('[v0] Filtering productions for Colaborador:', filters.current_user_id)
       productions = productions.filter((p: Production) => p.responsible_id === filters.current_user_id)
+    }
+
+    // Fetch files for each production
+    if (productions.length > 0) {
+      const productionIds = productions.map(p => p.id)
+      const { data: allFiles } = await supabase
+        .from('production_files')
+        .select('id, production_id, filename, url, file_size, file_type, uploaded_at')
+        .in('production_id', productionIds)
+        .order('uploaded_at', { ascending: false })
+
+      if (allFiles) {
+        const filesMap = new Map<string, ProductionFile[]>()
+        for (const file of allFiles) {
+          const prodId = file.production_id as string
+          if (!filesMap.has(prodId)) {
+            filesMap.set(prodId, [])
+          }
+          filesMap.get(prodId)!.push({
+            id: file.id,
+            filename: file.filename,
+            url: file.url,
+            file_size: file.file_size,
+            file_type: file.file_type,
+            uploaded_at: file.uploaded_at
+          })
+        }
+
+        productions = productions.map(p => ({
+          ...p,
+          files: filesMap.get(p.id) || []
+        }))
+      }
     }
 
     return productions

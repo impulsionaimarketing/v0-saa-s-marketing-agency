@@ -6,6 +6,15 @@ import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Video, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+interface ProductionFile {
+  id: string
+  filename: string
+  url: string
+  file_size?: number
+  file_type?: string
+  uploaded_at?: string
+}
+
 interface Production {
   id: string
   client_id: string
@@ -19,12 +28,9 @@ interface Production {
   demand_id?: string
   created_at: string
   title?: string
-  priority?: string
-  script?: string
-  description?: string
-  reference_url?: string
-  media_url?: string
-  final_url?: string
+  caption?: string
+  approval_token?: string
+  files?: ProductionFile[]
 }
 
 interface CalendarViewProps {
