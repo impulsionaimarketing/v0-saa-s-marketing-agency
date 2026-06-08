@@ -172,6 +172,8 @@ export async function updateProduction(
         status: data.status,
         post_date: data.post_date,
         notes: data.notes,
+        title: data.title,
+        caption: data.caption,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

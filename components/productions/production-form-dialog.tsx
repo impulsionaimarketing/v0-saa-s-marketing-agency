@@ -42,11 +42,13 @@ interface ProductionFormDialogProps {
 }
 
 const EMPTY_FORM = {
+  title: '',
   client_id: '',
   type: 'Vídeo' as 'Vídeo' | 'Arte',
   responsible_id: '',
   status: 'Planejamento',
   post_date: '',
+  caption: '',
   notes: '',
 }
 
@@ -88,11 +90,13 @@ export function ProductionFormDialog({
     if (open) {
       if (production) {
         setFormData({
+          title: production.title || '',
           client_id: production.client_id || '',
           type: production.type || 'Vídeo',
           responsible_id: production.responsible_id || 'none',
           status: production.status || 'Planejamento',
           post_date: production.post_date ? production.post_date.split('T')[0] : '',
+          caption: production.caption || '',
           notes: production.notes || '',
         })
       } else {
@@ -168,11 +172,13 @@ export function ProductionFormDialog({
         if (isEditMode && production) {
           // Update existing production
           await updateProduction(production.id, {
+            title: formData.title || undefined,
             client_id: formData.client_id,
             type: formData.type,
             responsible_id: responsibleId,
             status: formData.status,
             post_date: formData.post_date || undefined,
+            caption: formData.caption || undefined,
             notes: formData.notes || undefined,
           })
 
@@ -237,6 +243,18 @@ export function ProductionFormDialog({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="title">Título</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
+                placeholder="Ex: Black Friday Temi Eletro"
+              />
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="client_id">Cliente *</Label>
               <Select
@@ -329,6 +347,19 @@ export function ProductionFormDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, post_date: e.target.value })
                 }
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="caption">Legenda</Label>
+              <Textarea
+                id="caption"
+                value={formData.caption}
+                onChange={(e) =>
+                  setFormData({ ...formData, caption: e.target.value })
+                }
+                placeholder="Escreva a legenda da publicação..."
+                rows={4}
               />
             </div>
 
