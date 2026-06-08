@@ -23,9 +23,11 @@ import {
   Copy,
   ExternalLink,
   Clock,
-  X
+  X,
+  Pencil
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ProductionFormDialog } from './production-form-dialog'
 
 interface ProductionFile {
   id: string
@@ -59,6 +61,7 @@ interface ProductionDetailDrawerProps {
   open: boolean
   onClose: () => void
   onUpdateStatus: (id: string, newStatus: string) => void
+  onUpdated?: () => void
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -93,9 +96,10 @@ function formatShortDate(dateString?: string) {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function ProductionDetailDrawer({ production, open, onClose, onUpdateStatus }: ProductionDetailDrawerProps) {
+export function ProductionDetailDrawer({ production, open, onClose, onUpdateStatus, onUpdated }: ProductionDetailDrawerProps) {
   const [feedback, setFeedback] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   if (!production) return null
 
@@ -130,8 +134,17 @@ export function ProductionDetailDrawer({ production, open, onClose, onUpdateStat
     <Sheet open={open} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full sm:max-w-lg p-0 flex flex-col">
         <SheetHeader className="px-6 py-4 border-b border-border">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <SheetTitle className="text-lg font-semibold">Detalhes da Produção</SheetTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Button>
           </div>
         </SheetHeader>
 
@@ -321,6 +334,17 @@ export function ProductionDetailDrawer({ production, open, onClose, onUpdateStat
           </Button>
         </div>
       </SheetContent>
+
+      {/* Edit dialog reusing the production form */}
+      <ProductionFormDialog
+        production={production}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSuccess={() => {
+          setEditOpen(false)
+          onUpdated?.()
+        }}
+      />
     </Sheet>
   )
 }

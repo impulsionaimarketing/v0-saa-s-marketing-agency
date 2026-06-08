@@ -97,28 +97,29 @@ export default function ProducaoPage() {
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productionsRes, clientsRes] = await Promise.all([
-          fetch('/api/productions'),
-          fetch('/api/clients/search?q=')
-        ])
-        
-        if (!productionsRes.ok) throw new Error('Falha ao carregar produções')
-        const productionsData = await productionsRes.json()
-        setProductions(productionsData)
-        
-        if (clientsRes.ok) {
-          const clientsData = await clientsRes.json()
-          setClients(clientsData)
-        }
-      } catch (err: any) {
-        setError(err.message)
-      } finally {
-        setLoading(false)
+  const fetchData = async () => {
+    try {
+      const [productionsRes, clientsRes] = await Promise.all([
+        fetch('/api/productions'),
+        fetch('/api/clients/search?q=')
+      ])
+
+      if (!productionsRes.ok) throw new Error('Falha ao carregar produções')
+      const productionsData = await productionsRes.json()
+      setProductions(productionsData)
+
+      if (clientsRes.ok) {
+        const clientsData = await clientsRes.json()
+        setClients(clientsData)
       }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     fetchData()
   }, [])
 
@@ -361,6 +362,10 @@ export default function ProducaoPage() {
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
             onUpdateStatus={handleUpdateStatus}
+            onUpdated={() => {
+              setDrawerOpen(false)
+              fetchData()
+            }}
           />
         </AppShell>
       </ModuleAccessWrapper>

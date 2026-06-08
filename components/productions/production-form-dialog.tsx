@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, Loader2, Upload, X } from 'lucide-react'
-import { createProduction } from '@/lib/data/productions'
+import { Plus, Loader2, Upload, X, Video, Image as ImageIcon } from 'lucide-react'
+import { createProduction, updateProduction, type Production } from '@/lib/data/productions'
 import { PRODUCTION_STATUSES } from '@/lib/constants'
 import { getClients, type Client } from '@/lib/data/clients'
 import { getUsers, type User } from '@/lib/data/users'
@@ -33,27 +33,46 @@ import { toast } from 'sonner'
 interface ProductionFormDialogProps {
   onSuccess?: () => void
   trigger?: React.ReactNode
+  /** When provided, the dialog operates in edit mode and pre-loads this production. */
+  production?: Production | null
+  /** Controlled open state (optional). */
+  open?: boolean
+  /** Controlled open change handler (optional). */
+  onOpenChange?: (open: boolean) => void
+}
+
+const EMPTY_FORM = {
+  client_id: '',
+  type: 'Vídeo' as 'Vídeo' | 'Arte',
+  responsible_id: '',
+  status: 'Planejamento',
+  post_date: '',
+  notes: '',
 }
 
 export function ProductionFormDialog({
   onSuccess,
   trigger,
+  production,
+  open: controlledOpen,
+  onOpenChange,
 }: ProductionFormDialogProps) {
-  const [open, setOpen] = useState(false)
+  const isEditMode = Boolean(production)
+
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen
+  const setOpen = (value: boolean) => {
+    if (onOpenChange) onOpenChange(value)
+    if (controlledOpen === undefined) setInternalOpen(value)
+  }
+
   const [isPending, startTransition] = useTransition()
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
-  const [formData, setFormData] = useState({
-    client_id: '',
-    type: 'Vídeo' as 'Vídeo' | 'Arte',
-    responsible_id: '',
-    status: 'Planejamento',
-    post_date: '',
-    notes: '',
-  })
+  const [formData, setFormData] = useState({ ...EMPTY_FORM })
 
   useEffect(() => {
     if (open) {
@@ -64,6 +83,25 @@ export function ProductionFormDialog({
     }
   }, [open])
 
+  // Pre-load form data when editing (or reset when creating)
+  useEffect(() => {
+    if (open) {
+      if (production) {
+        setFormData({
+          client_id: production.client_id || '',
+          type: production.type || 'Vídeo',
+          responsible_id: production.responsible_id || 'none',
+          status: production.status || 'Planejamento',
+          post_date: production.post_date ? production.post_date.split('T')[0] : '',
+          notes: production.notes || '',
+        })
+      } else {
+        setFormData({ ...EMPTY_FORM })
+      }
+      setSelectedFile(null)
+    }
+  }, [open, production])
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -71,7 +109,7 @@ export function ProductionFormDialog({
     // Validate file type
     const isImage = file.type.startsWith('image/')
     const isVideo = file.type.startsWith('video/')
-    
+
     if (!isImage && !isVideo) {
       toast.error('Por favor, selecione uma imagem ou vídeo')
       return
@@ -122,54 +160,80 @@ export function ProductionFormDialog({
 
     startTransition(async () => {
       try {
-        const production = await createProduction({
-          client_id: formData.client_id,
-          type: formData.type,
-          responsible_id: formData.responsible_id || undefined,
-          status: formData.status,
-          post_date: formData.post_date || undefined,
-          notes: formData.notes || undefined,
-        })
+        const responsibleId =
+          formData.responsible_id && formData.responsible_id !== 'none'
+            ? formData.responsible_id
+            : undefined
 
-        // Upload file if selected
-        if (selectedFile && production?.id) {
-          await uploadFile(production.id)
+        if (isEditMode && production) {
+          // Update existing production
+          await updateProduction(production.id, {
+            client_id: formData.client_id,
+            type: formData.type,
+            responsible_id: responsibleId,
+            status: formData.status,
+            post_date: formData.post_date || undefined,
+            notes: formData.notes || undefined,
+          })
+
+          // Upload new file if one was selected
+          if (selectedFile) {
+            await uploadFile(production.id)
+          }
+
+          toast.success('Criativo atualizado com sucesso!')
+        } else {
+          // Create new production
+          const created = await createProduction({
+            client_id: formData.client_id,
+            type: formData.type,
+            responsible_id: responsibleId,
+            status: formData.status,
+            post_date: formData.post_date || undefined,
+            notes: formData.notes || undefined,
+          })
+
+          // Upload file if selected
+          if (selectedFile && created?.id) {
+            await uploadFile(created.id)
+          }
         }
 
         setOpen(false)
-        setFormData({
-          client_id: '',
-          type: 'Vídeo',
-          responsible_id: '',
-          status: 'Planejamento',
-          post_date: '',
-          notes: '',
-        })
+        setFormData({ ...EMPTY_FORM })
         setSelectedFile(null)
         onSuccess?.()
       } catch (error) {
-        console.error('Error creating production:', error)
-        toast.error('Erro ao criar criativo')
+        console.error('Error saving production:', error)
+        toast.error(isEditMode ? 'Erro ao atualizar criativo' : 'Erro ao criar criativo')
       }
     })
   }
 
+  const existingFiles = production?.files ?? []
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Criativo
-          </Button>
-        )}
-      </DialogTrigger>
+      {!isEditMode && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Criativo
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="w-[95vw] sm:max-w-[500px] bg-card border-border p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="text-lg sm:text-xl">Novo Criativo</DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
+              {isEditMode ? 'Editar Criativo' : 'Novo Criativo'}
+            </DialogTitle>
             <DialogDescription className="text-xs sm:text-sm">
-              Adicione um novo criativo ao pipeline de produção.
+              {isEditMode
+                ? 'Edite as informações do criativo e adicione novas mídias se necessário.'
+                : 'Adicione um novo criativo ao pipeline de produção.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:gap-4 py-4">
@@ -236,7 +300,7 @@ export function ProductionFormDialog({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="status">Status Inicial</Label>
+              <Label htmlFor="status">{isEditMode ? 'Status' : 'Status Inicial'}</Label>
               <Select
                 value={formData.status}
                 onValueChange={(value) =>
@@ -281,8 +345,38 @@ export function ProductionFormDialog({
               />
             </div>
 
+            {/* Existing files (edit mode) */}
+            {isEditMode && existingFiles.length > 0 && (
+              <div className="grid gap-2">
+                <Label>Mídias atuais ({existingFiles.length})</Label>
+                <div className="space-y-2">
+                  {existingFiles.map((file) => {
+                    const isVideoFile = file.file_type?.startsWith('video/')
+                    return (
+                      <a
+                        key={file.id}
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-secondary/30 text-sm hover:bg-secondary/50 transition-colors"
+                      >
+                        {isVideoFile ? (
+                          <Video className="h-4 w-4 text-primary shrink-0" />
+                        ) : (
+                          <ImageIcon className="h-4 w-4 text-primary shrink-0" />
+                        )}
+                        <span className="truncate">{file.filename}</span>
+                      </a>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="grid gap-2">
-              <Label htmlFor="file">Arquivo (Opcional)</Label>
+              <Label htmlFor="file">
+                {isEditMode ? 'Adicionar nova mídia (Opcional)' : 'Arquivo (Opcional)'}
+              </Label>
               <div className="space-y-2">
                 {selectedFile ? (
                   <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
@@ -341,7 +435,11 @@ export function ProductionFormDialog({
             </Button>
             <Button type="submit" disabled={isPending || isUploading || !formData.client_id} className="w-full sm:w-auto">
               {(isPending || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isUploading ? 'Enviando arquivo...' : 'Criar Criativo'}
+              {isUploading
+                ? 'Enviando arquivo...'
+                : isEditMode
+                  ? 'Salvar Alterações'
+                  : 'Criar Criativo'}
             </Button>
           </DialogFooter>
         </form>
