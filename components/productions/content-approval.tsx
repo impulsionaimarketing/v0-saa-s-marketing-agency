@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { generateApprovalLink, regenerateApprovalLink } from '@/lib/data/approval'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -177,11 +176,16 @@ export function ContentApproval({ data }: { data?: ContentApprovalData }) {
     if (!data?.productionId) return
     let active = true
     setIsGeneratingLink(true)
-    generateApprovalLink(data.productionId)
-      .then((link) => {
-        if (active) setApprovalLink(link)
+    fetch('/api/approval/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productionId: data.productionId }),
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (active && json.url) setApprovalLink(json.url)
       })
-      .catch((err) => console.error('[v0] Erro ao gerar link de aprovação:', err))
+      .catch((err) => console.error('[v0] Erro ao gerar link:', err))
       .finally(() => {
         if (active) setIsGeneratingLink(false)
       })
@@ -221,11 +225,19 @@ export function ContentApproval({ data }: { data?: ContentApprovalData }) {
     if (!data?.productionId) return
     setIsGeneratingLink(true)
     try {
-      const link = await regenerateApprovalLink(data.productionId)
-      setApprovalLink(link)
-      toast.success('Novo link gerado!')
-    } catch (err) {
-      console.error('[v0] Erro ao regenerar link:', err)
+      const res = await fetch('/api/approval/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productionId: data.productionId, regenerate: true }),
+      })
+      const json = await res.json()
+      if (json.url) {
+        setApprovalLink(json.url)
+        toast.success('Novo link gerado!')
+      } else {
+        toast.error('Não foi possível gerar um novo link.')
+      }
+    } catch {
       toast.error('Não foi possível gerar um novo link.')
     } finally {
       setIsGeneratingLink(false)
