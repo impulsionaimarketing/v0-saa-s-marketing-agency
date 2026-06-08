@@ -43,6 +43,7 @@ export interface Production {
   created_at: string
   title?: string
   caption?: string
+  reference_link?: string
   approval_token?: string
   files?: ProductionFile[]
 }
@@ -174,6 +175,7 @@ export async function updateProduction(
         notes: data.notes,
         title: data.title,
         caption: data.caption,
+        reference_link: data.reference_link,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
