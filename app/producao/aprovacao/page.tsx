@@ -19,8 +19,7 @@ export default function AprovacaoConteudoPage() {
   const [approvalData, setApprovalData] = useState<ContentApprovalData | undefined>(undefined)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = async (data: ProductionFormData) => {
-    setIsSubmitting(true)
+  const persistProduction = async (data: ProductionFormData) => {
     try {
       // 1. Cria a produção vinculada ao cliente e responsável reais
       const created = await createProduction({
@@ -32,57 +31,68 @@ export default function AprovacaoConteudoPage() {
         notes: data.referenceUrl || undefined,
       })
 
+      if (!created?.id) {
+        toast.error('Não foi possível salvar a produção no banco.')
+        return
+      }
+
       // 2. Complementa com título, legenda e link de referência
-      if (created?.id) {
-        await updateProduction(created.id, {
-          title: data.title,
-          caption: data.caption || undefined,
-          reference_link: data.referenceUrl || undefined,
+      await updateProduction(created.id, {
+        title: data.title,
+        caption: data.caption || undefined,
+        reference_link: data.referenceUrl || undefined,
+      })
+
+      // 3. Faz upload do arquivo selecionado, se houver
+      if (data.file) {
+        const uploadFormData = new FormData()
+        uploadFormData.append('file', data.file)
+        uploadFormData.append('productionId', created.id)
+
+        const uploadRes = await fetch('/api/upload-video', {
+          method: 'POST',
+          body: uploadFormData,
         })
 
-        // 3. Faz upload do arquivo selecionado, se houver
-        if (data.file) {
-          const uploadFormData = new FormData()
-          uploadFormData.append('file', data.file)
-          uploadFormData.append('productionId', created.id)
-
-          const uploadRes = await fetch('/api/upload-video', {
-            method: 'POST',
-            body: uploadFormData,
-          })
-
-          if (!uploadRes.ok) {
-            console.error('[v0] Falha no upload do arquivo')
-            toast.error('Produção criada, mas houve falha no upload do arquivo.')
-          }
+        if (!uploadRes.ok) {
+          console.error('[v0] Falha no upload do arquivo')
+          toast.error('Produção criada, mas houve falha no upload do arquivo.')
+          return
         }
       }
 
       toast.success('Produção criada com sucesso!')
-
-      setApprovalData({
-        title: data.title,
-        client: data.client,
-        responsible: data.responsible,
-        postDate: data.postDate
-          ? new Date(data.postDate + 'T00:00:00').toLocaleDateString('pt-BR', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })
-          : 'A definir',
-        caption: data.caption,
-        poster: data.videoPreview,
-        videoName: data.videoName,
-      })
-      setStep('approval')
-      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (error) {
-      console.error('[v0] Erro ao criar produção:', error)
-      toast.error('Erro ao criar produção. Tente novamente.')
-    } finally {
-      setIsSubmitting(false)
+      console.error('[v0] Erro ao salvar produção:', error)
+      toast.error('A produção foi exibida, mas houve um erro ao salvá-la no banco.')
     }
+  }
+
+  const handleSubmit = async (data: ProductionFormData) => {
+    setIsSubmitting(true)
+
+    // Sempre avança para a etapa de aprovação, independente da persistência
+    setApprovalData({
+      title: data.title,
+      client: data.client,
+      responsible: data.responsible,
+      postDate: data.postDate
+        ? new Date(data.postDate + 'T00:00:00').toLocaleDateString('pt-BR', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })
+        : 'A definir',
+      caption: data.caption,
+      poster: data.videoPreview,
+      videoName: data.videoName,
+    })
+    setStep('approval')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+
+    // Persiste no banco em segundo plano (erros apenas notificam, não bloqueiam)
+    await persistProduction(data)
+    setIsSubmitting(false)
   }
 
   return (
