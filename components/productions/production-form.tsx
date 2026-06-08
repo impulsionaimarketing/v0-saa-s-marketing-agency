@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,43 +25,71 @@ import {
   Type,
   Send,
   Sparkles,
+  Loader2,
 } from 'lucide-react'
+import { getClients, type Client } from '@/lib/data/clients'
+import { getUsers, type User as AppUser } from '@/lib/data/users'
 
 export interface ProductionFormData {
   title: string
+  clientId: string
   client: string
+  responsibleId: string
   responsible: string
-  type: string
+  type: 'Vídeo' | 'Arte'
   postDate: string
   caption: string
   referenceUrl: string
   videoName: string
   videoPreview: string | null
+  file: File | null
 }
-
-const CLIENTS = ['Temi Eletro', 'Boutique Aurora', 'Studio Fitness', 'Padaria Pão Quente']
-const RESPONSIBLES = ['Igor Macêdo', 'Marina Costa', 'Lucas Ferreira', 'Ana Beatriz']
 
 export function ProductionForm({
   onSubmit,
+  isSubmitting = false,
 }: {
   onSubmit: (data: ProductionFormData) => void
+  isSubmitting?: boolean
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [videoName, setVideoName] = useState<string>('')
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  const [clients, setClients] = useState<Client[]>([])
+  const [users, setUsers] = useState<AppUser[]>([])
+  const [loadingData, setLoadingData] = useState(true)
 
   const [title, setTitle] = useState('')
   const [client, setClient] = useState('')
   const [responsible, setResponsible] = useState('')
-  const [type, setType] = useState('Vídeo')
+  const [type, setType] = useState<'Vídeo' | 'Arte'>('Vídeo')
   const [postDate, setPostDate] = useState('')
   const [caption, setCaption] = useState('')
   const [referenceUrl, setReferenceUrl] = useState('')
 
+  useEffect(() => {
+    let active = true
+    Promise.all([getClients({ status: 'Ativo' }), getUsers({ status: 'Ativo' })])
+      .then(([clientsData, usersData]) => {
+        if (!active) return
+        setClients(clientsData)
+        setUsers(usersData)
+      })
+      .catch((err) => console.error('[v0] Error loading form data:', err))
+      .finally(() => {
+        if (active) setLoadingData(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
   const handleFile = (file: File | undefined) => {
     if (!file) return
+    setSelectedFile(file)
     setVideoName(file.name)
     if (file.type.startsWith('video/') || file.type.startsWith('image/')) {
       const url = URL.createObjectURL(file)
@@ -78,6 +106,7 @@ export function ProductionForm({
   const clearFile = () => {
     setVideoName('')
     setVideoPreview(null)
+    setSelectedFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -86,16 +115,21 @@ export function ProductionForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!isValid) return
+    const clientName = clients.find((c) => c.id === client)?.name || ''
+    const responsibleName = users.find((u) => u.id === responsible)?.name || ''
     onSubmit({
       title: title.trim(),
-      client,
-      responsible,
+      clientId: client,
+      client: clientName,
+      responsibleId: responsible,
+      responsible: responsibleName,
       type,
       postDate,
       caption: caption.trim(),
       referenceUrl: referenceUrl.trim(),
       videoName,
       videoPreview,
+      file: selectedFile,
     })
   }
 
@@ -228,14 +262,14 @@ export function ProductionForm({
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                   Cliente
                 </Label>
-                <Select value={client} onValueChange={setClient}>
+                <Select value={client} onValueChange={setClient} disabled={loadingData}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cliente" />
+                    <SelectValue placeholder={loadingData ? 'Carregando...' : 'Selecione o cliente'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {CLIENTS.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -247,14 +281,14 @@ export function ProductionForm({
                   <User className="h-3.5 w-3.5 text-muted-foreground" />
                   Responsável
                 </Label>
-                <Select value={responsible} onValueChange={setResponsible}>
+                <Select value={responsible} onValueChange={setResponsible} disabled={loadingData}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o responsável" />
+                    <SelectValue placeholder={loadingData ? 'Carregando...' : 'Selecione o responsável'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {RESPONSIBLES.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r}
+                    {users.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -266,7 +300,7 @@ export function ProductionForm({
                   <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
                   Tipo
                 </Label>
-                <Select value={type} onValueChange={setType}>
+                <Select value={type} onValueChange={(v) => setType(v as 'Vídeo' | 'Arte')}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -318,9 +352,13 @@ export function ProductionForm({
         </Card>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <Button type="submit" disabled={!isValid} className="gap-2">
-            <Send className="h-4 w-4" />
-            Enviar para Aprovação
+          <Button type="submit" disabled={!isValid || isSubmitting} className="gap-2">
+            {isSubmitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {isSubmitting ? 'Salvando...' : 'Enviar para Aprovação'}
           </Button>
         </div>
         {!isValid && (

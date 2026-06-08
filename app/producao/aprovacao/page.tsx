@@ -9,31 +9,80 @@ import { ContentApproval, type ContentApprovalData } from '@/components/producti
 import { ProductionForm, type ProductionFormData } from '@/components/productions/production-form'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, CheckCircle2, PlusCircle } from 'lucide-react'
+import { createProduction, updateProduction } from '@/lib/data/productions'
+import { toast } from 'sonner'
 
 type Step = 'form' | 'approval'
 
 export default function AprovacaoConteudoPage() {
   const [step, setStep] = useState<Step>('form')
   const [approvalData, setApprovalData] = useState<ContentApprovalData | undefined>(undefined)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (data: ProductionFormData) => {
-    setApprovalData({
-      title: data.title,
-      client: data.client,
-      responsible: data.responsible,
-      postDate: data.postDate
-        ? new Date(data.postDate + 'T00:00:00').toLocaleDateString('pt-BR', {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
+  const handleSubmit = async (data: ProductionFormData) => {
+    setIsSubmitting(true)
+    try {
+      // 1. Cria a produção vinculada ao cliente e responsável reais
+      const created = await createProduction({
+        client_id: data.clientId,
+        type: data.type,
+        responsible_id: data.responsibleId || undefined,
+        status: 'Aprovação do Cliente',
+        post_date: data.postDate || undefined,
+        notes: data.referenceUrl || undefined,
+      })
+
+      // 2. Complementa com título, legenda e link de referência
+      if (created?.id) {
+        await updateProduction(created.id, {
+          title: data.title,
+          caption: data.caption || undefined,
+          reference_link: data.referenceUrl || undefined,
+        })
+
+        // 3. Faz upload do arquivo selecionado, se houver
+        if (data.file) {
+          const uploadFormData = new FormData()
+          uploadFormData.append('file', data.file)
+          uploadFormData.append('productionId', created.id)
+
+          const uploadRes = await fetch('/api/upload-video', {
+            method: 'POST',
+            body: uploadFormData,
           })
-        : 'A definir',
-      caption: data.caption,
-      poster: data.videoPreview,
-      videoName: data.videoName,
-    })
-    setStep('approval')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+
+          if (!uploadRes.ok) {
+            console.error('[v0] Falha no upload do arquivo')
+            toast.error('Produção criada, mas houve falha no upload do arquivo.')
+          }
+        }
+      }
+
+      toast.success('Produção criada com sucesso!')
+
+      setApprovalData({
+        title: data.title,
+        client: data.client,
+        responsible: data.responsible,
+        postDate: data.postDate
+          ? new Date(data.postDate + 'T00:00:00').toLocaleDateString('pt-BR', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })
+          : 'A definir',
+        caption: data.caption,
+        poster: data.videoPreview,
+        videoName: data.videoName,
+      })
+      setStep('approval')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (error) {
+      console.error('[v0] Erro ao criar produção:', error)
+      toast.error('Erro ao criar produção. Tente novamente.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -83,7 +132,7 @@ export default function AprovacaoConteudoPage() {
             </div>
 
             {step === 'form' ? (
-              <ProductionForm onSubmit={handleSubmit} />
+              <ProductionForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
             ) : (
               <ContentApproval data={approvalData} />
             )}
