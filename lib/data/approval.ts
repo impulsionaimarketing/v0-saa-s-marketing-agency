@@ -1,7 +1,6 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createServiceClient } from '@/lib/supabase/service'
 
 // ─── Gerar link de aprovação para uma produção ───────────────────────────────
 export async function generateApprovalLink(productionId: string): Promise<string> {

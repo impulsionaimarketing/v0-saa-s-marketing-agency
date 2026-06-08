@@ -19,7 +19,7 @@ export default function AprovacaoConteudoPage() {
   const [approvalData, setApprovalData] = useState<ContentApprovalData | undefined>(undefined)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const persistProduction = async (data: ProductionFormData) => {
+  const persistProduction = async (data: ProductionFormData): Promise<string | null> => {
     try {
       // 1. Cria a produção vinculada ao cliente e responsável reais
       const created = await createProduction({
@@ -33,7 +33,7 @@ export default function AprovacaoConteudoPage() {
 
       if (!created?.id) {
         toast.error('Não foi possível salvar a produção no banco.')
-        return
+        return null
       }
 
       // 2. Complementa com título, legenda e link de referência
@@ -57,22 +57,28 @@ export default function AprovacaoConteudoPage() {
         if (!uploadRes.ok) {
           console.error('[v0] Falha no upload do arquivo')
           toast.error('Produção criada, mas houve falha no upload do arquivo.')
-          return
+          return created.id
         }
       }
 
       toast.success('Produção criada com sucesso!')
+      return created.id
     } catch (error) {
       console.error('[v0] Erro ao salvar produção:', error)
       toast.error('A produção foi exibida, mas houve um erro ao salvá-la no banco.')
+      return null
     }
   }
 
   const handleSubmit = async (data: ProductionFormData) => {
     setIsSubmitting(true)
 
-    // Sempre avança para a etapa de aprovação, independente da persistência
+    // Persiste no banco para obter o ID real da produção
+    const productionId = await persistProduction(data)
+
+    // Avança para a etapa de aprovação (com o ID quando disponível)
     setApprovalData({
+      productionId: productionId || '',
       title: data.title,
       client: data.client,
       responsible: data.responsible,
@@ -89,9 +95,6 @@ export default function AprovacaoConteudoPage() {
     })
     setStep('approval')
     window.scrollTo({ top: 0, behavior: 'smooth' })
-
-    // Persiste no banco em segundo plano (erros apenas notificam, não bloqueiam)
-    await persistProduction(data)
     setIsSubmitting(false)
   }
 

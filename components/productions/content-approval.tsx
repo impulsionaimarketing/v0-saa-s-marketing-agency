@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
+import { generateApprovalLink, regenerateApprovalLink } from '@/lib/data/approval'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -34,6 +36,7 @@ import {
   Clock,
   MessageSquare,
   Sparkles,
+  Loader2,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -132,6 +135,7 @@ const HISTORY = [
 // ---------------------------------------------------------------------------
 
 export interface ContentApprovalData {
+  productionId: string
   title: string
   client: string
   responsible: string
@@ -166,6 +170,25 @@ export function ContentApproval({ data }: { data?: ContentApprovalData }) {
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES)
   const [newMessage, setNewMessage] = useState('')
   const [copied, setCopied] = useState(false)
+  const [approvalLink, setApprovalLink] = useState<string>('')
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false)
+
+  useEffect(() => {
+    if (!data?.productionId) return
+    let active = true
+    setIsGeneratingLink(true)
+    generateApprovalLink(data.productionId)
+      .then((link) => {
+        if (active) setApprovalLink(link)
+      })
+      .catch((err) => console.error('[v0] Erro ao gerar link de aprovação:', err))
+      .finally(() => {
+        if (active) setIsGeneratingLink(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [data?.productionId])
 
   const handleSendMessage = () => {
     if (!newMessage.trim()) return
@@ -183,9 +206,30 @@ export function ContentApproval({ data }: { data?: ContentApprovalData }) {
   }
 
   const handleCopyLink = () => {
-    navigator.clipboard?.writeText(production.approvalLink).catch(() => {})
+    if (!approvalLink) return
+    navigator.clipboard?.writeText(approvalLink).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
+  }
+
+  const handleOpenLink = () => {
+    if (!approvalLink) return
+    window.open(approvalLink, '_blank', 'noopener,noreferrer')
+  }
+
+  const handleRegenerateLink = async () => {
+    if (!data?.productionId) return
+    setIsGeneratingLink(true)
+    try {
+      const link = await regenerateApprovalLink(data.productionId)
+      setApprovalLink(link)
+      toast.success('Novo link gerado!')
+    } catch (err) {
+      console.error('[v0] Erro ao regenerar link:', err)
+      toast.error('Não foi possível gerar um novo link.')
+    } finally {
+      setIsGeneratingLink(false)
+    }
   }
 
   const handleSaveCaption = () => {
@@ -425,21 +469,44 @@ export function ContentApproval({ data }: { data?: ContentApprovalData }) {
             <CardContent className="space-y-3">
               <Input
                 readOnly
-                value={production.approvalLink}
+                value={isGeneratingLink && !approvalLink ? 'Gerando link...' : approvalLink}
+                placeholder="Link de aprovação"
                 className="bg-secondary/40 text-xs text-muted-foreground"
               />
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" onClick={handleCopyLink} className="gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyLink}
+                  disabled={!approvalLink}
+                  className="gap-2"
+                >
                   <Copy className="h-3.5 w-3.5" />
                   {copied ? 'Copiado!' : 'Copiar Link'}
                 </Button>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenLink}
+                  disabled={!approvalLink}
+                  className="gap-2"
+                >
                   <ExternalLink className="h-3.5 w-3.5" />
                   Abrir Link
                 </Button>
               </div>
-              <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground">
-                <RefreshCw className="h-3.5 w-3.5" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleRegenerateLink}
+                disabled={isGeneratingLink || !data?.productionId}
+                className="w-full gap-2 text-muted-foreground"
+              >
+                {isGeneratingLink ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
                 Gerar Novo Link
               </Button>
             </CardContent>
