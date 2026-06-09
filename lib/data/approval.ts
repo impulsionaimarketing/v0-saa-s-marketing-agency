@@ -72,7 +72,7 @@ export async function getProductionByToken(token: string) {
 
   if (error || !data || data.length === 0) return null
 
-  return data[0] as {
+  return data as {
     id: string
     title: string
     client_name: string
@@ -81,7 +81,7 @@ export async function getProductionByToken(token: string) {
     caption: string
     status: string
     video_url: string | null
-  }
+  }[]
 }
 
 // ─── Salvar resposta do cliente ───────────────────────────────────────────────
