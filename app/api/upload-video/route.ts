@@ -1,44 +1,44 @@
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/multipart'
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const body = (await request.json()) as HandleUploadBody
+
   try {
-    const formData = await req.formData()
-    const file = formData.get('file') as File | null
-    const productionId = formData.get('productionId') as string | null
+    const jsonResponse = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname) => {
+        return {
+          allowedContentTypes: ['video/*', 'image/*'],
+          maximumSizeInBytes: 5 * 1024 * 1024 * 1024, // 5GB
+        }
+      },
+      onUploadCompleted: async ({ blob, tokenPayload }) => {
+        try {
+          const { productionId } = JSON.parse(tokenPayload || '{}')
+          if (!productionId) return
 
-    if (!file || !productionId) {
-      return NextResponse.json({ error: 'Arquivo e productionId são obrigatórios' }, { status: 400 })
-    }
-
-    // Faz upload para o Vercel Blob
-    const blob = await put(file.name, file, {
-      access: 'public',
+          const supabase = await createClient()
+          await supabase.from('production_files').insert({
+            production_id: productionId,
+            filename: blob.pathname,
+            url: blob.url,
+            file_size: 0,
+            file_type: blob.contentType,
+            uploaded_by: 'dashboard',
+          })
+        } catch (error) {
+          console.error('[upload] Erro ao salvar no Supabase:', error)
+        }
+      },
     })
 
-    // Salva referência no Supabase
-    const supabase = await createClient()
-    const { error: dbError } = await supabase
-      .from('production_files')
-      .insert({
-        production_id: productionId,
-        filename: file.name,
-        url: blob.url,
-        file_size: file.size,
-        file_type: file.type,
-        uploaded_by: 'dashboard',
-      })
-
-    if (dbError) {
-      console.error('[upload] Erro ao salvar no Supabase:', dbError)
-    }
-
-    return NextResponse.json({ success: true, url: blob.url })
+    return NextResponse.json(jsonResponse)
   } catch (error) {
-    console.error('[upload] Erro:', error)
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return NextResponse.json({ error: String(error) }, { status: 400 })
   }
 }
