@@ -60,7 +60,12 @@ export async function regenerateApprovalLink(productionId: string): Promise<stri
 
 // ─── Buscar produção pelo token (página pública do cliente) ──────────────────
 export async function getProductionByToken(token: string) {
-  const supabase = await createClient()
+  const { createClient } = await import('@supabase/supabase-js')
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   const { data, error } = await supabase
     .rpc('get_production_by_token', { p_token: token })
@@ -87,7 +92,12 @@ export async function submitApprovalResponse(params: {
   comment?: string
   clientName?: string
 }): Promise<void> {
-  const supabase = await createClient()
+  const { createClient } = await import('@supabase/supabase-js')
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   // Salva na tabela de aprovações
   const { error: approvalError } = await supabase
