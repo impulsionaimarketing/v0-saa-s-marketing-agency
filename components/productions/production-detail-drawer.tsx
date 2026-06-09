@@ -125,9 +125,22 @@ export function ProductionDetailDrawer({ production, open, onClose, onUpdateStat
     setIsSubmitting(false)
   }
 
-  const copyLink = () => {
-    const url = window.location.origin + '/producao/' + production.id
-    navigator.clipboard.writeText(url)
+const copyLink = async () => {
+  try {
+    const res = await fetch('/api/approval/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productionId: production.id }),
+    })
+    const json = await res.json()
+    if (json.url) {
+      navigator.clipboard.writeText(json.url)
+      alert('Link copiado!')
+    }
+  } catch {
+    alert('Erro ao gerar link.')
+  }
+}
   }
 
   return (
