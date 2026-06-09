@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { put } from '@vercel/blob'
 import { createClient } from '@/lib/supabase/server'
-import { getOrCreateClientFolder, uploadFileToDrive } from '@/lib/google-drive'
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,38 +14,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Arquivo e productionId são obrigatórios' }, { status: 400 })
     }
 
-    // Busca o nome do cliente para criar/usar a pasta correta
-    const supabase = await createClient()
-    const { data: production } = await supabase
-      .from('productions')
-      .select('client_id, clients(name)')
-      .eq('id', productionId)
-      .single()
-
-    const clientName = (production?.clients as any)?.name || 'Cliente'
-
-    // Converte o arquivo para Buffer
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-
-    // Pega ou cria a pasta do cliente no Drive
-    const folderId = await getOrCreateClientFolder(clientName)
-
-    // Faz o upload para o Drive
-    const { id: driveFileId, url } = await uploadFileToDrive({
-      fileName: file.name,
-      mimeType: file.type,
-      buffer,
-      folderId,
+    // Faz upload para o Vercel Blob
+    const blob = await put(file.name, file, {
+      access: 'public',
     })
 
     // Salva referência no Supabase
+    const supabase = await createClient()
     const { error: dbError } = await supabase
       .from('production_files')
       .insert({
         production_id: productionId,
         filename: file.name,
-        url,
+        url: blob.url,
         file_size: file.size,
         file_type: file.type,
         uploaded_by: 'dashboard',
@@ -59,9 +36,9 @@ export async function POST(req: NextRequest) {
       console.error('[upload] Erro ao salvar no Supabase:', dbError)
     }
 
-    return NextResponse.json({ success: true, url, driveFileId })
+    return NextResponse.json({ success: true, url: blob.url })
   } catch (error) {
     console.error('[upload] Erro:', error)
-    return NextResponse.json({ error: 'Erro ao fazer upload' }, { status: 500 })
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
