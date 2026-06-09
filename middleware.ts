@@ -5,9 +5,17 @@ export function middleware(request: NextRequest) {
 
   // Rotas públicas que não requerem autenticação
   const publicRoutes = ['/auth/login', '/auth/signup']
-  
+
+  // Rotas que começam com esses prefixos também são públicas
+  const publicPrefixes = ['/aprovacao']
+
   // Se está em rota pública, deixa passar
   if (publicRoutes.includes(pathname)) {
+    return NextResponse.next()
+  }
+
+  // Se a rota começa com um prefixo público, deixa passar
+  if (publicPrefixes.some((prefix) => pathname.startsWith(prefix))) {
     return NextResponse.next()
   }
 
