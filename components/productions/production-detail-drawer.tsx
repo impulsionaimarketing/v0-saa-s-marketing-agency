@@ -137,11 +137,10 @@ const copyLink = async () => {
       navigator.clipboard.writeText(json.url)
       alert('Link copiado!')
     }
-  } catch {
+} catch {
     alert('Erro ao gerar link.')
   }
 }
-  }
 
   return (
     <Sheet open={open} onOpenChange={(open) => !open && onClose()}>
