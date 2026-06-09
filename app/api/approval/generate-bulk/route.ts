@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const base = process.env.NEXT_PUBLIC_APP_URL || 'https://dashboard.impulsionaimarketing.com.br'
-    return NextResponse.json({ url: `${base}/aprovacao/bulk/${data.token}` })
+    return NextResponse.json({ url: `${base}/aprovacao/${data.token}` })
   } catch {
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
   }
