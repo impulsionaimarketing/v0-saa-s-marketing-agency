@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Video, Image as ImageIcon, Calendar, Eye, Pencil, Check } from 'lucide-react'
+import { Video, Image as ImageIcon, Calendar, Eye, Pencil, Check, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ProductionFile {
@@ -38,6 +38,8 @@ interface FeedViewProps {
   productions: Production[]
   onSelect: (production: Production) => void
   onUpdateStatus: (id: string, newStatus: string) => void
+  selectionMode?: boolean
+  selectedIds?: Set<string>
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -60,18 +62,34 @@ function formatDate(dateString?: string) {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-function FeedItem({ production, onSelect, onUpdateStatus }: { production: Production; onSelect: (p: Production) => void; onUpdateStatus: (id: string, status: string) => void }) {
+function FeedItem({
+  production,
+  onSelect,
+  onUpdateStatus,
+  selectionMode,
+  isSelected,
+}: {
+  production: Production
+  onSelect: (p: Production) => void
+  onUpdateStatus: (id: string, status: string) => void
+  selectionMode?: boolean
+  isSelected?: boolean
+}) {
   const [isHovered, setIsHovered] = useState(false)
   const statusColor = getStatusColor(production.status)
   
-  // Get first file as thumbnail
   const firstFile = production.files?.[0]
   const thumbnailUrl = firstFile?.url || null
   const isVideo = production.type === 'Vídeo' || firstFile?.file_type?.startsWith('video/')
 
   return (
     <div
-      className="group relative aspect-square bg-muted rounded-xl overflow-hidden cursor-pointer transition-all duration-200 hover:ring-2 hover:ring-primary/50"
+      className={cn(
+        'group relative aspect-square bg-muted rounded-xl overflow-hidden cursor-pointer transition-all duration-200',
+        isSelected
+          ? 'ring-2 ring-primary ring-offset-2'
+          : 'hover:ring-2 hover:ring-primary/50'
+      )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onSelect(production)}
@@ -105,16 +123,32 @@ function FeedItem({ production, onSelect, onUpdateStatus }: { production: Produc
         </div>
       )}
 
-      {/* Type indicator */}
-      <div className="absolute top-2 left-2">
-        <div className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
-          {isVideo ? (
-            <Video className="w-3.5 h-3.5 text-white" />
-          ) : (
-            <ImageIcon className="w-3.5 h-3.5 text-white" />
-          )}
+      {/* Selection checkbox */}
+      {selectionMode && (
+        <div className="absolute top-2 left-2 z-10">
+          <div className={cn(
+            'w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors',
+            isSelected
+              ? 'bg-primary border-primary'
+              : 'bg-black/40 border-white/80 backdrop-blur-sm'
+          )}>
+            {isSelected && <CheckCircle2 className="w-4 h-4 text-white" />}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Type indicator */}
+      {!selectionMode && (
+        <div className="absolute top-2 left-2">
+          <div className="w-7 h-7 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+            {isVideo ? (
+              <Video className="w-3.5 h-3.5 text-white" />
+            ) : (
+              <ImageIcon className="w-3.5 h-3.5 text-white" />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Status badge */}
       <div className="absolute top-2 right-2">
@@ -123,7 +157,7 @@ function FeedItem({ production, onSelect, onUpdateStatus }: { production: Produc
         </Badge>
       </div>
 
-      {/* Bottom info - always visible */}
+      {/* Bottom info */}
       <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent">
         <p className="text-white text-sm font-medium truncate">
           {production.title || production.notes || 'Sem título'}
@@ -144,45 +178,52 @@ function FeedItem({ production, onSelect, onUpdateStatus }: { production: Produc
         </div>
       </div>
 
-      {/* Hover overlay with actions */}
-      <div className={cn(
-        'absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center gap-2 transition-opacity duration-200',
-        isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      )}>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="h-9 px-3 bg-white text-black hover:bg-white/90"
-          onClick={(e) => { e.stopPropagation(); onSelect(production); }}
-        >
-          <Eye className="w-4 h-4 mr-1.5" />
-          Ver
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="h-9 px-3 bg-white text-black hover:bg-white/90"
-          onClick={(e) => { e.stopPropagation(); onSelect(production); }}
-        >
-          <Pencil className="w-4 h-4 mr-1.5" />
-          Editar
-        </Button>
-        {production.status === 'Aprovação do Cliente' && (
+      {/* Hover overlay - só aparece quando não está em modo seleção */}
+      {!selectionMode && (
+        <div className={cn(
+          'absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center gap-2 transition-opacity duration-200',
+          isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        )}>
           <Button
             size="sm"
-            className="h-9 px-3 bg-emerald-500 text-white hover:bg-emerald-600"
-            onClick={(e) => { e.stopPropagation(); onUpdateStatus(production.id, 'Aprovado'); }}
+            variant="secondary"
+            className="h-9 px-3 bg-white text-black hover:bg-white/90"
+            onClick={(e) => { e.stopPropagation(); onSelect(production); }}
           >
-            <Check className="w-4 h-4 mr-1.5" />
-            Aprovar
+            <Eye className="w-4 h-4 mr-1.5" />
+            Ver
           </Button>
-        )}
-      </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-9 px-3 bg-white text-black hover:bg-white/90"
+            onClick={(e) => { e.stopPropagation(); onSelect(production); }}
+          >
+            <Pencil className="w-4 h-4 mr-1.5" />
+            Editar
+          </Button>
+          {production.status === 'Aprovação do Cliente' && (
+            <Button
+              size="sm"
+              className="h-9 px-3 bg-emerald-500 text-white hover:bg-emerald-600"
+              onClick={(e) => { e.stopPropagation(); onUpdateStatus(production.id, 'Aprovado'); }}
+            >
+              <Check className="w-4 h-4 mr-1.5" />
+              Aprovar
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Selection overlay */}
+      {selectionMode && isSelected && (
+        <div className="absolute inset-0 bg-primary/20" />
+      )}
     </div>
   )
 }
 
-export function FeedView({ productions, onSelect, onUpdateStatus }: FeedViewProps) {
+export function FeedView({ productions, onSelect, onUpdateStatus, selectionMode, selectedIds }: FeedViewProps) {
   if (productions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -203,6 +244,8 @@ export function FeedView({ productions, onSelect, onUpdateStatus }: FeedViewProp
           production={production}
           onSelect={onSelect}
           onUpdateStatus={onUpdateStatus}
+          selectionMode={selectionMode}
+          isSelected={selectedIds?.has(production.id)}
         />
       ))}
     </div>
