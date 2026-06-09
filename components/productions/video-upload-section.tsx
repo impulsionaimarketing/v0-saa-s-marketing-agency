@@ -28,20 +28,18 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
   const [isUploading, setIsUploading] = useState(false)
   const [previewFile, setPreviewFile] = useState<ProductionFile | null>(null)
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type (images and videos)
     const isImage = file.type.startsWith('image/')
     const isVideo = file.type.startsWith('video/')
-    
+
     if (!isImage && !isVideo) {
       toast.error('Por favor, selecione uma imagem ou vídeo')
       return
     }
 
-    // Validate file size (max 5GB for large video files)
     if (file.size > 5 * 1024 * 1024 * 1024) {
       toast.error('Arquivo muito grande. Tamanho máximo: 5GB')
       return
@@ -50,28 +48,21 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
     setIsUploading(true)
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('productionId', productionId)
-
-      const response = await fetch('/api/upload-video', {
-        method: 'POST',
-        body: formData,
+      const { upload } = await import('@vercel/blob/client')
+      await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload-video',
+        clientPayload: JSON.stringify({ productionId }),
       })
 
-      if (!response.ok) {
-        throw new Error('Erro ao fazer upload')
-      }
-
-      const data = await response.json()
-      toast.success('Vídeo enviado com sucesso!')
+      toast.success('Arquivo enviado com sucesso!')
       onUpdate()
     } catch (error) {
       console.error('[v0] Upload error:', error)
-      toast.error('Erro ao fazer upload do vídeo')
+      toast.error('Erro ao fazer upload do arquivo')
     } finally {
       setIsUploading(false)
-      e.target.value = '' // Reset input
+      e.target.value = ''
     }
   }
 
