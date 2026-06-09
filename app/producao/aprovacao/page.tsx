@@ -66,58 +66,23 @@ export default function AprovacaoConteudoPage() {
         demand_id: demandId,
       })
 
-      // 4. Upload direto para o Google Drive pelo browser
+// 4. Upload via Vercel Blob
       if (data.file) {
         try {
-          // Pede a URL de upload ao servidor
-          const urlRes = await fetch('/api/drive/upload-url', {
+          const formData = new FormData()
+          formData.append('file', data.file)
+          formData.append('productionId', created.id)
+
+          const uploadRes = await fetch('/api/upload-video', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileName: data.file.name,
-              mimeType: data.file.type,
-              fileSize: data.file.size,
-              clientName: data.client,
-            }),
-          })
-
-          if (!urlRes.ok) {
-            toast.error('Produção criada, mas houve falha ao iniciar o upload.')
-            return created.id
-          }
-
-          const { uploadUrl } = await urlRes.json()
-
-          // Faz o upload direto para o Google Drive pelo browser
-          const uploadRes = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: { 'Content-Type': data.file.type },
-            body: data.file,
+            body: formData,
           })
 
           if (!uploadRes.ok) {
             toast.error('Produção criada, mas houve falha no upload.')
-            return created.id
           }
-
-          // Extrai o fileId da resposta do Drive
-          const uploadData = await uploadRes.json()
-          const fileId = uploadData.id
-
-          // Confirma o upload e salva no Supabase
-          await fetch('/api/drive/confirm-upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              fileId,
-              productionId: created.id,
-              fileName: data.file.name,
-              fileSize: data.file.size,
-              mimeType: data.file.type,
-            }),
-          })
         } catch (uploadError) {
-          console.error('[v0] Erro no upload para Drive:', uploadError)
+          console.error('[v0] Erro no upload:', uploadError)
           toast.error('Produção criada, mas houve falha no upload.')
         }
       }
