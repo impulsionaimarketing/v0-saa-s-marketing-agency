@@ -28,7 +28,7 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
   const [isUploading, setIsUploading] = useState(false)
   const [previewFile, setPreviewFile] = useState<ProductionFile | null>(null)
 
- const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -48,12 +48,21 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
     setIsUploading(true)
 
     try {
-      const { upload } = await import('@vercel/blob/client')
-      await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/upload-video',
-        clientPayload: JSON.stringify({ productionId }),
-      })
+      const response = await fetch(
+        `/api/upload-video?filename=${encodeURIComponent(file.name)}&productionId=${productionId}`,
+        {
+          method: 'POST',
+          body: file,
+          headers: {
+            'content-type': file.type,
+            'content-length': String(file.size),
+          },
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error('Erro ao fazer upload')
+      }
 
       toast.success('Arquivo enviado com sucesso!')
       onUpdate()
@@ -106,7 +115,6 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Upload Button */}
           <div>
             <input
               type="file"
@@ -141,7 +149,6 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
             </label>
           </div>
 
-          {/* Files List */}
           {files.length > 0 ? (
             <div className="space-y-2">
               {files.map((file) => (
@@ -207,7 +214,6 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
         </CardContent>
       </Card>
 
-      {/* Preview Dialog */}
       <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
         <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] p-4 sm:p-6">
           <DialogHeader>
