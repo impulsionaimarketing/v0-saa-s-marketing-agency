@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -23,7 +22,10 @@ import {
   LayoutGrid, 
   Columns3, 
   List,
-  Filter
+  CheckSquare,
+  X,
+  Link as LinkIcon,
+  Loader2,
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
@@ -31,7 +33,7 @@ import { AppShell } from '@/components/layout/app-shell'
 import { FeedView, KanbanView, CalendarView, ListView } from '@/components/productions/views'
 import { ProductionDetailDrawer } from '@/components/productions/production-detail-drawer'
 import { useAuth } from '@/lib/hooks/use-auth'
-import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface ProductionFile {
   id: string
@@ -97,6 +99,11 @@ export default function ProducaoPage() {
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
+  // Selection mode
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isGeneratingBulkLink, setIsGeneratingBulkLink] = useState(false)
+
   const fetchData = async () => {
     try {
       const [productionsRes, clientsRes] = await Promise.all([
@@ -132,8 +139,6 @@ export default function ProducaoPage() {
       })
       if (!res.ok) throw new Error('Falha ao atualizar status')
       setProductions(prev => prev.map(p => p.id === id ? { ...p, status: newStatus } : p))
-      
-      // Update selected production if open
       if (selectedProduction?.id === id) {
         setSelectedProduction(prev => prev ? { ...prev, status: newStatus } : null)
       }
@@ -143,8 +148,49 @@ export default function ProducaoPage() {
   }
 
   const handleSelectProduction = (production: Production) => {
+    if (selectionMode) {
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        if (next.has(production.id)) {
+          next.delete(production.id)
+        } else {
+          next.add(production.id)
+        }
+        return next
+      })
+      return
+    }
     setSelectedProduction(production)
     setDrawerOpen(true)
+  }
+
+  const handleExitSelection = () => {
+    setSelectionMode(false)
+    setSelectedIds(new Set())
+  }
+
+  const handleGenerateBulkLink = async () => {
+    if (selectedIds.size === 0) return
+    setIsGeneratingBulkLink(true)
+    try {
+      const res = await fetch('/api/approval/generate-bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productionIds: Array.from(selectedIds) }),
+      })
+      const json = await res.json()
+      if (json.url) {
+        await navigator.clipboard.writeText(json.url)
+        toast.success('Link copiado! Envie para o cliente.')
+        handleExitSelection()
+      } else {
+        toast.error('Erro ao gerar link.')
+      }
+    } catch {
+      toast.error('Erro ao gerar link.')
+    } finally {
+      setIsGeneratingBulkLink(false)
+    }
   }
 
   const filteredProductions = productions.filter((prod) => {
@@ -159,7 +205,6 @@ export default function ProducaoPage() {
     return matchesSearch && matchesStatus && matchesType && matchesClient
   })
 
-  // Get unique clients from productions for filter
   const productionClients = Array.from(
     new Map(
       productions
@@ -228,17 +273,57 @@ export default function ProducaoPage() {
                 </p>
               </div>
               
-              <Button asChild className="gap-2">
-                <Link href="/producao/aprovacao">
-                  <PlusCircle className="h-4 w-4" />
-                  Nova Produção
-                </Link>
-              </Button>
+              <div className="flex gap-2">
+                {!selectionMode ? (
+                  <>
+                    <Button variant="outline" className="gap-2" onClick={() => setSelectionMode(true)}>
+                      <CheckSquare className="h-4 w-4" />
+                      Selecionar
+                    </Button>
+                    <Button asChild className="gap-2">
+                      <Link href="/producao/aprovacao">
+                        <PlusCircle className="h-4 w-4" />
+                        Nova Produção
+                      </Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" className="gap-2" onClick={handleExitSelection}>
+                      <X className="h-4 w-4" />
+                      Cancelar
+                    </Button>
+                    <Button
+                      className="gap-2"
+                      disabled={selectedIds.size === 0 || isGeneratingBulkLink}
+                      onClick={handleGenerateBulkLink}
+                    >
+                      {isGeneratingBulkLink ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <LinkIcon className="h-4 w-4" />
+                      )}
+                      {selectedIds.size > 0
+                        ? `Gerar Link (${selectedIds.size})`
+                        : 'Selecione itens'}
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
+
+            {/* Selection info bar */}
+            {selectionMode && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm text-primary">
+                <CheckSquare className="h-4 w-4" />
+                {selectedIds.size === 0
+                  ? 'Clique nas produções para selecioná-las'
+                  : `${selectedIds.size} produção${selectedIds.size > 1 ? 'ões' : ''} selecionada${selectedIds.size > 1 ? 's' : ''}`}
+              </div>
+            )}
 
             {/* Filters Row */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:flex-wrap">
-              {/* Search */}
               <div className="relative flex-1 min-w-[200px] max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -249,7 +334,6 @@ export default function ProducaoPage() {
                 />
               </div>
 
-              {/* Client Filter */}
               <Select value={filterClient} onValueChange={setFilterClient}>
                 <SelectTrigger className="w-full sm:w-44 bg-background border-border">
                   <SelectValue placeholder="Cliente" />
@@ -264,7 +348,6 @@ export default function ProducaoPage() {
                 </SelectContent>
               </Select>
 
-              {/* Status Filter */}
               <Select value={filterStatus} onValueChange={setFilterStatus}>
                 <SelectTrigger className="w-full sm:w-44 bg-background border-border">
                   <SelectValue placeholder="Status" />
@@ -279,7 +362,6 @@ export default function ProducaoPage() {
                 </SelectContent>
               </Select>
 
-              {/* Type Filter */}
               <Select value={filterType} onValueChange={setFilterType}>
                 <SelectTrigger className="w-full sm:w-36 bg-background border-border">
                   <SelectValue placeholder="Tipo" />
@@ -331,6 +413,8 @@ export default function ProducaoPage() {
                   productions={filteredProductions}
                   onSelect={handleSelectProduction}
                   onUpdateStatus={handleUpdateStatus}
+                  selectionMode={selectionMode}
+                  selectedIds={selectedIds}
                 />
               )}
               {viewMode === 'kanban' && (
@@ -338,12 +422,16 @@ export default function ProducaoPage() {
                   productions={filteredProductions}
                   onSelect={handleSelectProduction}
                   onUpdateStatus={handleUpdateStatus}
+                  selectionMode={selectionMode}
+                  selectedIds={selectedIds}
                 />
               )}
               {viewMode === 'calendar' && (
                 <CalendarView
                   productions={filteredProductions}
                   onSelect={handleSelectProduction}
+                  selectionMode={selectionMode}
+                  selectedIds={selectedIds}
                 />
               )}
               {viewMode === 'list' && (
@@ -351,12 +439,13 @@ export default function ProducaoPage() {
                   productions={filteredProductions}
                   onSelect={handleSelectProduction}
                   onUpdateStatus={handleUpdateStatus}
+                  selectionMode={selectionMode}
+                  selectedIds={selectedIds}
                 />
               )}
             </div>
           </div>
 
-          {/* Detail Drawer */}
           <ProductionDetailDrawer
             production={selectedProduction}
             open={drawerOpen}
