@@ -8,11 +8,11 @@ export default async function PublicApprovalPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const production = await getProductionByToken(token)
+  const productions = await getProductionByToken(token)
 
-  if (!production) {
+  if (!productions || productions.length === 0) {
     notFound()
   }
 
-  return <ApprovalClient production={production} token={token} />
+  return <ApprovalClient productions={productions} token={token} />
 }
