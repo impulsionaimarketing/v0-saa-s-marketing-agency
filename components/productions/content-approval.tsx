@@ -48,7 +48,7 @@ const PRODUCTION = {
   responsible: 'Igor Macêdo',
   postDate: '28 de novembro, 2025',
   status: 'Aprovação do Cliente',
-  poster: '/producao/black-friday-temi-eletro.png',
+  poster: null,
   approvalLink: 'https://app.exemplo.com/aprovar/abc123',
 }
 
