@@ -176,6 +176,7 @@ export async function updateProduction(
         title: data.title,
         caption: data.caption,
         reference_link: data.reference_link,
+        demand_id: data.demand_id,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

@@ -2,22 +2,26 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
 import { ContentApproval, type ContentApprovalData } from '@/components/productions/content-approval'
 import { ProductionForm, type ProductionFormData } from '@/components/productions/production-form'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, CheckCircle2, PlusCircle } from 'lucide-react'
+import { ChevronLeft, CheckCircle2, PlusCircle, Save, Loader2 } from 'lucide-react'
 import { createProduction, updateProduction } from '@/lib/data/productions'
+import { createDemand } from '@/lib/data/demands'
 import { toast } from 'sonner'
 
 type Step = 'form' | 'approval'
 
 export default function AprovacaoConteudoPage() {
+  const router = useRouter()
   const [step, setStep] = useState<Step>('form')
   const [approvalData, setApprovalData] = useState<ContentApprovalData | undefined>(undefined)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isFinishing, setIsFinishing] = useState(false)
 
   const persistProduction = async (data: ProductionFormData): Promise<string | null> => {
     try {
@@ -36,14 +40,33 @@ export default function AprovacaoConteudoPage() {
         return null
       }
 
-      // 2. Complementa com título, legenda e link de referência
+      // 2. Lógica inversa: cria automaticamente uma demanda vinculada à produção
+      let demandId: string | undefined
+      try {
+        const demand = await createDemand({
+          name: data.title || 'Nova produção',
+          description: data.caption || data.referenceUrl || null,
+          client_id: data.clientId,
+          area: data.type, // 'Vídeo' | 'Arte' são áreas válidas de demanda
+          responsible_id: data.responsibleId || null,
+          deadline: data.postDate || null,
+          status: 'Em Produção',
+          priority: 'medium',
+        })
+        demandId = demand?.id
+      } catch (demandError) {
+        console.error('[v0] Erro ao criar demanda vinculada:', demandError)
+      }
+
+      // 3. Complementa com título, legenda, link e vínculo com a demanda
       await updateProduction(created.id, {
         title: data.title,
         caption: data.caption || undefined,
         reference_link: data.referenceUrl || undefined,
+        demand_id: demandId,
       })
 
-      // 3. Faz upload do arquivo selecionado, se houver
+      // 4. Faz upload do arquivo selecionado, se houver
       if (data.file) {
         const uploadFormData = new FormData()
         uploadFormData.append('file', data.file)
@@ -61,7 +84,7 @@ export default function AprovacaoConteudoPage() {
         }
       }
 
-      toast.success('Produção criada com sucesso!')
+      toast.success('Produção e demanda criadas com sucesso!')
       return created.id
     } catch (error) {
       console.error('[v0] Erro ao salvar produção:', error)
@@ -98,6 +121,12 @@ export default function AprovacaoConteudoPage() {
     setIsSubmitting(false)
   }
 
+  const handleFinish = () => {
+    setIsFinishing(true)
+    toast.success('Conteúdo salvo! Disponível na aba Produção.')
+    router.push('/producao')
+  }
+
   return (
     <ProtectedRoute>
       <ModuleAccessWrapper moduleName="producoes" moduleDisplayName="Produções">
@@ -123,17 +152,27 @@ export default function AprovacaoConteudoPage() {
               </div>
 
               {step === 'approval' && (
-                <Button
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => {
-                    setStep('form')
-                    setApprovalData(undefined)
-                  }}
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Nova Produção
-                </Button>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      setStep('form')
+                      setApprovalData(undefined)
+                    }}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Nova Produção
+                  </Button>
+                  <Button className="gap-2" onClick={handleFinish} disabled={isFinishing}>
+                    {isFinishing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    Salvar e Concluir
+                  </Button>
+                </div>
               )}
             </div>
 
