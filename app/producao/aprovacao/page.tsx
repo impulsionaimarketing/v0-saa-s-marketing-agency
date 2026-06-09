@@ -25,7 +25,7 @@ export default function AprovacaoConteudoPage() {
 
   const persistProduction = async (data: ProductionFormData): Promise<string | null> => {
     try {
-      // 1. Cria a produção vinculada ao cliente e responsável reais
+      // 1. Cria a produção
       const created = await createProduction({
         client_id: data.clientId,
         type: data.type,
@@ -40,14 +40,14 @@ export default function AprovacaoConteudoPage() {
         return null
       }
 
-      // 2. Lógica inversa: cria automaticamente uma demanda vinculada à produção
+      // 2. Cria demanda vinculada
       let demandId: string | undefined
       try {
         const demand = await createDemand({
           name: data.title || 'Nova produção',
           description: data.caption || data.referenceUrl || null,
           client_id: data.clientId,
-          area: data.type, // 'Vídeo' | 'Arte' são áreas válidas de demanda
+          area: data.type,
           responsible_id: data.responsibleId || null,
           deadline: data.postDate || null,
           status: 'Em Produção',
@@ -58,7 +58,7 @@ export default function AprovacaoConteudoPage() {
         console.error('[v0] Erro ao criar demanda vinculada:', demandError)
       }
 
-      // 3. Complementa com título, legenda, link e vínculo com a demanda
+      // 3. Complementa com título, legenda e vínculo
       await updateProduction(created.id, {
         title: data.title,
         caption: data.caption || undefined,
@@ -66,40 +66,74 @@ export default function AprovacaoConteudoPage() {
         demand_id: demandId,
       })
 
-      // 4. Faz upload do arquivo selecionado, se houver
+      // 4. Upload direto para o Google Drive pelo browser
       if (data.file) {
-        const uploadFormData = new FormData()
-        uploadFormData.append('file', data.file)
-        uploadFormData.append('productionId', created.id)
+        try {
+          // Pede a URL de upload ao servidor
+          const urlRes = await fetch('/api/drive/upload-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileName: data.file.name,
+              mimeType: data.file.type,
+              fileSize: data.file.size,
+              clientName: data.client,
+            }),
+          })
 
-        const uploadRes = await fetch('/api/upload-video', {
-          method: 'POST',
-          body: uploadFormData,
-        })
+          if (!urlRes.ok) {
+            toast.error('Produção criada, mas houve falha ao iniciar o upload.')
+            return created.id
+          }
 
-        if (!uploadRes.ok) {
-          console.error('[v0] Falha no upload do arquivo')
-          toast.error('Produção criada, mas houve falha no upload do arquivo.')
-          return created.id
+          const { uploadUrl } = await urlRes.json()
+
+          // Faz o upload direto para o Google Drive pelo browser
+          const uploadRes = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': data.file.type },
+            body: data.file,
+          })
+
+          if (!uploadRes.ok) {
+            toast.error('Produção criada, mas houve falha no upload.')
+            return created.id
+          }
+
+          // Extrai o fileId da resposta do Drive
+          const uploadData = await uploadRes.json()
+          const fileId = uploadData.id
+
+          // Confirma o upload e salva no Supabase
+          await fetch('/api/drive/confirm-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fileId,
+              productionId: created.id,
+              fileName: data.file.name,
+              fileSize: data.file.size,
+              mimeType: data.file.type,
+            }),
+          })
+        } catch (uploadError) {
+          console.error('[v0] Erro no upload para Drive:', uploadError)
+          toast.error('Produção criada, mas houve falha no upload.')
         }
       }
 
-      toast.success('Produção e demanda criadas com sucesso!')
+      toast.success('Produção criada com sucesso!')
       return created.id
     } catch (error) {
       console.error('[v0] Erro ao salvar produção:', error)
-      toast.error('A produção foi exibida, mas houve um erro ao salvá-la no banco.')
+      toast.error('Houve um erro ao salvar a produção.')
       return null
     }
   }
 
   const handleSubmit = async (data: ProductionFormData) => {
     setIsSubmitting(true)
-
-    // Persiste no banco para obter o ID real da produção
     const productionId = await persistProduction(data)
-
-    // Avança para a etapa de aprovação (com o ID quando disponível)
     setApprovalData({
       productionId: productionId || '',
       title: data.title,
@@ -176,7 +210,6 @@ export default function AprovacaoConteudoPage() {
               )}
             </div>
 
-            {/* Indicador de etapas */}
             <div className="flex items-center gap-3 text-sm">
               <StepBadge active={step === 'form'} done={step === 'approval'} number={1} label="Criar conteúdo" />
               <div className="h-px flex-1 bg-border sm:max-w-24" />
