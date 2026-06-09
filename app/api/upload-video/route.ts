@@ -1,57 +1,67 @@
-// Upload video API route - v2024
-import { put } from '@vercel/blob'
-import { type NextRequest, NextResponse } from 'next/server'
-import { createProductionFile } from '@/lib/data/production-files'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { getOrCreateClientFolder, uploadFileToDrive } from '@/lib/google-drive'
 
-export async function POST(request: NextRequest) {
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-    const productionId = formData.get('productionId') as string
+    const formData = await req.formData()
+    const file = formData.get('file') as File | null
+    const productionId = formData.get('productionId') as string | null
 
-    if (!file) {
-      return NextResponse.json({ error: 'Nenhum arquivo fornecido' }, { status: 400 })
+    if (!file || !productionId) {
+      return NextResponse.json({ error: 'Arquivo e productionId são obrigatórios' }, { status: 400 })
     }
 
-    if (!productionId) {
-      return NextResponse.json({ error: 'ID de produção não fornecido' }, { status: 400 })
+    // Busca o nome do cliente para criar/usar a pasta correta
+    const supabase = await createClient()
+    const { data: production } = await supabase
+      .from('productions')
+      .select('client_id, clients(name)')
+      .eq('id', productionId)
+      .single()
+
+    const clientName = (production?.clients as any)?.name || 'Cliente'
+
+    // Converte o arquivo para Buffer
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    // Pega ou cria a pasta do cliente no Drive
+    const folderId = await getOrCreateClientFolder(clientName)
+
+    // Faz o upload para o Drive
+    const { id: driveFileId, url } = await uploadFileToDrive({
+      fileName: file.name,
+      mimeType: file.type,
+      buffer,
+      folderId,
+    })
+
+    // Salva referência no Supabase
+    const { error: dbError } = await supabase
+      .from('production_files')
+      .insert({
+        production_id: productionId,
+        filename: file.name,
+        url,
+        file_size: file.size,
+        file_type: file.type,
+        uploaded_by: 'dashboard',
+      })
+
+    if (dbError) {
+      console.error('[upload] Erro ao salvar no Supabase:', dbError)
     }
 
-    // Validate file type (images and videos)
-    const isImage = file.type.startsWith('image/')
-    const isVideo = file.type.startsWith('video/')
-    
-    if (!isImage && !isVideo) {
-      return NextResponse.json({ error: 'Apenas imagens e vídeos são permitidos' }, { status: 400 })
-    }
-
-    // Upload to Vercel Blob with organized path
-    // Use multipart for files larger than 5MB for better performance
-    const filename = `productions/${productionId}/${Date.now()}-${file.name}`
-    const blob = await put(filename, file, {
-      access: 'public',
-      multipart: file.size > 5 * 1024 * 1024, // Use multipart for files > 5MB
-    })
-
-    // Save reference to database
-    const productionFile = await createProductionFile({
-      production_id: productionId,
-      filename: file.name,
-      url: blob.url,
-      file_size: file.size,
-      file_type: file.type,
-    })
-
-    return NextResponse.json({
-      id: productionFile?.id,
-      url: blob.url,
-      filename: file.name,
-      size: file.size,
-      type: file.type,
-      uploadedAt: productionFile?.uploaded_at || new Date().toISOString(),
-    })
+    return NextResponse.json({ success: true, url, driveFileId })
   } catch (error) {
-    console.error('[v0] Upload error:', error)
-    return NextResponse.json({ error: 'Falha no upload' }, { status: 500 })
+    console.error('[upload] Erro:', error)
+    return NextResponse.json({ error: 'Erro ao fazer upload' }, { status: 500 })
   }
 }
