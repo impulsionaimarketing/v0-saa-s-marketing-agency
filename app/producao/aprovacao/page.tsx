@@ -25,7 +25,6 @@ export default function AprovacaoConteudoPage() {
 
   const persistProduction = async (data: ProductionFormData): Promise<string | null> => {
     try {
-      // 1. Cria a produção
       const created = await createProduction({
         client_id: data.clientId,
         type: data.type,
@@ -40,7 +39,6 @@ export default function AprovacaoConteudoPage() {
         return null
       }
 
-      // 2. Cria demanda vinculada
       let demandId: string | undefined
       try {
         const demand = await createDemand({
@@ -58,7 +56,6 @@ export default function AprovacaoConteudoPage() {
         console.error('[v0] Erro ao criar demanda vinculada:', demandError)
       }
 
-      // 3. Complementa com título, legenda e vínculo
       await updateProduction(created.id, {
         title: data.title,
         caption: data.caption || undefined,
@@ -66,32 +63,40 @@ export default function AprovacaoConteudoPage() {
         demand_id: demandId,
       })
 
-// 4. Upload via Vercel Blob (client-side)
-if (data.file) {
-  try {
-    const { upload } = await import('@vercel/blob/client')
+      if (data.file) {
+        try {
+          const { upload } = await import('@vercel/blob/client')
 
-    const blob = await upload(data.file.name, data.file, {
-      access: 'public',
-      handleUploadUrl: `/api/upload-video/token?productionId=${created.id}`,
-    })
+          const blob = await upload(data.file.name, data.file, {
+            access: 'public',
+            handleUploadUrl: `/api/upload-video/token?productionId=${created.id}`,
+          })
 
-    await fetch('/api/upload-video/confirm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        productionId: created.id,
-        url: blob.url,
-        filename: data.file.name,
-        fileSize: data.file.size,
-        fileType: data.file.type,
-      }),
-    })
-  } catch (uploadError) {
-    console.error('[v0] Erro no upload:', uploadError)
-    toast.error('Produção criada, mas houve falha no upload.')
+          await fetch('/api/upload-video/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productionId: created.id,
+              url: blob.url,
+              filename: data.file.name,
+              fileSize: data.file.size,
+              fileType: data.file.type,
+            }),
+          })
+        } catch (uploadError) {
+          console.error('[v0] Erro no upload:', uploadError)
+          toast.error('Produção criada, mas houve falha no upload.')
+        }
+      }
+
+      toast.success('Produção criada com sucesso!')
+      return created.id
+    } catch (error) {
+      console.error('[v0] Erro ao salvar produção:', error)
+      toast.error('Houve um erro ao salvar a produção.')
+      return null
+    }
   }
-}
 
   const handleSubmit = async (data: ProductionFormData) => {
     setIsSubmitting(true)
