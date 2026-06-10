@@ -46,6 +46,7 @@ export interface Production {
   reference_link?: string
   approval_token?: string
   files?: ProductionFile[]
+  client_comment_count?: number
 }
 
 export async function getProductions(filters?: {
@@ -99,6 +100,25 @@ export async function getProductions(filters?: {
         productions = productions.map(p => ({
           ...p,
           files: filesMap.get(p.id) || []
+        }))
+      }
+
+      // Conta comentários do cliente por produção (para o selo de "pedido de ajuste")
+      const { data: clientComments } = await supabase
+        .from('production_comments')
+        .select('production_id')
+        .eq('is_client', true)
+        .in('production_id', productionIds)
+
+      if (clientComments) {
+        const countMap = new Map<string, number>()
+        for (const row of clientComments) {
+          const prodId = row.production_id as string
+          countMap.set(prodId, (countMap.get(prodId) || 0) + 1)
+        }
+        productions = productions.map(p => ({
+          ...p,
+          client_comment_count: countMap.get(p.id) || 0
         }))
       }
     }

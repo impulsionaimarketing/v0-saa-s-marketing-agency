@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProductionFormDialog } from './production-form-dialog'
+import { ProductionComments } from './production-comments'
 
 interface ProductionFile {
   id: string
@@ -309,6 +310,9 @@ const copyLink = async () => {
                 />
               </div>
             )}
+
+            {/* Comentários e pedidos de alteração do cliente */}
+            <ProductionComments productionId={production.id} />
           </div>
         </ScrollArea>
 

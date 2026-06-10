@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Video, Image as ImageIcon, Calendar, Eye, Pencil, Check, CheckCircle2 } from 'lucide-react'
+import { Video, Image as ImageIcon, Calendar, Eye, Pencil, Check, CheckCircle2, MessageSquareWarning } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ProductionFile {
@@ -32,6 +32,7 @@ interface Production {
   caption?: string
   approval_token?: string
   files?: ProductionFile[]
+  client_comment_count?: number
 }
 
 interface FeedViewProps {
@@ -77,6 +78,7 @@ function FeedItem({
 }) {
   const [isHovered, setIsHovered] = useState(false)
   const statusColor = getStatusColor(production.status)
+  const hasClientComments = (production.client_comment_count ?? 0) > 0
   
   const firstFile = production.files?.[0]
   const thumbnailUrl = firstFile?.url || null
@@ -151,10 +153,19 @@ function FeedItem({
       )}
 
       {/* Status badge */}
-      <div className="absolute top-2 right-2">
+      <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5">
         <Badge className={cn('text-[10px] font-medium border-0', statusColor.bg, statusColor.text)}>
           {production.status}
         </Badge>
+        {hasClientComments && (
+          <Badge
+            className="text-[10px] font-medium border-0 bg-orange-500 text-white gap-1 shadow-sm"
+            title="O cliente solicitou ajustes nesta produção"
+          >
+            <MessageSquareWarning className="w-3 h-3" />
+            {production.client_comment_count} ajuste{(production.client_comment_count ?? 0) > 1 ? 's' : ''}
+          </Badge>
+        )}
       </div>
 
       {/* Bottom info */}

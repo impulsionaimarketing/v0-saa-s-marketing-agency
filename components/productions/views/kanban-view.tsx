@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Video, Image as ImageIcon, Calendar, GripVertical, User } from 'lucide-react'
+import { Video, Image as ImageIcon, Calendar, GripVertical, User, MessageSquareWarning } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ProductionFile {
@@ -30,6 +30,7 @@ interface Production {
   caption?: string
   approval_token?: string
   files?: ProductionFile[]
+  client_comment_count?: number
 }
 
 interface KanbanViewProps {
@@ -58,6 +59,7 @@ function KanbanCard({ production, onSelect, onDragStart }: { production: Product
   const firstFile = production.files?.[0]
   const thumbnailUrl = firstFile?.url || null
   const isVideo = production.type === 'Vídeo' || firstFile?.file_type?.startsWith('video/')
+  const hasClientComments = (production.client_comment_count ?? 0) > 0
 
   return (
     <div
@@ -110,6 +112,19 @@ function KanbanCard({ production, onSelect, onDragStart }: { production: Product
             <GripVertical className="w-3 h-3 text-white" />
           </div>
         </div>
+
+        {/* Client adjustment flag */}
+        {hasClientComments && (
+          <div className="absolute bottom-1.5 right-1.5">
+            <Badge
+              className="text-[10px] font-medium border-0 bg-orange-500 text-white gap-1 shadow-sm"
+              title="O cliente solicitou ajustes nesta produção"
+            >
+              <MessageSquareWarning className="w-3 h-3" />
+              {production.client_comment_count}
+            </Badge>
+          </div>
+        )}
       </div>
 
       {/* Content */}

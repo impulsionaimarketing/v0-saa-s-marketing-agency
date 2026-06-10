@@ -60,6 +60,7 @@ interface Production {
   caption?: string
   approval_token?: string
   files?: ProductionFile[]
+  client_comment_count?: number
 }
 
 interface Client {
