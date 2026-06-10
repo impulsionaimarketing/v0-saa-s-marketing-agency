@@ -7,7 +7,7 @@ export function middleware(request: NextRequest) {
   const publicRoutes = ['/auth/login', '/auth/signup']
 
   // Rotas que começam com esses prefixos também são públicas
-  const publicPrefixes = ['/aprovacao']
+  const publicPrefixes = ['/aprovacao', '/api/diag']
 
   // Se está em rota pública, deixa passar
   if (publicRoutes.includes(pathname)) {
