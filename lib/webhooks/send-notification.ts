@@ -17,6 +17,8 @@ export type WebhookEvent =
   | 'collaborator.created'
   | 'collaborator.updated'
   | 'report.created'
+  | 'approval.approved'
+  | 'approval.adjustment_requested'
 
 interface WebhookPayload {
   event: WebhookEvent

@@ -135,6 +135,10 @@ Isso mostrará se o webhook está configurado corretamente.
 ### Relatórios
 - `report.created` - Novo relatório gerado
 
+### Aprovação do Cliente
+- `approval.approved` - Cliente aprovou uma produção
+- `approval.adjustment_requested` - Cliente solicitou ajuste em uma produção (inclui o campo `comment` com o feedback)
+
 ## Segurança
 
 ### Validar o Webhook Secret
