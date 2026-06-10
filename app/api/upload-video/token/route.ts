@@ -1,0 +1,35 @@
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/next'
+import { NextRequest, NextResponse } from 'next/server'
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  const body = (await req.json()) as HandleUploadBody
+
+  try {
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (pathname) => {
+        return {
+          allowedContentTypes: [
+            'video/mp4',
+            'video/mov',
+            'video/quicktime',
+            'video/webm',
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'image/webp',
+          ],
+          maximumSizeInBytes: 500 * 1024 * 1024,
+        }
+      },
+      onUploadCompleted: async ({ blob }) => {
+        console.log('[blob] Upload concluído:', blob.url)
+      },
+    })
+
+    return NextResponse.json(jsonResponse)
+  } catch (error) {
+    return NextResponse.json({ error: String(error) }, { status: 400 })
+  }
+}
