@@ -66,37 +66,32 @@ export default function AprovacaoConteudoPage() {
         demand_id: demandId,
       })
 
-      // 4. Upload via Vercel Blob
-      if (data.file) {
-        try {
-          const response = await fetch(
-            `/api/upload-video?filename=${encodeURIComponent(data.file.name)}&productionId=${created.id}`,
-            {
-              method: 'POST',
-              body: data.file,
-              headers: {
-                'content-type': data.file.type,
-                'content-length': String(data.file.size),
-              },
-            }
-          )
-          if (!response.ok) {
-            toast.error('Produção criada, mas houve falha no upload.')
-          }
-        } catch (uploadError) {
-          console.error('[v0] Erro no upload:', uploadError)
-          toast.error('Produção criada, mas houve falha no upload.')
-        }
-      }
+// 4. Upload via Vercel Blob (client-side)
+if (data.file) {
+  try {
+    const { upload } = await import('@vercel/blob/client')
 
-      toast.success('Produção criada com sucesso!')
-      return created.id
-    } catch (error) {
-      console.error('[v0] Erro ao salvar produção:', error)
-      toast.error('Houve um erro ao salvar a produção.')
-      return null
-    }
+    const blob = await upload(data.file.name, data.file, {
+      access: 'public',
+      handleUploadUrl: `/api/upload-video/token?productionId=${created.id}`,
+    })
+
+    await fetch('/api/upload-video/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productionId: created.id,
+        url: blob.url,
+        filename: data.file.name,
+        fileSize: data.file.size,
+        fileType: data.file.type,
+      }),
+    })
+  } catch (uploadError) {
+    console.error('[v0] Erro no upload:', uploadError)
+    toast.error('Produção criada, mas houve falha no upload.')
   }
+}
 
   const handleSubmit = async (data: ProductionFormData) => {
     setIsSubmitting(true)
