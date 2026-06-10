@@ -32,10 +32,10 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
     const file = e.target.files?.[0]
     if (!file) return
 
-    const isImage = file.type.startsWith('image/')
-    const isVideo = file.type.startsWith('video/')
+    const isImageFile = file.type.startsWith('image/')
+    const isVideoFile = file.type.startsWith('video/')
 
-    if (!isImage && !isVideo) {
+    if (!isImageFile && !isVideoFile) {
       toast.error('Por favor, selecione uma imagem ou vídeo')
       return
     }
@@ -48,21 +48,26 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
     setIsUploading(true)
 
     try {
-      const response = await fetch(
-        `/api/upload-video?filename=${encodeURIComponent(file.name)}&productionId=${productionId}`,
-        {
-          method: 'POST',
-          body: file,
-          headers: {
-            'content-type': file.type,
-            'content-length': String(file.size),
-          },
-        }
-      )
+      const { upload } = await import('@vercel/blob/client')
 
-      if (!response.ok) {
-        throw new Error('Erro ao fazer upload')
-      }
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
+      })
+
+      const confirmRes = await fetch('/api/upload-video/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productionId,
+          url: blob.url,
+          filename: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        }),
+      })
+
+      if (!confirmRes.ok) throw new Error('Erro ao salvar referência')
 
       toast.success('Arquivo enviado com sucesso!')
       onUpdate()
@@ -86,9 +91,7 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
           body: JSON.stringify({ fileId, url }),
         })
 
-        if (!response.ok) {
-          throw new Error('Erro ao excluir')
-        }
+        if (!response.ok) throw new Error('Erro ao excluir')
 
         toast.success('Arquivo excluído com sucesso!')
         onUpdate()
