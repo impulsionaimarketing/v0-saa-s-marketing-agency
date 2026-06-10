@@ -134,17 +134,17 @@ export function ProductionFormDialog({
 
   const uploadFile = async (productionId: string) => {
     if (!selectedFile) return
-  
+
     setIsUploading(true)
     try {
       const { upload } = await import('@vercel/blob/client')
-  
+
       const blob = await upload(selectedFile.name, selectedFile, {
         access: 'public',
         handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
       })
-  
-      await fetch('/api/upload-video/confirm', {
+
+      const confirmRes = await fetch('/api/upload-video/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -155,7 +155,9 @@ export function ProductionFormDialog({
           fileType: selectedFile.type,
         }),
       })
-  
+
+      if (!confirmRes.ok) throw new Error('Erro ao salvar referência do arquivo')
+
       toast.success('Arquivo enviado com sucesso!')
     } catch (error) {
       console.error('[v0] Upload error:', error)
