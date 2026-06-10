@@ -103,16 +103,16 @@ export async function getProductions(filters?: {
         }))
       }
 
-      // Conta comentários do cliente por produção (para o selo de "pedido de ajuste")
-      const { data: clientComments } = await supabase
-        .from('production_comments')
+      // Conta pedidos de ajuste do cliente por produção (para o selo no card)
+      const { data: adjustments } = await supabase
+        .from('production_approvals')
         .select('production_id')
-        .eq('is_client', true)
+        .eq('action', 'reprovado')
         .in('production_id', productionIds)
 
-      if (clientComments) {
+      if (adjustments) {
         const countMap = new Map<string, number>()
-        for (const row of clientComments) {
+        for (const row of adjustments) {
           const prodId = row.production_id as string
           countMap.set(prodId, (countMap.get(prodId) || 0) + 1)
         }

@@ -2,44 +2,44 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-export interface ProductionComment {
+export interface ProductionApproval {
   id: string
   production_id: string
-  user_id?: string | null
-  author_name: string
-  comment: string
-  is_client: boolean
+  action: string
+  comment: string | null
+  approved_by: string | null
   created_at: string
 }
 
-// ─── Buscar comentários de uma produção (mais antigos primeiro) ───────────────
-export async function getProductionComments(
+// ─── Buscar aprovações/comentários de uma produção (mais antigos primeiro) ─────
+export async function getProductionApprovals(
   productionId: string
-): Promise<ProductionComment[]> {
+): Promise<ProductionApproval[]> {
   try {
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('production_comments')
-      .select('id, production_id, user_id, author_name, comment, is_client, created_at')
+      .from('production_approvals')
+      .select('id, production_id, action, comment, approved_by, created_at')
       .eq('production_id', productionId)
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('[v0] Error fetching production comments:', error)
+      console.error('[v0] Error fetching production approvals:', error)
       return []
     }
 
-    return (data as ProductionComment[]) || []
+    return (data as ProductionApproval[]) || []
   } catch (error) {
-    console.error('[v0] Error fetching production comments:', error)
+    console.error('[v0] Error fetching production approvals:', error)
     return []
   }
 }
 
-// ─── Contagem de comentários do cliente por produção ──────────────────────────
+// ─── Contagem de pedidos de ajuste por produção ───────────────────────────────
 // Usado para exibir o selo de "pedido de alteração" nos cards do pipeline.
-export async function getClientCommentCounts(
+// Conta apenas as ações de "reprovado" (cliente solicitou ajuste).
+export async function getAdjustmentCounts(
   productionIds: string[]
 ): Promise<Record<string, number>> {
   const counts: Record<string, number> = {}
@@ -49,13 +49,13 @@ export async function getClientCommentCounts(
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('production_comments')
-      .select('production_id')
-      .eq('is_client', true)
+      .from('production_approvals')
+      .select('production_id, action')
+      .eq('action', 'reprovado')
       .in('production_id', productionIds)
 
     if (error) {
-      console.error('[v0] Error counting client comments:', error)
+      console.error('[v0] Error counting adjustments:', error)
       return counts
     }
 
@@ -66,41 +66,39 @@ export async function getClientCommentCounts(
 
     return counts
   } catch (error) {
-    console.error('[v0] Error counting client comments:', error)
+    console.error('[v0] Error counting adjustments:', error)
     return counts
   }
 }
 
-// ─── Adicionar comentário interno da equipe ───────────────────────────────────
-export async function addTeamComment(params: {
+// ─── Adicionar anotação interna da equipe ─────────────────────────────────────
+export async function addTeamNote(params: {
   productionId: string
   comment: string
   authorName: string
-  userId?: string
-}): Promise<ProductionComment | null> {
+}): Promise<ProductionApproval | null> {
   try {
     const supabase = await createClient()
 
     const { data, error } = await supabase
-      .from('production_comments')
+      .from('production_approvals')
       .insert({
         production_id: params.productionId,
-        author_name: params.authorName,
+        action: 'comentario',
         comment: params.comment.trim(),
-        is_client: false,
-        user_id: params.userId || null,
+        approved_by: params.authorName,
       })
-      .select('id, production_id, user_id, author_name, comment, is_client, created_at')
+      .select('id, production_id, action, comment, approved_by, created_at')
       .single()
 
     if (error) {
-      console.error('[v0] Error adding team comment:', error)
+      console.error('[v0] Error adding team note:', error)
       throw new Error(error.message)
     }
 
-    return data as ProductionComment
+    return data as ProductionApproval
   } catch (error) {
-    console.error('[v0] Error adding team comment:', error)
+    console.error('[v0] Error adding team note:', error)
     throw error
   }
 }
