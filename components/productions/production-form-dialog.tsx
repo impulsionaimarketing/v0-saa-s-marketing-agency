@@ -133,31 +133,37 @@ export function ProductionFormDialog({
   }
 
   const uploadFile = async (productionId: string) => {
-  if (!selectedFile) return
-
-  setIsUploading(true)
-  try {
-    const response = await fetch(
-      `/api/upload-video?filename=${encodeURIComponent(selectedFile.name)}&productionId=${productionId}`,
-      {
+    if (!selectedFile) return
+  
+    setIsUploading(true)
+    try {
+      const { upload } = await import('@vercel/blob/client')
+  
+      const blob = await upload(selectedFile.name, selectedFile, {
+        access: 'public',
+        handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
+      })
+  
+      await fetch('/api/upload-video/confirm', {
         method: 'POST',
-        body: selectedFile,
-        headers: {
-          'content-type': selectedFile.type,
-        },
-      }
-    )
-
-    if (!response.ok) throw new Error('Falha no upload')
-
-    toast.success('Arquivo enviado com sucesso!')
-  } catch (error) {
-    console.error('[v0] Upload error:', error)
-    toast.error('Erro ao enviar arquivo')
-  } finally {
-    setIsUploading(false)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productionId: productionId,
+          url: blob.url,
+          filename: selectedFile.name,
+          fileSize: selectedFile.size,
+          fileType: selectedFile.type,
+        }),
+      })
+  
+      toast.success('Arquivo enviado com sucesso!')
+    } catch (error) {
+      console.error('[v0] Upload error:', error)
+      toast.error('Erro ao enviar arquivo')
+    } finally {
+      setIsUploading(false)
+    }
   }
-}
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
