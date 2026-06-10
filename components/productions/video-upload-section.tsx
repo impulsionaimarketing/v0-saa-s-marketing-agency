@@ -32,16 +32,14 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type (images and videos)
-    const isImage = file.type.startsWith('image/')
-    const isVideo = file.type.startsWith('video/')
-    
-    if (!isImage && !isVideo) {
+    const isImageFile = file.type.startsWith('image/')
+    const isVideoFile = file.type.startsWith('video/')
+
+    if (!isImageFile && !isVideoFile) {
       toast.error('Por favor, selecione uma imagem ou vídeo')
       return
     }
 
-    // Validate file size (max 5GB for large video files)
     if (file.size > 5 * 1024 * 1024 * 1024) {
       toast.error('Arquivo muito grande. Tamanho máximo: 5GB')
       return
@@ -50,28 +48,35 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
     setIsUploading(true)
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('productionId', productionId)
+      const { upload } = await import('@vercel/blob/client')
 
-      const response = await fetch('/api/upload-video', {
-        method: 'POST',
-        body: formData,
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
       })
 
-      if (!response.ok) {
-        throw new Error('Erro ao fazer upload')
-      }
+      const confirmRes = await fetch('/api/upload-video/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productionId,
+          url: blob.url,
+          filename: file.name,
+          fileSize: file.size,
+          fileType: file.type,
+        }),
+      })
 
-      const data = await response.json()
-      toast.success('Vídeo enviado com sucesso!')
+      if (!confirmRes.ok) throw new Error('Erro ao salvar referência')
+
+      toast.success('Arquivo enviado com sucesso!')
       onUpdate()
     } catch (error) {
       console.error('[v0] Upload error:', error)
-      toast.error('Erro ao fazer upload do vídeo')
+      toast.error('Erro ao fazer upload do arquivo')
     } finally {
       setIsUploading(false)
-      e.target.value = '' // Reset input
+      e.target.value = ''
     }
   }
 
@@ -86,9 +91,7 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
           body: JSON.stringify({ fileId, url }),
         })
 
-        if (!response.ok) {
-          throw new Error('Erro ao excluir')
-        }
+        if (!response.ok) throw new Error('Erro ao excluir')
 
         toast.success('Arquivo excluído com sucesso!')
         onUpdate()
@@ -115,7 +118,6 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Upload Button */}
           <div>
             <input
               type="file"
@@ -150,7 +152,6 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
             </label>
           </div>
 
-          {/* Files List */}
           {files.length > 0 ? (
             <div className="space-y-2">
               {files.map((file) => (
@@ -216,7 +217,6 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
         </CardContent>
       </Card>
 
-      {/* Preview Dialog */}
       <Dialog open={!!previewFile} onOpenChange={() => setPreviewFile(null)}>
         <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] p-4 sm:p-6">
           <DialogHeader>
