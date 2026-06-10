@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { sendWebhookNotification } from '@/lib/webhooks/send-notification'
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +40,46 @@ export async function POST(req: NextRequest) {
         .from('productions')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', productionId)
+
+      // ─── Notificações (painel + webhook) ──────────────────────────────────
+      const { data: production } = await supabase
+        .from('productions')
+        .select('id, title, client_id')
+        .eq('id', productionId)
+        .single()
+
+      const productionTitle = production?.title || 'Produção'
+
+      if (decision === 'reprovado') {
+        try {
+          await supabase.from('alerts').insert({
+            type: 'late_task',
+            title: 'Ajuste solicitado pelo cliente',
+            description: `O cliente solicitou ajustes em "${productionTitle}".${
+              comment?.trim() ? ` Comentário: ${comment.trim()}` : ''
+            }`,
+            severity: 'high',
+            client_id: production?.client_id || null,
+            related_entity_type: 'production',
+            related_entity_id: productionId,
+          })
+        } catch (alertError) {
+          console.error('[bulk-respond] Erro ao criar alerta:', alertError)
+        }
+      }
+
+      await sendWebhookNotification(
+        decision === 'aprovado' ? 'approval.approved' : 'approval.adjustment_requested',
+        {
+          production_id: productionId,
+          production_title: productionTitle,
+          client_id: production?.client_id || null,
+          client_name: 'Cliente',
+          decision,
+          status: newStatus,
+          comment: comment?.trim() || null,
+        },
+      )
     }
 
     return NextResponse.json({ success: true })

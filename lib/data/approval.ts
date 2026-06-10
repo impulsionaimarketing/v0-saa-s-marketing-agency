@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { sendWebhookNotification } from '@/lib/webhooks/send-notification'
 
 // ─── Gerar link de aprovação para uma produção ───────────────────────────────
 export async function generateApprovalLink(productionId: string): Promise<string> {
@@ -127,6 +128,51 @@ export async function submitApprovalResponse(params: {
     .from('productions')
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', params.productionId)
+
+  // ─── Notificações (painel + webhook) ────────────────────────────────────────
+  // Busca dados da produção para enriquecer a notificação
+  const { data: production } = await supabase
+    .from('productions')
+    .select('id, title, client_id')
+    .eq('id', params.productionId)
+    .single()
+
+  const productionTitle = production?.title || 'Produção'
+  const clientLabel = params.clientName?.trim() || 'Cliente'
+
+  if (params.decision === 'reprovado') {
+    // Cria um alerta para aparecer no sino de notificações do painel.
+    // Usa o tipo 'late_task' por ser um valor válido na constraint existente da tabela alerts.
+    try {
+      await supabase.from('alerts').insert({
+        type: 'late_task',
+        title: 'Ajuste solicitado pelo cliente',
+        description: `${clientLabel} solicitou ajustes em "${productionTitle}".${
+          params.comment?.trim() ? ` Comentário: ${params.comment.trim()}` : ''
+        }`,
+        severity: 'high',
+        client_id: production?.client_id || null,
+        related_entity_type: 'production',
+        related_entity_id: params.productionId,
+      })
+    } catch (alertError) {
+      console.error('[v0] Erro ao criar alerta de ajuste:', alertError)
+    }
+  }
+
+  // Dispara webhook (não bloqueia a resposta ao cliente em caso de falha)
+  await sendWebhookNotification(
+    params.decision === 'aprovado' ? 'approval.approved' : 'approval.adjustment_requested',
+    {
+      production_id: params.productionId,
+      production_title: productionTitle,
+      client_id: production?.client_id || null,
+      client_name: clientLabel,
+      decision: params.decision,
+      status: newStatus,
+      comment: params.comment?.trim() || null,
+    },
+  )
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
