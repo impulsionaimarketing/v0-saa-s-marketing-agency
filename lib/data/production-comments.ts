@@ -1,6 +1,16 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+// Cliente anônimo direto (mesmo padrão usado para gravar as aprovações em
+// submitApprovalResponse). A tabela production_approvals é alimentada pelo link
+// público de aprovação via papel `anon`, então usamos o mesmo papel para ler,
+// garantindo acesso consistente independente das policies de RLS da sessão.
+async function createAnonClient() {
+  const { createClient: createSupabaseClient } = await import('@supabase/supabase-js')
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 export interface ProductionApproval {
   id: string
@@ -16,7 +26,7 @@ export async function getProductionApprovals(
   productionId: string
 ): Promise<ProductionApproval[]> {
   try {
-    const supabase = await createClient()
+    const supabase = await createAnonClient()
 
     const { data, error } = await supabase
       .from('production_approvals')
@@ -46,7 +56,7 @@ export async function getAdjustmentCounts(
   if (productionIds.length === 0) return counts
 
   try {
-    const supabase = await createClient()
+    const supabase = await createAnonClient()
 
     const { data, error } = await supabase
       .from('production_approvals')
@@ -78,7 +88,7 @@ export async function addTeamNote(params: {
   authorName: string
 }): Promise<ProductionApproval | null> {
   try {
-    const supabase = await createClient()
+    const supabase = await createAnonClient()
 
     const { data, error } = await supabase
       .from('production_approvals')
