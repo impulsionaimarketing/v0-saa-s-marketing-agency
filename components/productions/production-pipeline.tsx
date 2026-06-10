@@ -33,6 +33,7 @@ import {
   X,
   GripVertical,
   Pencil,
+  MessageSquare,
 } from 'lucide-react'
 import {
   getProductions,
@@ -48,6 +49,12 @@ import { cn } from '@/lib/utils'
 import { getDemands, type Demand } from '@/lib/data/demands' // Import Demand
 import { VideoUploadSection } from './video-upload-section'
 import { getProductionFiles, type ProductionFile } from '@/lib/data/production-files'
+import {
+  getProductionComments,
+  getClientCommentCounts,
+  type ProductionComment,
+} from '@/lib/data/production-comments'
+import { ProductionComments } from './production-comments'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { usePersistedFilters } from '@/lib/hooks/use-persisted-filters'
 import { useDragScroll } from '@/lib/hooks/use-drag-scroll'
@@ -80,6 +87,9 @@ export function ProductionPipeline() {
   })
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null)
   const [productionFiles, setProductionFiles] = useState<ProductionFile[]>([])
+  const [comments, setComments] = useState<ProductionComment[]>([])
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [clientCommentCounts, setClientCommentCounts] = useState<Record<string, number>>({})
   const [draggedItem, setDraggedItem] = useState<Production | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -101,7 +111,15 @@ export function ProductionPipeline() {
       setProductions(productionsData)
       setClients(clientsData)
       setDemands(demandsData) // Set Demands
+      getClientCommentCounts().then(setClientCommentCounts)
     })
+  }
+
+  const loadComments = (productionId: string) => {
+    setIsLoadingComments(true)
+    getProductionComments(productionId)
+      .then(setComments)
+      .finally(() => setIsLoadingComments(false))
   }
 
   const loadFiles = (productionId: string) => {
@@ -123,8 +141,10 @@ export function ProductionPipeline() {
   useEffect(() => {
     if (selectedProduction?.id) {
       loadFiles(selectedProduction.id)
+      loadComments(selectedProduction.id)
     } else {
       setProductionFiles([])
+      setComments([])
     }
   }, [selectedProduction?.id])
 
@@ -389,6 +409,18 @@ export function ProductionPipeline() {
                                 </Badge>
                               </div>
 
+                              {clientCommentCounts[production.id] > 0 && (
+                                <div className="flex items-center gap-1 mb-2 text-xs font-medium text-amber-600 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1">
+                                  <MessageSquare className="h-3 w-3 shrink-0" />
+                                  <span>
+                                    {clientCommentCounts[production.id]}{' '}
+                                    {clientCommentCounts[production.id] === 1
+                                      ? 'pedido do cliente'
+                                      : 'pedidos do cliente'}
+                                  </span>
+                                </div>
+                              )}
+
                               {production.notes && (
                                 <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
                                   {production.notes}
@@ -546,6 +578,9 @@ export function ProductionPipeline() {
                   })}
                 </div>
               )}
+
+              {/* Client / Team Comments */}
+              <ProductionComments comments={comments} isLoading={isLoadingComments} />
 
               {/* Video Upload Section */}
               {selectedProduction.id && (
