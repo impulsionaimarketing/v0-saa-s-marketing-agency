@@ -133,31 +133,31 @@ export function ProductionFormDialog({
   }
 
   const uploadFile = async (productionId: string) => {
-    if (!selectedFile) return
+  if (!selectedFile) return
 
-    setIsUploading(true)
-    try {
-      const uploadFormData = new FormData()
-      uploadFormData.append('file', selectedFile)
-      uploadFormData.append('productionId', productionId)
-
-      const response = await fetch('/api/upload-video', {
+  setIsUploading(true)
+  try {
+    const response = await fetch(
+      `/api/upload-video?filename=${encodeURIComponent(selectedFile.name)}&productionId=${productionId}`,
+      {
         method: 'POST',
-        body: uploadFormData,
-      })
-
-      if (!response.ok) {
-        throw new Error('Falha no upload')
+        body: selectedFile,
+        headers: {
+          'content-type': selectedFile.type,
+        },
       }
+    )
 
-      toast.success('Arquivo enviado com sucesso!')
-    } catch (error) {
-      console.error('[v0] Upload error:', error)
-      toast.error('Erro ao enviar arquivo')
-    } finally {
-      setIsUploading(false)
-    }
+    if (!response.ok) throw new Error('Falha no upload')
+
+    toast.success('Arquivo enviado com sucesso!')
+  } catch (error) {
+    console.error('[v0] Upload error:', error)
+    toast.error('Erro ao enviar arquivo')
+  } finally {
+    setIsUploading(false)
   }
+}
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
