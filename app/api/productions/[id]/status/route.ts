@@ -4,11 +4,11 @@ import { sendWebhookNotification } from '@/lib/webhooks/send-notification'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { status: newStatus } = await request.json()
-    const productionId = params.id
+    const { id: productionId } = await params
 
     if (!newStatus) {
       return NextResponse.json({ error: 'Status é obrigatório' }, { status: 400 })
