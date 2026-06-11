@@ -11,35 +11,17 @@ import {
   User,
   Calendar,
   Eye,
+  Check,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-interface ProductionFile {
-  id: string
-  filename: string
-  url: string
-  file_size?: number
-  file_type?: string
-  uploaded_at?: string
-}
-
-interface Production {
-  id: string
-  client_id: string
-  client_name?: string
-  type: 'Vídeo' | 'Arte'
-  responsible_id?: string
-  responsible_name?: string
-  status: string
-  post_date?: string
-  notes?: string
-  demand_id?: string
-  created_at: string
-  title?: string
-  caption?: string
-  approval_token?: string
-  files?: ProductionFile[]
-}
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface FeedbackItem {
   id: string
@@ -49,10 +31,41 @@ interface FeedbackItem {
   is_client?: boolean
 }
 
-interface ChangesViewProps {
-  productions: Production[]
-  onSelect: (production: Production) => void
+interface ProductionInfo {
+  id: string
+  title?: string
+  notes?: string
+  status: string
+  type?: string
+  client_name?: string
+  post_date?: string
+  thumbnail_url?: string | null
+  thumbnail_is_video?: boolean
 }
+
+interface FeedbackEntry {
+  production: ProductionInfo
+  feedback: FeedbackItem[]
+}
+
+interface ChangesViewProps {
+  // Abre o drawer de detalhes a partir do id da produção
+  onSelectById: (productionId: string) => void
+  // Atualiza o status da produção
+  onUpdateStatus: (id: string, newStatus: string) => Promise<void> | void
+  // Permite saber o status mais recente vindo da página
+  statusOverrides?: Record<string, string>
+}
+
+const STATUS_OPTIONS = [
+  'Planejamento',
+  'Produção',
+  'Aprovação do Cliente',
+  'Solicitou Ajuste',
+  'Aprovado',
+  'Programado',
+  'Publicado',
+]
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   'Planejamento': { bg: 'bg-amber-100', text: 'text-amber-700' },
@@ -80,21 +93,22 @@ function formatDate(dateString?: string) {
   })
 }
 
-export function ChangesView({ productions, onSelect }: ChangesViewProps) {
-  const [feedbackByProduction, setFeedbackByProduction] = useState<Record<string, FeedbackItem[]>>({})
+export function ChangesView({ onSelectById, onUpdateStatus, statusOverrides }: ChangesViewProps) {
+  const [entries, setEntries] = useState<FeedbackEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     fetch('/api/productions/feedback')
-      .then((res) => (res.ok ? res.json() : { feedbackByProduction: {} }))
+      .then((res) => (res.ok ? res.json() : { items: [] }))
       .then((data) => {
         if (cancelled) return
-        setFeedbackByProduction(data.feedbackByProduction || {})
+        setEntries(Array.isArray(data.items) ? data.items : [])
       })
       .catch(() => {
-        if (!cancelled) setFeedbackByProduction({})
+        if (!cancelled) setEntries([])
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -105,18 +119,37 @@ export function ChangesView({ productions, onSelect }: ChangesViewProps) {
     }
   }, [])
 
-  // Apenas produções que possuem feedback do cliente
-  const productionsWithFeedback = productions
-    .map((production) => ({
-      production,
-      feedback: feedbackByProduction[production.id] || [],
-    }))
-    .filter((entry) => entry.feedback.length > 0)
-    .sort((a, b) => {
-      const da = a.feedback[0]?.date ? new Date(a.feedback[0].date).getTime() : 0
-      const db = b.feedback[0]?.date ? new Date(b.feedback[0].date).getTime() : 0
-      return db - da
-    })
+  const handleMarkDone = async (productionId: string) => {
+    setUpdatingId(productionId)
+    try {
+      await onUpdateStatus(productionId, 'Aprovado')
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.production.id === productionId
+            ? { ...e, production: { ...e.production, status: 'Aprovado' } }
+            : e
+        )
+      )
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const handleChangeStatus = async (productionId: string, status: string) => {
+    setUpdatingId(productionId)
+    try {
+      await onUpdateStatus(productionId, status)
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.production.id === productionId
+            ? { ...e, production: { ...e.production, status } }
+            : e
+        )
+      )
+    } finally {
+      setUpdatingId(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -128,7 +161,7 @@ export function ChangesView({ productions, onSelect }: ChangesViewProps) {
     )
   }
 
-  if (productionsWithFeedback.length === 0) {
+  if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
@@ -146,12 +179,12 @@ export function ChangesView({ productions, onSelect }: ChangesViewProps) {
 
   return (
     <div className="space-y-4">
-      {productionsWithFeedback.map(({ production, feedback }) => {
-        const statusColor = getStatusColor(production.status)
-        const firstFile = production.files?.[0]
-        const thumbnailUrl = firstFile?.url || null
-        const isVideo =
-          production.type === 'Vídeo' || firstFile?.file_type?.startsWith('video/')
+      {entries.map(({ production, feedback }) => {
+        const currentStatus = statusOverrides?.[production.id] || production.status
+        const statusColor = getStatusColor(currentStatus)
+        const isDone = currentStatus === 'Aprovado' || currentStatus === 'Publicado'
+        const isUpdating = updatingId === production.id
+        const isVideo = production.thumbnail_is_video
 
         return (
           <div
@@ -161,17 +194,17 @@ export function ChangesView({ productions, onSelect }: ChangesViewProps) {
             {/* Cabeçalho da produção */}
             <div className="flex items-start gap-4 p-4 border-b border-border">
               <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden flex items-center justify-center flex-shrink-0">
-                {thumbnailUrl ? (
+                {production.thumbnail_url ? (
                   isVideo ? (
                     <video
-                      src={thumbnailUrl}
+                      src={production.thumbnail_url}
                       className="w-full h-full object-cover"
                       muted
                       playsInline
                     />
                   ) : (
                     <img
-                      src={thumbnailUrl}
+                      src={production.thumbnail_url}
                       alt={production.title || 'Produção'}
                       className="w-full h-full object-cover"
                     />
@@ -195,7 +228,7 @@ export function ChangesView({ productions, onSelect }: ChangesViewProps) {
                       statusColor.text
                     )}
                   >
-                    {production.status}
+                    {currentStatus}
                   </Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
@@ -245,16 +278,52 @@ export function ChangesView({ productions, onSelect }: ChangesViewProps) {
                 </div>
               ))}
 
-              <div className="flex justify-end pt-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => onSelect(production)}
-                >
-                  <Eye className="w-4 h-4" />
-                  Ver produção
-                </Button>
+              {/* Ações */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Status:</span>
+                  <Select
+                    value={currentStatus}
+                    onValueChange={(value) => handleChangeStatus(production.id, value)}
+                    disabled={isUpdating}
+                  >
+                    <SelectTrigger className="h-8 w-[180px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_OPTIONS.map((status) => (
+                        <SelectItem key={status} value={status} className="text-xs">
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => onSelectById(production.id)}
+                  >
+                    <Eye className="w-4 h-4" />
+                    Ver produção
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => handleMarkDone(production.id)}
+                    disabled={isUpdating || isDone}
+                  >
+                    {isUpdating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4" />
+                    )}
+                    {isDone ? 'Concluída' : 'Marcar como feita'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

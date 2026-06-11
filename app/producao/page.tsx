@@ -450,8 +450,14 @@ export default function ProducaoPage() {
               )}
               {viewMode === 'changes' && (
                 <ChangesView
-                  productions={filteredProductions}
-                  onSelect={handleSelectProduction}
+                  onSelectById={(id) => {
+                    const prod = productions.find((p) => p.id === id)
+                    if (prod) {
+                      setSelectedProduction(prod)
+                      setDrawerOpen(true)
+                    }
+                  }}
+                  onUpdateStatus={handleUpdateStatus}
                 />
               )}
             </div>
