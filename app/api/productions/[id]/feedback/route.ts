@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 
 // Ordena registros pelo campo de data disponível (created_at ou similar), mais recente primeiro
 function sortByDateDesc<T extends Record<string, any>>(rows: T[]): T[] {
@@ -19,7 +19,10 @@ export async function GET(
 ) {
   try {
     const { id: productionId } = await params
-    const supabase = await createClient()
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
 
     // Comentários enviados pelo cliente na página de aprovação
     const { data: comments, error: commentsError } = await supabase
