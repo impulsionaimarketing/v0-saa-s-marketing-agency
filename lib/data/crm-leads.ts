@@ -50,6 +50,7 @@ export async function createCRMLead(data: {
   company?: string | null
   source?: string | null
   notes?: string | null
+  proposal_value?: number
   status?: CRMStatus
 }): Promise<CRMLead | null> {
   try {
@@ -64,6 +65,7 @@ export async function createCRMLead(data: {
         company: data.company || null,
         source: data.source || null,
         notes: data.notes || null,
+        proposal_value: data.proposal_value ?? 0,
         status: data.status || "lead_novo",
       })
       .select("*")

@@ -57,6 +57,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
     company: '',
     source: '',
     notes: '',
+    proposal_value: '',
     status: (defaultStatus || 'lead_novo') as CRMStatus,
   })
 
@@ -69,6 +70,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         company: lead?.company || '',
         source: lead?.source || '',
         notes: lead?.notes || '',
+        proposal_value: lead?.proposal_value ? String(lead.proposal_value) : '',
         status: lead?.status || defaultStatus || 'lead_novo',
       })
     }
@@ -86,6 +88,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
+          proposal_value: Number(formData.proposal_value) || 0,
           status: formData.status,
         }
 
@@ -106,6 +109,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             company: '',
             source: '',
             notes: '',
+            proposal_value: '',
             status: defaultStatus || 'lead_novo',
           })
         }
@@ -197,6 +201,22 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             </div>
 
             <div className="grid gap-2">
+              <Label htmlFor="proposal_value">Valor da Proposta (R$)</Label>
+              <Input
+                id="proposal_value"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.proposal_value}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
+                }
+                placeholder="0,00"
+                className="bg-secondary border-border"
+              />
+            </div>
+
+            <div className="grid gap-2">
               <Label htmlFor="source">Origem</Label>
               <Input
                 id="source"
@@ -280,6 +300,7 @@ export function CRMLeadFormDialogControlled({
     company: '',
     source: '',
     notes: '',
+    proposal_value: '',
     status: 'lead_novo' as CRMStatus,
   })
 
@@ -292,6 +313,7 @@ export function CRMLeadFormDialogControlled({
         company: lead.company || '',
         source: lead.source || '',
         notes: lead.notes || '',
+        proposal_value: lead.proposal_value ? String(lead.proposal_value) : '',
         status: lead.status || 'lead_novo',
       })
     }
@@ -309,6 +331,7 @@ export function CRMLeadFormDialogControlled({
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
+          proposal_value: Number(formData.proposal_value) || 0,
           status: formData.status,
         }
 
@@ -397,6 +420,22 @@ export function CRMLeadFormDialogControlled({
                   className="bg-secondary border-border"
                 />
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="proposal_value-controlled">Valor da Proposta (R$)</Label>
+              <Input
+                id="proposal_value-controlled"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.proposal_value}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
+                }
+                placeholder="0,00"
+                className="bg-secondary border-border"
+              />
             </div>
 
             <div className="grid gap-2">

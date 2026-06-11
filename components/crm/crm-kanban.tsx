@@ -42,6 +42,7 @@ import {
   CRM_STATUS_CONFIG,
   CRM_COLUMNS,
   CRM_TO_CONTRACT_STATUS,
+  formatCurrencyBRL,
 } from '@/lib/data/crm-config'
 import { CRMLeadFormDialog, CRMLeadFormDialogControlled } from './crm-lead-form-dialog'
 import { DeleteDialog } from '@/components/shared/delete-dialog'
@@ -142,6 +143,14 @@ function LeadDetailModal({
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Origem</p>
                 <p className="font-medium">{lead.source}</p>
+              </div>
+            )}
+            {lead.value > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">
+                  {lead.entity === 'client' ? 'Valor Mensal' : 'Valor da Proposta'}
+                </p>
+                <p className="font-semibold text-primary">{formatCurrencyBRL(lead.value)}</p>
               </div>
             )}
             <div>
@@ -272,6 +281,12 @@ function LeadCard({
             </span>
           )}
         </div>
+
+        {lead.value > 0 && (
+          <p className="text-sm font-semibold text-primary mt-2">
+            {formatCurrencyBRL(lead.value)}
+          </p>
+        )}
       </CardContent>
     </Card>
   )
@@ -482,6 +497,7 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
           {CRM_COLUMNS.map((column) => {
             const columnLeads = getColumnLeads(column.id)
             const statusConfig = CRM_STATUS_CONFIG[column.id]
+            const columnTotal = columnLeads.reduce((sum, lead) => sum + (lead.value || 0), 0)
 
             return (
               <div
@@ -492,12 +508,17 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
               >
                 {/* Column Header */}
                 <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
-                      {column.title}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      ({columnLeads.length})
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
+                        {column.title}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({columnLeads.length})
+                      </span>
+                    </div>
+                    <span className="text-xs font-semibold text-primary px-0.5">
+                      {formatCurrencyBRL(columnTotal)}
                     </span>
                   </div>
                   <CRMLeadFormDialog
