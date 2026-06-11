@@ -1,28 +1,38 @@
+import { ProtectedRoute } from '@/components/auth/protected-route'
+import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
+import { AppShell } from '@/components/layout/app-shell'
 import { CRMKanban } from '@/components/crm/crm-kanban'
-import { getCRMLeads } from '@/lib/data/crm-leads'
-import type { CRMLead } from '@/lib/data/crm-config'
+import { getCRMCards } from '@/lib/data/crm-leads'
+import type { CRMCard } from '@/lib/data/crm-config'
 
 export default async function CRMPage() {
-  let initialLeads: CRMLead[] = []
-  
+  let initialCards: CRMCard[] = []
+
   try {
-    const data = await getCRMLeads()
-    initialLeads = Array.isArray(data) ? data : []
+    const data = await getCRMCards()
+    initialCards = Array.isArray(data) ? data : []
   } catch (error) {
-    console.error('[v0] Error fetching initial CRM leads:', error)
-    initialLeads = []
+    console.error('[v0] Error fetching initial CRM cards:', error)
+    initialCards = []
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">CRM</h1>
-        <p className="text-muted-foreground">
-          Gerencie seus leads e acompanhe o funil de vendas
-        </p>
-      </div>
+    <ProtectedRoute>
+      <ModuleAccessWrapper moduleName="crm" moduleDisplayName="CRM">
+        <AppShell>
+          <div className="space-y-6">
+            {/* Page header */}
+            <div>
+              <h1 className="text-2xl font-bold">CRM</h1>
+              <p className="text-muted-foreground text-sm sm:text-base">
+                Gerencie seus leads e acompanhe o funil de vendas
+              </p>
+            </div>
 
-      <CRMKanban initialLeads={initialLeads} />
-    </div>
+            <CRMKanban initialCards={initialCards} />
+          </div>
+        </AppShell>
+      </ModuleAccessWrapper>
+    </ProtectedRoute>
   )
 }

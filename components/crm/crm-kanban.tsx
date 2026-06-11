@@ -32,20 +32,22 @@ import {
   Calendar,
 } from 'lucide-react'
 import {
-  getCRMLeads,
-  updateCRMLeadStatus,
+  getCRMCards,
+  updateCRMCardStatus,
   deleteCRMLead,
 } from '@/lib/data/crm-leads'
 import {
-  type CRMLead,
+  type CRMCard,
   type CRMStatus,
   CRM_STATUS_CONFIG,
   CRM_COLUMNS,
+  CRM_TO_CONTRACT_STATUS,
 } from '@/lib/data/crm-config'
 import { CRMLeadFormDialog, CRMLeadFormDialogControlled } from './crm-lead-form-dialog'
 import { DeleteDialog } from '@/components/shared/delete-dialog'
 import { cn } from '@/lib/utils'
 import { useDragScroll } from '@/lib/hooks/use-drag-scroll'
+import { toast } from 'sonner'
 
 // ─── Lead Detail Modal ────────────────────────────────────────────────────────
 function LeadDetailModal({
@@ -55,7 +57,7 @@ function LeadDetailModal({
   onEdit,
   onDelete,
 }: {
-  lead: CRMLead | null
+  lead: CRMCard | null
   open: boolean
   onClose: () => void
   onEdit: () => void
@@ -64,6 +66,7 @@ function LeadDetailModal({
   if (!lead) return null
 
   const statusConfig = CRM_STATUS_CONFIG[lead.status]
+  const isClient = lead.entity === 'client'
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -76,16 +79,23 @@ function LeadDetailModal({
                 <Badge variant="outline" className={cn('text-xs', statusConfig.color)}>
                   {statusConfig.label}
                 </Badge>
+                {isClient && (
+                  <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/30">
+                    Cliente
+                  </Badge>
+                )}
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
+            {!isClient && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={onEdit}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </DialogHeader>
 
@@ -169,7 +179,7 @@ function LeadCard({
   onEdit,
   onDelete,
 }: {
-  lead: CRMLead
+  lead: CRMCard
   onDragStart: (e: React.DragEvent) => void
   onDragEnd: () => void
   onDragOver: (e: React.DragEvent) => void
@@ -179,6 +189,7 @@ function LeadCard({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const isClient = lead.entity === 'client'
   return (
     <Card
       draggable
@@ -198,7 +209,7 @@ function LeadCard({
             <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 cursor-grab" />
             <div className="min-w-0 flex-1">
               <p className="font-medium text-sm truncate">{lead.name}</p>
-              {lead.company && (
+              {lead.company && !isClient && (
                 <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
                   <Building2 className="h-3 w-3" />
                   {lead.company}
@@ -206,26 +217,32 @@ function LeadCard({
               )}
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {isClient ? (
+            <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30 shrink-0">
+              Cliente
+            </Badge>
+          ) : (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -262,37 +279,37 @@ function LeadCard({
 
 // ─── Main CRM Kanban ──────────────────────────────────────────────────────────
 interface CRMKanbanProps {
-  initialLeads?: CRMLead[]
+  initialCards?: CRMCard[]
 }
 
-export function CRMKanban({ initialLeads = [] }: CRMKanbanProps) {
-  const [leads, setLeads] = useState<CRMLead[]>(Array.isArray(initialLeads) ? initialLeads : [])
+export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
+  const [leads, setLeads] = useState<CRMCard[]>(Array.isArray(initialCards) ? initialCards : [])
   const [isLoading, setIsLoading] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [searchQuery, setSearchQuery] = useState('')
   
   // Drag state
-  const [draggedItem, setDraggedItem] = useState<CRMLead | null>(null)
+  const [draggedItem, setDraggedItem] = useState<CRMCard | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
   const { onDragStart: dragScrollStart, onDragEnd: dragScrollEnd } = useDragScroll()
   
   // Detail modal
-  const [selectedLead, setSelectedLead] = useState<CRMLead | null>(null)
+  const [selectedLead, setSelectedLead] = useState<CRMCard | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   
   // Edit modal
-  const [editingLead, setEditingLead] = useState<CRMLead | null>(null)
+  const [editingLead, setEditingLead] = useState<CRMCard | null>(null)
   
   // Delete dialog
-  const [deletingLead, setDeletingLead] = useState<CRMLead | null>(null)
+  const [deletingLead, setDeletingLead] = useState<CRMCard | null>(null)
 
   async function loadLeads() {
     try {
-      const data = await getCRMLeads()
+      const data = await getCRMCards()
       // Ensure data is always an array
       setLeads(Array.isArray(data) ? data : [])
     } catch (error) {
-      console.error('[v0] Error loading leads:', error)
+      console.error('[v0] Error loading CRM cards:', error)
       setLeads([])
     } finally {
       setIsLoading(false)
@@ -315,7 +332,7 @@ export function CRMKanban({ initialLeads = [] }: CRMKanbanProps) {
     filteredLeads.filter((lead) => lead.status === status)
 
   // Drag handlers
-  const handleDragStart = (e: React.DragEvent, lead: CRMLead) => {
+  const handleDragStart = (e: React.DragEvent, lead: CRMCard) => {
     setDraggedItem(lead)
     e.dataTransfer.effectAllowed = 'move'
     dragScrollStart()
@@ -342,12 +359,21 @@ export function CRMKanban({ initialLeads = [] }: CRMKanbanProps) {
     e.preventDefault()
     if (!draggedItem) return
 
-    const oldStatus = draggedItem.status
+    const card = draggedItem
+    const oldStatus = card.status
+
+    // Clientes só podem ser movidos entre as colunas de contrato
+    if (card.entity === 'client' && !CRM_TO_CONTRACT_STATUS[newStatus]) {
+      toast.error('Clientes só podem ser movidos entre Contrato Ativo, Pausado e Perdido.')
+      setDraggedItem(null)
+      setDragOverId(null)
+      return
+    }
 
     // Optimistic update
     setLeads((prev) =>
       prev.map((lead) =>
-        lead.id === draggedItem.id ? { ...lead, status: newStatus } : lead
+        lead.id === card.id ? { ...lead, status: newStatus } : lead
       )
     )
 
@@ -355,7 +381,7 @@ export function CRMKanban({ initialLeads = [] }: CRMKanbanProps) {
     if (oldStatus !== newStatus) {
       startTransition(async () => {
         try {
-          await updateCRMLeadStatus(draggedItem.id, newStatus)
+          await updateCRMCardStatus(card.id, card.entity, newStatus)
         } catch {
           // Rollback on error
           loadLeads()
@@ -368,12 +394,12 @@ export function CRMKanban({ initialLeads = [] }: CRMKanbanProps) {
   }
 
   // Actions
-  const openDetail = (lead: CRMLead) => {
+  const openDetail = (lead: CRMCard) => {
     setSelectedLead(lead)
     setDetailOpen(true)
   }
 
-  const handleEdit = (lead: CRMLead) => {
+  const handleEdit = (lead: CRMCard) => {
     setEditingLead(lead)
     setDetailOpen(false)
   }

@@ -1,7 +1,8 @@
 "use server"
 
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
-import type { CRMLead, CRMStatus } from "@/lib/data/crm-config"
+import type { CRMLead, CRMStatus, CRMCard } from "@/lib/data/crm-config"
+import { CONTRACT_STATUS_TO_CRM, CRM_TO_CONTRACT_STATUS } from "@/lib/data/crm-config"
 
 export async function getCRMLeads(filters?: {
   status?: CRMStatus | "all"
@@ -139,4 +140,99 @@ export async function deleteCRMLead(id: string): Promise<void> {
     console.error("[v0] Error deleting CRM lead:", error)
     throw error
   }
+}
+
+// ─── Cards unificados (leads do CRM + clientes da agência) ──────────────────────
+
+// Converte um registro da tabela `clients` em um card do CRM
+function clientToCRMCard(client: any): CRMCard {
+  const primaryInstance = Array.isArray(client.whatsapp_instances)
+    ? client.whatsapp_instances.find((i: any) => i?.is_primary) ?? client.whatsapp_instances[0]
+    : null
+
+  return {
+    id: client.id,
+    name: client.name,
+    phone: primaryInstance?.phone_number ?? null,
+    email: null,
+    company: client.name,
+    source: "Cliente",
+    notes: null,
+    status: CONTRACT_STATUS_TO_CRM[client.contract_status] ?? "contrato_ativo",
+    created_at: client.created_at,
+    updated_at: client.updated_at,
+    entity: "client",
+  }
+}
+
+// Retorna leads do CRM e clientes da agência combinados como cards
+export async function getCRMCards(): Promise<CRMCard[]> {
+  try {
+    const supabase = await createSupabaseClient()
+
+    if (!supabase) {
+      console.error("[v0] Failed to create Supabase client")
+      return []
+    }
+
+    const [leadsResult, clientsResult] = await Promise.all([
+      supabase.from("crm_leads").select("*").order("created_at", { ascending: false }),
+      supabase
+        .from("clients")
+        .select("id, name, contract_status, whatsapp_instances, created_at, updated_at")
+        .order("name"),
+    ])
+
+    if (leadsResult.error) {
+      console.error("[v0] Error fetching CRM leads:", leadsResult.error)
+    }
+    if (clientsResult.error) {
+      console.error("[v0] Error fetching clients for CRM:", clientsResult.error)
+    }
+
+    const leadCards: CRMCard[] = (leadsResult.data || []).map((lead: any) => ({
+      ...(lead as CRMLead),
+      entity: "lead",
+    }))
+
+    const clientCards: CRMCard[] = (clientsResult.data || []).map(clientToCRMCard)
+
+    return [...clientCards, ...leadCards]
+  } catch (error) {
+    console.error("[v0] Error fetching CRM cards:", error)
+    return []
+  }
+}
+
+// Atualiza o status de um card, roteando para a tabela correta
+export async function updateCRMCardStatus(
+  id: string,
+  entity: "lead" | "client",
+  newStatus: CRMStatus
+): Promise<void> {
+  if (entity === "client") {
+    const contractStatus = CRM_TO_CONTRACT_STATUS[newStatus]
+    // Clientes só podem ser movidos entre as colunas de contrato
+    if (!contractStatus) {
+      throw new Error("Clientes só podem ser movidos entre as colunas de contrato.")
+    }
+    try {
+      const supabase = await createSupabaseClient()
+      const { error } = await supabase
+        .from("clients")
+        .update({ contract_status: contractStatus, updated_at: new Date().toISOString() })
+        .eq("id", id)
+
+      if (error) {
+        console.error("[v0] Error updating client contract_status:", error)
+        throw new Error(error.message)
+      }
+    } catch (error) {
+      console.error("[v0] Error updating client contract_status:", error)
+      throw error
+    }
+    return
+  }
+
+  await updateCRMLeadStatus(id, newStatus)
 }

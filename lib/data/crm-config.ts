@@ -36,3 +36,22 @@ export const CRM_COLUMNS: { id: CRMStatus; title: string }[] = [
   { id: "contrato_pausado", title: "Contrato Pausado" },
   { id: "contrato_cancelado", title: "Contrato Cancelado" },
 ]
+
+// Mapeia o contract_status da tabela `clients` para as colunas do CRM
+export const CONTRACT_STATUS_TO_CRM: Record<string, CRMStatus> = {
+  Ativo: "contrato_ativo",
+  Pausado: "contrato_pausado",
+  Perdido: "contrato_cancelado",
+}
+
+// Mapeia as colunas do CRM de volta para o contract_status da tabela `clients`
+export const CRM_TO_CONTRACT_STATUS: Partial<Record<CRMStatus, "Ativo" | "Pausado" | "Perdido">> = {
+  contrato_ativo: "Ativo",
+  contrato_pausado: "Pausado",
+  contrato_cancelado: "Perdido",
+}
+
+// Card unificado do kanban: pode ser um lead do CRM ou um cliente da agência
+export interface CRMCard extends CRMLead {
+  entity: "lead" | "client"
+}
