@@ -26,11 +26,12 @@ import {
   X,
   Link as LinkIcon,
   Loader2,
+  MessageSquare,
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
-import { FeedView, KanbanView, CalendarView, ListView } from '@/components/productions/views'
+import { FeedView, KanbanView, CalendarView, ListView, ChangesView } from '@/components/productions/views'
 import { ProductionDetailDrawer } from '@/components/productions/production-detail-drawer'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { toast } from 'sonner'
@@ -77,7 +78,7 @@ const STATUS_OPTIONS = [
   'Publicado',
 ]
 
-type ViewMode = 'feed' | 'kanban' | 'calendar' | 'list'
+type ViewMode = 'feed' | 'kanban' | 'calendar' | 'list' | 'changes'
 
 export default function ProducaoPage() {
   const { user } = useAuth()
@@ -403,6 +404,10 @@ export default function ProducaoPage() {
                   <List className="h-4 w-4" />
                   <span className="hidden sm:inline">Lista</span>
                 </TabsTrigger>
+                <TabsTrigger value="changes" className="gap-2 data-[state=active]:bg-background">
+                  <MessageSquare className="h-4 w-4" />
+                  <span className="hidden sm:inline">Alterações</span>
+                </TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -441,6 +446,12 @@ export default function ProducaoPage() {
                   onUpdateStatus={handleUpdateStatus}
                   selectionMode={selectionMode}
                   selectedIds={selectedIds}
+                />
+              )}
+              {viewMode === 'changes' && (
+                <ChangesView
+                  productions={filteredProductions}
+                  onSelect={handleSelectProduction}
                 />
               )}
             </div>
