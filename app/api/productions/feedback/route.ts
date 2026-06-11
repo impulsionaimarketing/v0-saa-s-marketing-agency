@@ -27,45 +27,88 @@ export async function GET() {
   try {
     const supabase = await createClient()
 
-    const { data: comments, error: commentsError } = await supabase
-      .from('production_comments')
-      .select('*')
-      .order('created_at', { ascending: false })
+    // Os comentários do cliente são gravados em DUAS tabelas:
+    // - production_comments (comentário avulso)
+    // - production_approvals (decisão + comentário)
+    // Buscamos as duas e mesclamos, deduplicando pelo texto.
+    const [commentsRes, approvalsRes] = await Promise.all([
+      supabase
+        .from('production_comments')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('production_approvals')
+        .select('*')
+        .order('created_at', { ascending: false }),
+    ])
 
-    if (commentsError) {
-      console.error('[feedback-all] erro ao buscar comentários:', commentsError)
-      return NextResponse.json({ items: [], error: commentsError.message }, { status: 200 })
+    if (commentsRes.error) {
+      console.error('[feedback-all] erro ao buscar comentários:', commentsRes.error)
+    }
+    if (approvalsRes.error) {
+      console.error('[feedback-all] erro ao buscar aprovações:', approvalsRes.error)
     }
 
-    const rows = comments || []
-    if (rows.length === 0) {
+    // Normaliza os dois formatos numa lista única de feedback
+    const normalized: { production_id: string; item: FeedbackItem }[] = []
+
+    for (const c of commentsRes.data || []) {
+      const text = (c.comment as string | null)?.trim()
+      if (!c.production_id || !text) continue
+      normalized.push({
+        production_id: c.production_id,
+        item: {
+          id: c.id,
+          author: c.author_name || 'Cliente',
+          comment: text,
+          date: c.created_at,
+          is_client: c.is_client ?? true,
+        },
+      })
+    }
+
+    for (const a of approvalsRes.data || []) {
+      const text = (a.comment as string | null)?.trim()
+      // Só interessa quando há um comentário/alteração escrito pelo cliente
+      if (!a.production_id || !text) continue
+      normalized.push({
+        production_id: a.production_id,
+        item: {
+          id: a.id,
+          author: a.approved_by || 'Cliente',
+          comment: text,
+          date: a.created_at,
+          is_client: true,
+        },
+      })
+    }
+
+    if (normalized.length === 0) {
       return NextResponse.json({ items: [] })
     }
 
-    // Agrupa os comentários por produção, removendo textos duplicados
+    // Agrupa por produção, removendo textos duplicados (mesmo comentário nas 2 tabelas)
     const feedbackByProduction = new Map<string, FeedbackItem[]>()
     const seenByProduction = new Map<string, Set<string>>()
 
-    for (const c of rows) {
-      const productionId = c.production_id as string
-      const text = (c.comment as string | null)?.trim()
-      if (!productionId || !text) continue
-
-      if (!feedbackByProduction.has(productionId)) {
-        feedbackByProduction.set(productionId, [])
-        seenByProduction.set(productionId, new Set())
+    for (const { production_id, item } of normalized) {
+      if (!feedbackByProduction.has(production_id)) {
+        feedbackByProduction.set(production_id, [])
+        seenByProduction.set(production_id, new Set())
       }
-      const seen = seenByProduction.get(productionId)!
-      const key = text.toLowerCase()
+      const seen = seenByProduction.get(production_id)!
+      const key = item.comment.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
+      feedbackByProduction.get(production_id)!.push(item)
+    }
 
-      feedbackByProduction.get(productionId)!.push({
-        id: c.id,
-        author: c.author_name || 'Cliente',
-        comment: text,
-        date: c.created_at,
-        is_client: c.is_client ?? true,
+    // Ordena os comentários de cada produção pela data mais recente
+    for (const list of feedbackByProduction.values()) {
+      list.sort((a, b) => {
+        const da = a.date ? new Date(a.date).getTime() : 0
+        const db = b.date ? new Date(b.date).getTime() : 0
+        return db - da
       })
     }
 
