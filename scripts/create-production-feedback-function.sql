@@ -29,15 +29,16 @@ AS $$
     pc.production_id,
     p.title AS production_title,
     p.status AS production_status,
-    p.client_name,
-    p.thumbnail_url,
+    c.name AS client_name,
+    NULL::text AS thumbnail_url,
     COALESCE(pc.author_name, 'Cliente') AS author,
     pc.comment,
     COALESCE(pc.is_client, true) AS is_client,
     'comment'::text AS source,
     pc.created_at
   FROM production_comments pc
-  JOIN productions p ON p.id = pc.production_id
+  LEFT JOIN productions p ON p.id = pc.production_id
+  LEFT JOIN clients c ON c.id = p.client_id
   WHERE pc.comment IS NOT NULL AND btrim(pc.comment) <> ''
 
   UNION ALL
@@ -48,15 +49,16 @@ AS $$
     pa.production_id,
     p.title AS production_title,
     p.status AS production_status,
-    p.client_name,
-    p.thumbnail_url,
+    c.name AS client_name,
+    NULL::text AS thumbnail_url,
     COALESCE(pa.approved_by, 'Cliente') AS author,
     pa.comment,
     true AS is_client,
     'approval'::text AS source,
     pa.created_at
   FROM production_approvals pa
-  JOIN productions p ON p.id = pa.production_id
+  LEFT JOIN productions p ON p.id = pa.production_id
+  LEFT JOIN clients c ON c.id = p.client_id
   WHERE pa.comment IS NOT NULL AND btrim(pa.comment) <> ''
 
   ORDER BY created_at DESC;
