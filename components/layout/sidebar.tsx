@@ -23,6 +23,7 @@ import {
   CheckSquare,
   Calendar,
   Kanban,
+  Instagram,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
@@ -46,6 +47,7 @@ const menuItems: MenuItem[] = [
   { name: 'Cronograma Mensal', href: '/cronograma', icon: Calendar, moduleName: 'clientes' },
   { name: 'Demandas', href: '/demandas', icon: ClipboardList, moduleName: 'demandas' },
   { name: 'Produção', href: '/producao', icon: Film, moduleName: 'producoes' },
+  { name: 'Stories Automáticos', href: '/stories-automaticos', icon: Instagram, moduleName: 'stories_automaticos' },
   { name: 'Tráfego Pago', href: '/trafego', icon: Target, moduleName: 'campanhas' },
   { name: 'Relatórios', href: '/relatorios', icon: FileText, moduleName: 'relatorios' },
   { name: 'Colaboradores', href: '/colaboradores', icon: UserCircle, moduleName: 'usuarios' },

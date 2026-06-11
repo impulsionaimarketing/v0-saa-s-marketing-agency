@@ -1,0 +1,292 @@
+"use server"
+
+import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import type {
+  StoryContent,
+  StoryAutomation,
+  StoryPublicationHistory,
+  StorySummary,
+  CreateStoryContentInput,
+  UpdateStoryContentInput,
+  UpsertStoryAutomationInput,
+} from "@/lib/types/stories"
+
+// =====================================================================
+// CONTEÚDOS
+// =====================================================================
+
+export async function getStoryContents(companyId: string): Promise<StoryContent[]> {
+  try {
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase
+      .from("story_contents")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("[v0] Error fetching story contents:", error)
+      return []
+    }
+    return (data as StoryContent[]) || []
+  } catch (error) {
+    console.error("[v0] Error fetching story contents:", error)
+    return []
+  }
+}
+
+export async function createStoryContent(
+  input: CreateStoryContentInput,
+): Promise<StoryContent | null> {
+  try {
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase
+      .from("story_contents")
+      .insert({
+        company_id: input.company_id,
+        type: input.type,
+        source: input.source,
+        file_url: input.file_url ?? null,
+        thumbnail_url: input.thumbnail_url ?? null,
+        caption: input.caption ?? null,
+        instagram_media_id: input.instagram_media_id ?? null,
+        instagram_permalink: input.instagram_permalink ?? null,
+        created_by: input.created_by ?? null,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error("[v0] Error creating story content:", error)
+      throw new Error(error.message)
+    }
+    return data as StoryContent
+  } catch (error) {
+    console.error("[v0] Error creating story content:", error)
+    throw error
+  }
+}
+
+// Cria múltiplos conteúdos de uma vez (usado na importação do Instagram)
+export async function createStoryContentsBulk(
+  inputs: CreateStoryContentInput[],
+): Promise<StoryContent[]> {
+  if (inputs.length === 0) return []
+  try {
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase
+      .from("story_contents")
+      .insert(
+        inputs.map((input) => ({
+          company_id: input.company_id,
+          type: input.type,
+          source: input.source,
+          file_url: input.file_url ?? null,
+          thumbnail_url: input.thumbnail_url ?? null,
+          caption: input.caption ?? null,
+          instagram_media_id: input.instagram_media_id ?? null,
+          instagram_permalink: input.instagram_permalink ?? null,
+          created_by: input.created_by ?? null,
+        })),
+      )
+      .select()
+
+    if (error) {
+      console.error("[v0] Error creating story contents bulk:", error)
+      throw new Error(error.message)
+    }
+    return (data as StoryContent[]) || []
+  } catch (error) {
+    console.error("[v0] Error creating story contents bulk:", error)
+    throw error
+  }
+}
+
+export async function updateStoryContent(
+  id: string,
+  input: UpdateStoryContentInput,
+): Promise<StoryContent | null> {
+  try {
+    const supabase = await createSupabaseClient()
+    const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (input.type !== undefined) updateData.type = input.type
+    if (input.caption !== undefined) updateData.caption = input.caption
+    if (input.is_active !== undefined) updateData.is_active = input.is_active
+
+    const { data, error } = await supabase
+      .from("story_contents")
+      .update(updateData)
+      .eq("id", id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("[v0] Error updating story content:", error)
+      throw new Error(error.message)
+    }
+    return data as StoryContent
+  } catch (error) {
+    console.error("[v0] Error updating story content:", error)
+    throw error
+  }
+}
+
+export async function deleteStoryContent(id: string): Promise<void> {
+  try {
+    const supabase = await createSupabaseClient()
+    const { error } = await supabase.from("story_contents").delete().eq("id", id)
+    if (error) {
+      console.error("[v0] Error deleting story content:", error)
+      throw new Error(error.message)
+    }
+  } catch (error) {
+    console.error("[v0] Error deleting story content:", error)
+    throw error
+  }
+}
+
+// =====================================================================
+// AUTOMAÇÃO
+// =====================================================================
+
+export async function getStoryAutomation(companyId: string): Promise<StoryAutomation | null> {
+  try {
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase
+      .from("story_automations")
+      .select("*")
+      .eq("company_id", companyId)
+      .maybeSingle()
+
+    if (error) {
+      console.error("[v0] Error fetching story automation:", error)
+      return null
+    }
+    return (data as StoryAutomation) || null
+  } catch (error) {
+    console.error("[v0] Error fetching story automation:", error)
+    return null
+  }
+}
+
+// Cria ou atualiza a automação da empresa (uma por empresa)
+export async function upsertStoryAutomation(
+  input: UpsertStoryAutomationInput,
+): Promise<StoryAutomation | null> {
+  try {
+    const supabase = await createSupabaseClient()
+
+    const payload: Record<string, unknown> = {
+      company_id: input.company_id,
+      updated_at: new Date().toISOString(),
+    }
+    if (input.enabled !== undefined) payload.enabled = input.enabled
+    if (input.publish_mode !== undefined) payload.publish_mode = input.publish_mode
+    if (input.frequency_type !== undefined) payload.frequency_type = input.frequency_type
+    if (input.frequency_value !== undefined) payload.frequency_value = input.frequency_value
+    if (input.weekdays !== undefined) payload.weekdays = input.weekdays
+    if (input.execution_time !== undefined) payload.execution_time = input.execution_time
+    if (input.daily_limit !== undefined) payload.daily_limit = input.daily_limit
+
+    const { data, error } = await supabase
+      .from("story_automations")
+      .upsert(payload, { onConflict: "company_id" })
+      .select()
+      .single()
+
+    if (error) {
+      console.error("[v0] Error upserting story automation:", error)
+      throw new Error(error.message)
+    }
+    return data as StoryAutomation
+  } catch (error) {
+    console.error("[v0] Error upserting story automation:", error)
+    throw error
+  }
+}
+
+// =====================================================================
+// HISTÓRICO
+// =====================================================================
+
+export async function getStoryHistory(companyId: string): Promise<StoryPublicationHistory[]> {
+  try {
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase
+      .from("story_publication_history")
+      .select(
+        `*, story_contents:content_id (type, source, thumbnail_url)`,
+      )
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false })
+      .limit(100)
+
+    if (error) {
+      console.error("[v0] Error fetching story history:", error)
+      return []
+    }
+
+    return ((data as any[]) || []).map((row) => ({
+      ...row,
+      content_type: row.story_contents?.type,
+      content_source: row.story_contents?.source,
+      content_thumbnail_url: row.story_contents?.thumbnail_url,
+    })) as StoryPublicationHistory[]
+  } catch (error) {
+    console.error("[v0] Error fetching story history:", error)
+    return []
+  }
+}
+
+// =====================================================================
+// RESUMO (Card de resumo da tela principal)
+// =====================================================================
+
+export async function getStorySummary(companyId: string): Promise<StorySummary> {
+  try {
+    const supabase = await createSupabaseClient()
+
+    const [automation, contents, lastPub, nextPub] = await Promise.all([
+      supabase.from("story_automations").select("enabled, next_execution").eq("company_id", companyId).maybeSingle(),
+      supabase.from("story_contents").select("id, is_active").eq("company_id", companyId),
+      supabase
+        .from("story_publication_history")
+        .select("published_at")
+        .eq("company_id", companyId)
+        .eq("status", "published")
+        .order("published_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("story_publication_history")
+        .select("scheduled_for")
+        .eq("company_id", companyId)
+        .eq("status", "scheduled")
+        .order("scheduled_for", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    const allContents = (contents.data as { id: string; is_active: boolean }[]) || []
+
+    return {
+      enabled: automation.data?.enabled ?? false,
+      total_contents: allContents.length,
+      active_contents: allContents.filter((c) => c.is_active).length,
+      last_publication: (lastPub.data?.published_at as string) ?? null,
+      next_publication:
+        (nextPub.data?.scheduled_for as string) ??
+        (automation.data?.next_execution as string) ??
+        null,
+    }
+  } catch (error) {
+    console.error("[v0] Error building story summary:", error)
+    return {
+      enabled: false,
+      total_contents: 0,
+      active_contents: 0,
+      last_publication: null,
+      next_publication: null,
+    }
+  }
+}
