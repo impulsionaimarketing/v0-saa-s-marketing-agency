@@ -37,7 +37,8 @@ function formatDateTime(dateString: string) {
 }
 
 function isClientEntry(entry: ProductionApproval) {
-  return entry.action === 'aprovado' || entry.action === 'reprovado' || entry.action === 'comentario_cliente'
+  // Ações de aprovação/reprovação vêm do cliente via link de aprovação
+  return entry.action === 'aprovado' || entry.action === 'reprovado'
 }
 
 function getActionMeta(entry: ProductionApproval) {
@@ -61,16 +62,6 @@ function getActionMeta(entry: ProductionApproval) {
         nameClass: 'text-orange-800',
         iconClass: 'text-orange-600',
         textClass: 'text-orange-900',
-      }
-    case 'comentario_cliente':
-      return {
-        label: 'Comentário',
-        icon: MessageSquare,
-        badgeClass: 'bg-blue-100 text-blue-700',
-        cardClass: 'bg-blue-50 border-blue-200',
-        nameClass: 'text-blue-800',
-        iconClass: 'text-blue-600',
-        textClass: 'text-blue-900',
       }
     default:
       return {
@@ -146,6 +137,7 @@ export function ProductionComments({ productionId }: ProductionCommentsProps) {
         )}
       </div>
 
+      {/* Lista de comentários */}
       {loading ? (
         <div className="flex items-center justify-center py-6">
           <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -207,6 +199,7 @@ export function ProductionComments({ productionId }: ProductionCommentsProps) {
         </div>
       )}
 
+      {/* Adicionar anotação interna */}
       <div className="space-y-2 pt-1">
         <Textarea
           placeholder="Adicione uma anotação interna da equipe..."
