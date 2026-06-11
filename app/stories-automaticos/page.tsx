@@ -17,6 +17,7 @@ import { Images, Settings2, History as HistoryIcon } from "lucide-react"
 import { useStories } from "@/lib/hooks/use-stories"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { StorySummaryCards } from "@/components/stories/story-summary-cards"
+import { AutomationHealthCard } from "@/components/stories/automation-health-card"
 import { ContentsTab } from "@/components/stories/contents-tab"
 import { AutomationTab } from "@/components/stories/automation-tab"
 import { HistoryTab } from "@/components/stories/history-tab"
@@ -101,6 +102,9 @@ export default function StoriesAutomaticosPage() {
 
             {/* Card Resumo */}
             <StorySummaryCards summary={summary} loading={loading} />
+
+            {/* Saúde da Automação (visão global) */}
+            <AutomationHealthCard />
 
             {/* Abas */}
             <Tabs defaultValue="contents" className="w-full">

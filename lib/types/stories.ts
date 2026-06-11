@@ -125,3 +125,49 @@ export const STORY_STATUS_LABELS: Record<StoryPublicationStatus, string> = {
 }
 
 export const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
+
+// =====================================================================
+// Integração n8n
+// =====================================================================
+
+// Linha da view vw_story_pending_publications
+export interface StoryPendingPublication {
+  automation_id: string
+  company_id: string
+  content_id: string
+  content_type: StoryContentType
+  content_url: string | null
+  instagram_media_id: string | null
+  source: StoryContentSource
+  next_execution: string | null
+  publish_mode: StoryPublishMode
+  instagram_account_id: string | null
+}
+
+// Payload retornado pelo endpoint GET /api/story-automations/pending
+export interface StoryPendingItem {
+  automation_id: string
+  company_id: string
+  content_id: string
+  content_url: string | null
+  instagram_account_id: string | null
+  type: StoryContentType
+  publish_mode: StoryPublishMode
+}
+
+// Payload do endpoint POST /api/story-automations/confirm
+export interface StoryConfirmPayload {
+  automation_id: string
+  content_id: string
+  status: "success" | "failed"
+  instagram_story_id?: string
+  error_message?: string
+}
+
+// Métricas da view vw_story_automation_health
+export interface StoryAutomationHealth {
+  active_automations: number
+  published_today: number
+  failed_today: number
+  upcoming_24h: number
+}
