@@ -14,6 +14,7 @@ export interface CRMLead {
   company: string | null
   source: string | null
   notes: string | null
+  proposal_value: number
   status: CRMStatus
   created_at: string
   updated_at: string
@@ -54,4 +55,14 @@ export const CRM_TO_CONTRACT_STATUS: Partial<Record<CRMStatus, "Ativo" | "Pausad
 // Card unificado do kanban: pode ser um lead do CRM ou um cliente da agência
 export interface CRMCard extends CRMLead {
   entity: "lead" | "client"
+  // Valor unificado: proposal_value (lead) ou monthly_value (cliente)
+  value: number
+}
+
+// Formata um número como moeda brasileira (R$)
+export function formatCurrencyBRL(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value || 0)
 }

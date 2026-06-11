@@ -158,10 +158,12 @@ function clientToCRMCard(client: any): CRMCard {
     company: client.name,
     source: "Cliente",
     notes: null,
+    proposal_value: 0,
     status: CONTRACT_STATUS_TO_CRM[client.contract_status] ?? "contrato_ativo",
     created_at: client.created_at,
     updated_at: client.updated_at,
     entity: "client",
+    value: Number(client.monthly_value) || 0,
   }
 }
 
@@ -179,7 +181,7 @@ export async function getCRMCards(): Promise<CRMCard[]> {
       supabase.from("crm_leads").select("*").order("created_at", { ascending: false }),
       supabase
         .from("clients")
-        .select("id, name, contract_status, whatsapp_instances, created_at, updated_at")
+        .select("id, name, contract_status, monthly_value, whatsapp_instances, created_at, updated_at")
         .order("name"),
     ])
 
@@ -193,6 +195,7 @@ export async function getCRMCards(): Promise<CRMCard[]> {
     const leadCards: CRMCard[] = (leadsResult.data || []).map((lead: any) => ({
       ...(lead as CRMLead),
       entity: "lead",
+      value: Number(lead.proposal_value) || 0,
     }))
 
     const clientCards: CRMCard[] = (clientsResult.data || []).map(clientToCRMCard)
