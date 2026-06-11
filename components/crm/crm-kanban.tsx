@@ -42,8 +42,16 @@ import {
   CRM_STATUS_CONFIG,
   CRM_COLUMNS,
   CRM_TO_CONTRACT_STATUS,
+  CRM_SERVICES,
   formatCurrencyBRL,
 } from '@/lib/data/crm-config'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { CRMLeadFormDialog, CRMLeadFormDialogControlled } from './crm-lead-form-dialog'
 import { DeleteDialog } from '@/components/shared/delete-dialog'
 import { cn } from '@/lib/utils'
@@ -332,6 +340,7 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [searchQuery, setSearchQuery] = useState('')
+  const [serviceFilter, setServiceFilter] = useState<string>('all')
   
   // Drag state
   const [draggedItem, setDraggedItem] = useState<CRMCard | null>(null)
@@ -362,16 +371,25 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
   }
 
   const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads
-    const query = searchQuery.toLowerCase()
-    return leads.filter(
-      (lead) =>
-        lead.name.toLowerCase().includes(query) ||
-        lead.company?.toLowerCase().includes(query) ||
-        lead.email?.toLowerCase().includes(query) ||
-        lead.source?.toLowerCase().includes(query)
-    )
-  }, [leads, searchQuery])
+    let result = leads
+
+    if (serviceFilter !== 'all') {
+      result = result.filter((lead) => lead.services?.includes(serviceFilter))
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(
+        (lead) =>
+          lead.name.toLowerCase().includes(query) ||
+          lead.company?.toLowerCase().includes(query) ||
+          lead.email?.toLowerCase().includes(query) ||
+          lead.source?.toLowerCase().includes(query)
+      )
+    }
+
+    return result
+  }, [leads, searchQuery, serviceFilter])
 
   const getColumnLeads = (status: CRMStatus) =>
     filteredLeads.filter((lead) => lead.status === status)
@@ -506,15 +524,30 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
       <Card className="bg-card border-border mb-4">
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Buscar leads..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-secondary border-border"
-              />
+            <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full sm:w-auto sm:items-center">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Buscar leads..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 bg-secondary border-border"
+                />
+              </div>
+              <Select value={serviceFilter} onValueChange={setServiceFilter}>
+                <SelectTrigger className="w-full sm:w-56 bg-secondary border-border">
+                  <SelectValue placeholder="Filtrar por serviço" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os serviços</SelectItem>
+                  {CRM_SERVICES.map((service) => (
+                    <SelectItem key={service} value={service}>
+                      {service}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <CRMLeadFormDialog onSuccess={loadLeads} />
           </div>
