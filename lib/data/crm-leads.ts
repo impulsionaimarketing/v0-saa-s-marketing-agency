@@ -51,6 +51,7 @@ export async function createCRMLead(data: {
   source?: string | null
   notes?: string | null
   proposal_value?: number
+  services?: string[]
   status?: CRMStatus
 }): Promise<CRMLead | null> {
   try {
@@ -66,6 +67,7 @@ export async function createCRMLead(data: {
         source: data.source || null,
         notes: data.notes || null,
         proposal_value: data.proposal_value ?? 0,
+        services: data.services ?? [],
         status: data.status || "lead_novo",
       })
       .select("*")
@@ -161,6 +163,7 @@ function clientToCRMCard(client: any): CRMCard {
     source: "Cliente",
     notes: null,
     proposal_value: 0,
+    services: [],
     status: CONTRACT_STATUS_TO_CRM[client.contract_status] ?? "contrato_ativo",
     created_at: client.created_at,
     updated_at: client.updated_at,
@@ -196,6 +199,7 @@ export async function getCRMCards(): Promise<CRMCard[]> {
 
     const leadCards: CRMCard[] = (leadsResult.data || []).map((lead: any) => ({
       ...(lead as CRMLead),
+      services: Array.isArray(lead.services) ? lead.services : [],
       entity: "lead",
       value: Number(lead.proposal_value) || 0,
     }))

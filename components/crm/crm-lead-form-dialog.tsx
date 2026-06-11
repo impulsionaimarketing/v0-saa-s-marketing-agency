@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
+  CRM_SERVICES,
 } from '@/lib/data/crm-config'
 
 interface CRMLeadFormDialogProps {
@@ -58,6 +60,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
     source: '',
     notes: '',
     proposal_value: '',
+    services: [] as string[],
     status: (defaultStatus || 'lead_novo') as CRMStatus,
   })
 
@@ -71,10 +74,20 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         source: lead?.source || '',
         notes: lead?.notes || '',
         proposal_value: lead?.proposal_value ? String(lead.proposal_value) : '',
+        services: lead?.services || [],
         status: lead?.status || defaultStatus || 'lead_novo',
       })
     }
   }, [open, lead, defaultStatus])
+
+  const toggleService = (service: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      services: prev.services.includes(service)
+        ? prev.services.filter((s) => s !== service)
+        : [...prev.services, service],
+    }))
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -89,6 +102,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
           source: formData.source || null,
           notes: formData.notes || null,
           proposal_value: Number(formData.proposal_value) || 0,
+          services: formData.services,
           status: formData.status,
         }
 
@@ -110,6 +124,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             source: '',
             notes: '',
             proposal_value: '',
+            services: [],
             status: defaultStatus || 'lead_novo',
           })
         }
@@ -230,6 +245,26 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             </div>
 
             <div className="grid gap-2">
+              <Label>Serviços desejados</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border border-border bg-secondary/40 p-3">
+                {CRM_SERVICES.map((service) => (
+                  <label
+                    key={service}
+                    htmlFor={`service-${service}`}
+                    className="flex items-center gap-2 text-sm cursor-pointer"
+                  >
+                    <Checkbox
+                      id={`service-${service}`}
+                      checked={formData.services.includes(service)}
+                      onCheckedChange={() => toggleService(service)}
+                    />
+                    {service}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
               <Label htmlFor="notes">Observações</Label>
               <Textarea
                 id="notes"
@@ -301,6 +336,7 @@ export function CRMLeadFormDialogControlled({
     source: '',
     notes: '',
     proposal_value: '',
+    services: [] as string[],
     status: 'lead_novo' as CRMStatus,
   })
 
@@ -314,10 +350,20 @@ export function CRMLeadFormDialogControlled({
         source: lead.source || '',
         notes: lead.notes || '',
         proposal_value: lead.proposal_value ? String(lead.proposal_value) : '',
+        services: lead.services || [],
         status: lead.status || 'lead_novo',
       })
     }
   }, [open, lead])
+
+  const toggleService = (service: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      services: prev.services.includes(service)
+        ? prev.services.filter((s) => s !== service)
+        : [...prev.services, service],
+    }))
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -332,6 +378,7 @@ export function CRMLeadFormDialogControlled({
           source: formData.source || null,
           notes: formData.notes || null,
           proposal_value: Number(formData.proposal_value) || 0,
+          services: formData.services,
           status: formData.status,
         }
 
@@ -449,6 +496,26 @@ export function CRMLeadFormDialogControlled({
                 placeholder="Ex: Instagram, Indicação, Google..."
                 className="bg-secondary border-border"
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Serviços desejados</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border border-border bg-secondary/40 p-3">
+                {CRM_SERVICES.map((service) => (
+                  <label
+                    key={service}
+                    htmlFor={`service-controlled-${service}`}
+                    className="flex items-center gap-2 text-sm cursor-pointer"
+                  >
+                    <Checkbox
+                      id={`service-controlled-${service}`}
+                      checked={formData.services.includes(service)}
+                      onCheckedChange={() => toggleService(service)}
+                    />
+                    {service}
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="grid gap-2">

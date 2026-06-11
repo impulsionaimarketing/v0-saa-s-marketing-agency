@@ -15,10 +15,23 @@ export interface CRMLead {
   source: string | null
   notes: string | null
   proposal_value: number
+  services: string[]
   status: CRMStatus
   created_at: string
   updated_at: string
 }
+
+// Serviços que um cliente/lead pode contratar (seleção múltipla)
+export const CRM_SERVICES = [
+  "Mentoria",
+  "P.A.V",
+  "Tráfego Pago",
+  "Criação de E-commerce",
+  "Manutenção de E-commerce",
+  "Gravação de Vídeo",
+  "Edição de Vídeo",
+  "Criação de Arte",
+] as const
 
 export const CRM_STATUS_CONFIG: Record<CRMStatus, { label: string; color: string }> = {
   lead_novo: { label: "Lead Novo", color: "bg-chart-2/20 text-chart-2 border-chart-2/30" },

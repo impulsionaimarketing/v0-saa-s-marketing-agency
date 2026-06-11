@@ -170,6 +170,23 @@ function LeadDetailModal({
               </p>
             </div>
           )}
+
+          {lead.services && lead.services.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Serviços desejados</p>
+              <div className="flex flex-wrap gap-1.5">
+                {lead.services.map((service) => (
+                  <Badge
+                    key={service}
+                    variant="outline"
+                    className="text-xs bg-primary/10 text-primary border-primary/30"
+                  >
+                    {service}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
@@ -286,6 +303,19 @@ function LeadCard({
           <p className="text-sm font-semibold text-primary mt-2">
             {formatCurrencyBRL(lead.value)}
           </p>
+        )}
+
+        {lead.services && lead.services.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {lead.services.map((service) => (
+              <span
+                key={service}
+                className="text-[10px] bg-primary/10 text-primary border border-primary/30 px-1.5 py-0.5 rounded"
+              >
+                {service}
+              </span>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
