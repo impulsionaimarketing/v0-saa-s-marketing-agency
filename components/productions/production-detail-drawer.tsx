@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,7 +24,8 @@ import {
   ExternalLink,
   Clock,
   X,
-  Pencil
+  Pencil,
+  MessageSquare
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProductionFormDialog } from './production-form-dialog'
@@ -96,10 +97,62 @@ function formatShortDate(dateString?: string) {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+interface ClientComment {
+  id: string
+  author_name?: string
+  comment: string
+  is_client?: boolean
+  created_at?: string
+  inserted_at?: string
+}
+
+interface ClientApproval {
+  id: string
+  action?: string
+  comment?: string | null
+  approved_by?: string
+  created_at?: string
+  inserted_at?: string
+}
+
 export function ProductionDetailDrawer({ production, open, onClose, onUpdateStatus, onUpdated }: ProductionDetailDrawerProps) {
   const [feedback, setFeedback] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [clientComments, setClientComments] = useState<ClientComment[]>([])
+  const [clientApprovals, setClientApprovals] = useState<ClientApproval[]>([])
+  const [loadingFeedback, setLoadingFeedback] = useState(false)
+
+  useEffect(() => {
+    if (!open || !production?.id) {
+      setClientComments([])
+      setClientApprovals([])
+      return
+    }
+
+    let cancelled = false
+    setLoadingFeedback(true)
+    fetch(`/api/productions/${production.id}/feedback`)
+      .then((res) => (res.ok ? res.json() : { comments: [], approvals: [] }))
+      .then((data) => {
+        if (cancelled) return
+        setClientComments(Array.isArray(data.comments) ? data.comments : [])
+        setClientApprovals(Array.isArray(data.approvals) ? data.approvals : [])
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setClientComments([])
+          setClientApprovals([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFeedback(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, production?.id])
 
   if (!production) return null
 
@@ -107,6 +160,30 @@ export function ProductionDetailDrawer({ production, open, onClose, onUpdateStat
   const firstFile = production.files?.[0]
   const thumbnailUrl = firstFile?.url || null
   const isVideo = production.type === 'Vídeo' || firstFile?.file_type?.startsWith('video/')
+
+  // Mescla comentários do cliente e comentários de aprovações em uma lista única
+  const clientFeedbackList: { id: string; author: string; comment: string; date?: string }[] = (() => {
+    const items: { id: string; author: string; comment: string; date?: string }[] = []
+    const seen = new Set<string>()
+
+    const pushItem = (id: string, author: string, comment?: string | null, date?: string) => {
+      const text = comment?.trim()
+      if (!text) return
+      const key = text.toLowerCase()
+      if (seen.has(key)) return
+      seen.add(key)
+      items.push({ id, author: author || 'Cliente', comment: text, date })
+    }
+
+    for (const c of clientComments) {
+      pushItem(c.id, c.author_name || 'Cliente', c.comment, c.created_at || c.inserted_at)
+    }
+    for (const a of clientApprovals) {
+      pushItem(a.id, a.approved_by || 'Cliente', a.comment, a.created_at || a.inserted_at)
+    }
+
+    return items
+  })()
 
   const handleApprove = async () => {
     setIsSubmitting(true)
@@ -292,6 +369,45 @@ const copyLink = async () => {
                     </a>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Alterações / Feedback do Cliente */}
+            {(loadingFeedback || clientFeedbackList.length > 0) && (
+              <div className="space-y-3 pt-4 border-t border-border">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MessageSquare className="w-4 h-4" />
+                  <span className="text-xs font-medium uppercase tracking-wide">Alterações Solicitadas pelo Cliente</span>
+                </div>
+
+                {loadingFeedback ? (
+                  <p className="text-sm text-muted-foreground">Carregando feedback...</p>
+                ) : clientFeedbackList.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhuma alteração solicitada.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {clientFeedbackList.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-orange-800">
+                            {item.author || 'Cliente'}
+                          </span>
+                          {item.date && (
+                            <span className="text-xs text-orange-700/70">
+                              {formatDate(item.date)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-orange-900 whitespace-pre-wrap">
+                          {item.comment}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
