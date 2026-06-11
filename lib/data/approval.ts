@@ -59,7 +59,18 @@ export async function regenerateApprovalLink(productionId: string): Promise<stri
 }
 
 // ─── Buscar produção pelo token (página pública do cliente) ──────────────────
-export async function getProductionByToken(token: string) {
+type PublicProduction = {
+  id: string
+  title: string
+  client_name: string
+  responsible_name: string
+  post_date: string
+  caption: string
+  status: string
+  video_url: string | null
+}
+
+export async function getProductionByToken(token: string): Promise<PublicProduction[] | null> {
   const { createClient } = await import('@supabase/supabase-js')
 
   const supabase = createClient(
@@ -67,21 +78,64 @@ export async function getProductionByToken(token: string) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  const { data, error } = await supabase
-    .rpc('get_production_by_token', { p_token: token })
+  // 1. Busca o link de aprovação pelo token (suporta link individual e em lote)
+  const { data: link, error: linkError } = await supabase
+    .from('approval_links')
+    .select('production_id, production_ids')
+    .eq('token', token)
+    .maybeSingle()
 
-  if (error || !data || data.length === 0) return null
+  if (linkError || !link) return null
 
-  return data as {
-    id: string
-    title: string
-    client_name: string
-    responsible_name: string
-    post_date: string
-    caption: string
-    status: string
-    video_url: string | null
-  }[]
+  // Reúne todos os IDs de produção do link (individual ou bulk)
+  const productionIds: string[] = []
+  if (link.production_id) productionIds.push(link.production_id as string)
+  if (Array.isArray(link.production_ids)) {
+    for (const id of link.production_ids) {
+      if (id && !productionIds.includes(id)) productionIds.push(id as string)
+    }
+  }
+
+  if (productionIds.length === 0) return null
+
+  // 2. Busca as produções com cliente, responsável e arquivos
+  const { data: productions, error: prodError } = await supabase
+    .from('productions')
+    .select(`
+      id,
+      title,
+      caption,
+      status,
+      post_date,
+      clients(name),
+      production_files(id, filename, url, file_type, uploaded_at)
+    `)
+    .in('id', productionIds)
+
+  if (prodError || !productions || productions.length === 0) return null
+
+  // 3. Normaliza para o formato esperado pela página pública
+  return productions.map((p: any) => {
+    const files = Array.isArray(p.production_files) ? [...p.production_files] : []
+    // Usa o arquivo mais recente como preview
+    files.sort((a, b) => {
+      const da = a?.uploaded_at ? new Date(a.uploaded_at).getTime() : 0
+      const db = b?.uploaded_at ? new Date(b.uploaded_at).getTime() : 0
+      return db - da
+    })
+    const previewFile = files[0]
+
+    return {
+      id: p.id,
+      title: p.title || 'Conteúdo sem título',
+      client_name: p.clients?.name || '',
+      responsible_name: '',
+      post_date: p.post_date || '',
+      caption: p.caption || '',
+      status: p.status || '',
+      video_url: previewFile?.url || null,
+    }
+  })
 }
 
 // ─── Salvar resposta do cliente ───────────────────────────────────────────────
