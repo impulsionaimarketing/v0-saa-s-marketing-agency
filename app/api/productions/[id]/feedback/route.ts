@@ -19,10 +19,15 @@ export async function GET(
 ) {
   try {
     const { id: productionId } = await params
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    // Usa a service role key quando disponível para ignorar o RLS na leitura
+    // (a tabela permite INSERT anônimo, mas o SELECT anônimo é bloqueado).
+    // Faz fallback para a anon key caso a service role não esteja configurada.
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!
+    const supabaseKey =
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
+    const supabase = createClient(supabaseUrl, supabaseKey)
 
     // Comentários enviados pelo cliente na página de aprovação
     const { data: comments, error: commentsError } = await supabase
