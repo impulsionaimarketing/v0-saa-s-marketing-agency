@@ -384,13 +384,20 @@ export function DemandsKanban() {
       const matchesResponsible = responsibleFilter === 'all' || demand.responsible_id === responsibleFilter
 
       let matchesDate = true
+      // Filtra todos os cards pelo prazo (deadline)
       if (demand.deadline) {
         const demandDate = new Date(demand.deadline.includes('T') ? demand.deadline : demand.deadline + 'T00:00:00')
         if (dateFrom) {
-          if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
+          // dateFrom pode vir como "2026-05-17" ou "2026-05-17T17:09" - extrair apenas a data
+          const fromDateStr = dateFrom.includes('T') ? dateFrom.split('T')[0] : dateFrom
+          const fromDate = new Date(fromDateStr + 'T00:00:00')
+          if (demandDate < fromDate) matchesDate = false
         }
         if (dateTo) {
-          if (demandDate > new Date(dateTo + 'T23:59:59')) matchesDate = false
+          // dateTo pode vir como "2026-05-24" ou "2026-05-24T17:09" - extrair apenas a data
+          const toDateStr = dateTo.includes('T') ? dateTo.split('T')[0] : dateTo
+          const toDate = new Date(toDateStr + 'T23:59:59')
+          if (demandDate > toDate) matchesDate = false
         }
       } else if (dateFrom || dateTo) {
         matchesDate = false

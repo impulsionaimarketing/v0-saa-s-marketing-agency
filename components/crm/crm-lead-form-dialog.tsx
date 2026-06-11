@@ -25,10 +25,12 @@ import { Plus, Loader2 } from 'lucide-react'
 import {
   createCRMLead,
   updateCRMLead,
+} from '@/lib/data/crm-leads'
+import {
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
-} from '@/lib/data/crm-leads'
+} from '@/lib/data/crm-constants'
 
 interface CRMLeadFormDialogProps {
   lead?: CRMLead | null
@@ -55,6 +57,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
     company: '',
     source: '',
     notes: '',
+    proposal_value: '',
     status: (defaultStatus || 'lead_novo') as CRMStatus,
   })
 
@@ -67,6 +70,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         company: lead?.company || '',
         source: lead?.source || '',
         notes: lead?.notes || '',
+        proposal_value: lead?.proposal_value?.toString() || '',
         status: lead?.status || defaultStatus || 'lead_novo',
       })
     }
@@ -84,6 +88,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
+          proposal_value: formData.proposal_value ? parseFloat(formData.proposal_value) : null,
           status: formData.status,
         }
 
@@ -104,6 +109,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             company: '',
             source: '',
             notes: '',
+            proposal_value: '',
             status: defaultStatus || 'lead_novo',
           })
         }
@@ -208,6 +214,22 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             </div>
 
             <div className="grid gap-2">
+              <Label htmlFor="proposal_value">Valor da Proposta (R$)</Label>
+              <Input
+                id="proposal_value"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.proposal_value}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
+                }
+                placeholder="0,00"
+                className="bg-secondary border-border"
+              />
+            </div>
+
+            <div className="grid gap-2">
               <Label htmlFor="notes">Observações</Label>
               <Textarea
                 id="notes"
@@ -278,6 +300,7 @@ export function CRMLeadFormDialogControlled({
     company: '',
     source: '',
     notes: '',
+    proposal_value: '',
     status: 'lead_novo' as CRMStatus,
   })
 
@@ -290,6 +313,7 @@ export function CRMLeadFormDialogControlled({
         company: lead.company || '',
         source: lead.source || '',
         notes: lead.notes || '',
+        proposal_value: lead.proposal_value?.toString() || '',
         status: lead.status || 'lead_novo',
       })
     }
@@ -307,6 +331,7 @@ export function CRMLeadFormDialogControlled({
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
+          proposal_value: formData.proposal_value ? parseFloat(formData.proposal_value) : null,
           status: formData.status,
         }
 
@@ -406,6 +431,22 @@ export function CRMLeadFormDialogControlled({
                   setFormData((prev) => ({ ...prev, source: e.target.value }))
                 }
                 placeholder="Ex: Instagram, Indicação, Google..."
+                className="bg-secondary border-border"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="proposal_value-controlled">Valor da Proposta (R$)</Label>
+              <Input
+                id="proposal_value-controlled"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.proposal_value}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
+                }
+                placeholder="0,00"
                 className="bg-secondary border-border"
               />
             </div>

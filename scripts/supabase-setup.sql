@@ -151,6 +151,28 @@ CREATE TABLE IF NOT EXISTS public.alerts (
 );
 
 -- =============================================
+-- CRM_LEADS TABLE (leads do CRM)
+-- =============================================
+CREATE TABLE IF NOT EXISTS public.crm_leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  phone VARCHAR(50),
+  email VARCHAR(255),
+  company VARCHAR(255),
+  source VARCHAR(100),
+  notes TEXT,
+  status VARCHAR(50) DEFAULT 'lead_novo' CHECK (status IN (
+    'lead_novo', 'entrar_em_contato', 'proposta_enviada', 
+    'contrato_ativo', 'contrato_pausado', 'contrato_cancelado'
+  )),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_crm_leads_status ON public.crm_leads(status);
+CREATE INDEX IF NOT EXISTS idx_crm_leads_created ON public.crm_leads(created_at DESC);
+
+-- =============================================
 -- ACTIVITY_LOGS TABLE (histórico de atividades)
 -- =============================================
 CREATE TABLE IF NOT EXISTS public.activity_logs (
@@ -161,6 +183,31 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
   entity_id UUID NOT NULL,
   changes JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================
+-- MODULES TABLE (módulos do sistema)
+-- =============================================
+CREATE TABLE IF NOT EXISTS public.modules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(100) UNIQUE NOT NULL,
+  display_name VARCHAR(255) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================
+-- USER_PERMISSIONS TABLE (permissões por módulo)
+-- =============================================
+CREATE TABLE IF NOT EXISTS public.user_permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  module_id UUID REFERENCES public.modules(id) ON DELETE CASCADE,
+  can_view BOOLEAN DEFAULT FALSE,
+  can_edit BOOLEAN DEFAULT FALSE,
+  is_blocked BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, module_id)
 );
 
 -- =============================================
@@ -188,6 +235,9 @@ ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.alerts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crm_leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.modules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_permissions ENABLE ROW LEVEL SECURITY;
 
 -- Permitir acesso público para leitura (ajuste conforme necessidade)
 CREATE POLICY "Allow public read access on users" ON public.users FOR SELECT USING (true);
@@ -233,6 +283,18 @@ CREATE POLICY "Allow public delete on alerts" ON public.alerts FOR DELETE USING 
 CREATE POLICY "Allow public read access on activity_logs" ON public.activity_logs FOR SELECT USING (true);
 CREATE POLICY "Allow public insert on activity_logs" ON public.activity_logs FOR INSERT WITH CHECK (true);
 
+CREATE POLICY "Allow public read access on crm_leads" ON public.crm_leads FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on crm_leads" ON public.crm_leads FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on crm_leads" ON public.crm_leads FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on crm_leads" ON public.crm_leads FOR DELETE USING (true);
+
+CREATE POLICY "Allow public read access on modules" ON public.modules FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on modules" ON public.modules FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow public read access on user_permissions" ON public.user_permissions FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on user_permissions" ON public.user_permissions FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on user_permissions" ON public.user_permissions FOR UPDATE USING (true);
+
 -- =============================================
 -- SAMPLE DATA (dados de exemplo)
 -- =============================================
@@ -254,3 +316,18 @@ INSERT INTO public.clients (name, type, campaign_type, plan, monthly_value, cont
   ('Restaurante Sabor', 'Local', 'Alcance', 'Básico', 1500.00, 'Pausado', 'red'),
   ('Consultoria ABC', 'Serviço', 'Mensagem', 'Premium', 6000.00, 'Ativo', 'green')
 ON CONFLICT DO NOTHING;
+
+-- Módulos do sistema
+INSERT INTO public.modules (name, display_name, description) VALUES
+  ('dashboard', 'Dashboard', 'Painel principal com métricas e resumos'),
+  ('clientes', 'Clientes', 'Gestão de clientes da agência'),
+  ('demandas', 'Demandas', 'Kanban de tarefas e demandas'),
+  ('producoes', 'Produções', 'Pipeline de produção de conteúdo'),
+  ('campanhas', 'Campanhas', 'Gestão de campanhas de tráfego pago'),
+  ('relatorios', 'Relatórios', 'Relatórios mensais dos clientes'),
+  ('colaboradores', 'Colaboradores', 'Gestão de colaboradores'),
+  ('alertas', 'Alertas', 'Central de alertas do sistema'),
+  ('crm', 'CRM', 'Gestão de leads e funil de vendas'),
+  ('cobrancas', 'Cobranças', 'Gestão de cobranças e pagamentos'),
+  ('cronograma', 'Cronograma', 'Calendário de publicações')
+ON CONFLICT (name) DO NOTHING;

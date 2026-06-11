@@ -35,11 +35,15 @@ import {
   getCRMLeads,
   updateCRMLeadStatus,
   deleteCRMLead,
+  convertLeadToClient,
+  updateClientContractStatus,
+} from '@/lib/data/crm-leads'
+import {
   type CRMLead,
   type CRMStatus,
   CRM_STATUS_CONFIG,
   CRM_COLUMNS,
-} from '@/lib/data/crm-leads'
+} from '@/lib/data/crm-constants'
 import { CRMLeadFormDialog, CRMLeadFormDialogControlled } from './crm-lead-form-dialog'
 import { DeleteDialog } from '@/components/shared/delete-dialog'
 import { cn } from '@/lib/utils'
@@ -62,6 +66,7 @@ function LeadDetailModal({
   if (!lead) return null
 
   const statusConfig = CRM_STATUS_CONFIG[lead.status]
+  const isClient = lead.is_client === true
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -69,25 +74,57 @@ function LeadDetailModal({
         <DialogHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <DialogTitle className="text-left leading-tight">{lead.name}</DialogTitle>
+              <DialogTitle className="text-left leading-tight flex items-center gap-2">
+                {lead.name}
+                {isClient && (
+                  <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30">
+                    Cliente
+                  </Badge>
+                )}
+              </DialogTitle>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className={cn('text-xs', statusConfig.color)}>
                   {statusConfig.label}
                 </Badge>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
+            {!isClient && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={onEdit}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         </DialogHeader>
 
         <div className="space-y-4 mt-2">
+          {/* Client Info */}
+          {isClient && lead.client_data && (
+            <div className="bg-success/10 border border-success/20 rounded-lg p-3">
+              <p className="text-xs text-muted-foreground mb-2">Informações do Cliente</p>
+              <div className="grid grid-cols-3 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">Tipo</p>
+                  <p className="font-medium">{lead.client_data.type}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Plano</p>
+                  <p className="font-medium">{lead.client_data.plan}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Valor Mensal</p>
+                  <p className="font-medium text-success">
+                    R$ {lead.client_data.monthly_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Contact Info */}
           <div className="grid grid-cols-2 gap-3 text-sm">
             {lead.company && (
@@ -177,53 +214,70 @@ function LeadCard({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const isClient = lead.is_client === true
+
   return (
     <Card
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
+      draggable={!isClient}
+      onDragStart={isClient ? undefined : onDragStart}
+      onDragEnd={isClient ? undefined : onDragEnd}
       onDragOver={onDragOver}
       onClick={onClick}
       className={cn(
         'cursor-pointer hover:border-primary/50 transition-all',
         isDragging && 'opacity-50 rotate-2 scale-105',
-        isDragOver && 'border-primary border-2'
+        isDragOver && 'border-primary border-2',
+        isClient && 'border-l-4 border-l-success bg-success/5'
       )}
     >
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 cursor-grab" />
+            {!isClient && <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 cursor-grab" />}
             <div className="min-w-0 flex-1">
-              <p className="font-medium text-sm truncate">{lead.name}</p>
-              {lead.company && (
+              <div className="flex items-center gap-1.5">
+                <p className="font-medium text-sm truncate">{lead.name}</p>
+                {isClient && (
+                  <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-success/10 text-success border-success/30">
+                    Cliente
+                  </Badge>
+                )}
+              </div>
+              {lead.company && !isClient && (
                 <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
                   <Building2 className="h-3 w-3" />
                   {lead.company}
                 </p>
               )}
+              {isClient && lead.client_data && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {lead.client_data.plan} - R$ {lead.client_data.monthly_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              )}
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!isClient && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
@@ -247,9 +301,14 @@ function LeadCard({
               <Mail className="h-3 w-3" />
             </a>
           )}
-          {lead.source && (
+          {lead.source && !isClient && (
             <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
               {lead.source}
+            </span>
+          )}
+          {isClient && lead.client_data && (
+            <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+              {lead.client_data.type}
             </span>
           )}
         </div>
@@ -298,9 +357,11 @@ export function CRMKanban() {
   }
 
   const filteredLeads = useMemo(() => {
-    if (!searchQuery) return leads
+    // Ensure leads is always an array
+    const safeLeads = Array.isArray(leads) ? leads : []
+    if (!searchQuery) return safeLeads
     const query = searchQuery.toLowerCase()
-    return leads.filter(
+    return safeLeads.filter(
       (lead) =>
         lead.name.toLowerCase().includes(query) ||
         lead.company?.toLowerCase().includes(query) ||
@@ -309,8 +370,10 @@ export function CRMKanban() {
     )
   }, [leads, searchQuery])
 
-  const getColumnLeads = (status: CRMStatus) =>
-    filteredLeads.filter((lead) => lead.status === status)
+  const getColumnLeads = (status: CRMStatus) => {
+    const safeFilteredLeads = Array.isArray(filteredLeads) ? filteredLeads : []
+    return safeFilteredLeads.filter((lead) => lead.status === status)
+  }
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, lead: CRMLead) => {
@@ -463,24 +526,35 @@ export function CRMKanban() {
                 onDrop={(e) => handleDrop(e, column.id)}
               >
                 {/* Column Header */}
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
-                      {column.title}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      ({columnLeads.length})
-                    </span>
+                <div className="flex flex-col gap-1 mb-3 px-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={cn('text-xs font-medium', statusConfig.color)}>
+                        {column.title}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        ({columnLeads.length})
+                      </span>
+                    </div>
+                    <CRMLeadFormDialog
+                      defaultStatus={column.id}
+                      onSuccess={loadLeads}
+                      trigger={
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      }
+                    />
                   </div>
-                  <CRMLeadFormDialog
-                    defaultStatus={column.id}
-                    onSuccess={loadLeads}
-                    trigger={
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    }
-                  />
+                  {/* Total de valores da coluna */}
+                  <div className="text-xs font-medium text-success">
+                    R$ {columnLeads.reduce((sum, lead) => {
+                      const value = lead.is_client 
+                        ? (lead.client_data?.monthly_value || 0) 
+                        : (lead.proposal_value || 0)
+                      return sum + value
+                    }, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </div>
                 </div>
 
                 {/* Column Content */}
