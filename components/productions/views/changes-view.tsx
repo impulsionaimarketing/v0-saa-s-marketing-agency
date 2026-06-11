@@ -9,19 +9,11 @@ import {
   Image as ImageIcon,
   MessageSquare,
   User,
-  Calendar,
-  Eye,
-  Check,
+  Pencil,
   Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ProductionRevisionDialog } from '../production-revision-dialog'
 
 interface FeedbackItem {
   id: string
@@ -34,11 +26,8 @@ interface FeedbackItem {
 interface ProductionInfo {
   id: string
   title?: string
-  notes?: string
   status: string
-  type?: string
   client_name?: string
-  post_date?: string
   thumbnail_url?: string | null
   thumbnail_is_video?: boolean
 }
@@ -50,35 +39,7 @@ interface FeedbackEntry {
 
 interface ChangesViewProps {
   // Abre o drawer de detalhes a partir do id da produção
-  onSelectById: (productionId: string) => void
-  // Atualiza o status da produção
-  onUpdateStatus: (id: string, newStatus: string) => Promise<void> | void
-  // Permite saber o status mais recente vindo da página
-  statusOverrides?: Record<string, string>
-}
-
-const STATUS_OPTIONS = [
-  'Planejamento',
-  'Produção',
-  'Aprovação do Cliente',
-  'Solicitou Ajuste',
-  'Aprovado',
-  'Programado',
-  'Publicado',
-]
-
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  'Planejamento': { bg: 'bg-amber-100', text: 'text-amber-700' },
-  'Produção': { bg: 'bg-violet-100', text: 'text-violet-700' },
-  'Aprovação do Cliente': { bg: 'bg-blue-100', text: 'text-blue-700' },
-  'Solicitou Ajuste': { bg: 'bg-orange-100', text: 'text-orange-700' },
-  'Aprovado': { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  'Programado': { bg: 'bg-slate-100', text: 'text-slate-700' },
-  'Publicado': { bg: 'bg-green-100', text: 'text-green-700' },
-}
-
-function getStatusColor(status: string) {
-  return STATUS_COLORS[status] || { bg: 'bg-muted', text: 'text-muted-foreground' }
+  onSelectById?: (productionId: string) => void
 }
 
 function formatDate(dateString?: string) {
@@ -93,10 +54,10 @@ function formatDate(dateString?: string) {
   })
 }
 
-export function ChangesView({ onSelectById, onUpdateStatus, statusOverrides }: ChangesViewProps) {
+export function ChangesView({ onSelectById }: ChangesViewProps) {
   const [entries, setEntries] = useState<FeedbackEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -113,43 +74,30 @@ export function ChangesView({ onSelectById, onUpdateStatus, statusOverrides }: C
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
-
     return () => {
       cancelled = true
     }
   }, [])
 
-  const handleMarkDone = async (productionId: string) => {
-    setUpdatingId(productionId)
-    try {
-      await onUpdateStatus(productionId, 'Aprovado')
-      setEntries((prev) =>
-        prev.map((e) =>
-          e.production.id === productionId
-            ? { ...e, production: { ...e.production, status: 'Aprovado' } }
-            : e
-        )
-      )
-    } finally {
-      setUpdatingId(null)
-    }
+  // Após reenviar uma produção para aprovação, ela sai da lista (mudou de status).
+  // Removemos do estado local e avançamos para a próxima.
+  const handleResent = (productionId: string) => {
+    setEntries((prev) => {
+      const idx = prev.findIndex((e) => e.production.id === productionId)
+      const next = prev.filter((e) => e.production.id !== productionId)
+
+      // Decide qual será a próxima produção aberta
+      if (next.length === 0) {
+        setActiveIndex(null)
+      } else if (idx >= 0) {
+        // Mantém o mesmo índice (que agora aponta para a próxima), com clamp
+        setActiveIndex(Math.min(idx, next.length - 1))
+      }
+      return next
+    })
   }
 
-  const handleChangeStatus = async (productionId: string, status: string) => {
-    setUpdatingId(productionId)
-    try {
-      await onUpdateStatus(productionId, status)
-      setEntries((prev) =>
-        prev.map((e) =>
-          e.production.id === productionId
-            ? { ...e, production: { ...e.production, status } }
-            : e
-        )
-      )
-    } finally {
-      setUpdatingId(null)
-    }
-  }
+  const activeEntry = activeIndex !== null ? entries[activeIndex] : null
 
   if (loading) {
     return (
@@ -168,167 +116,135 @@ export function ChangesView({ onSelectById, onUpdateStatus, statusOverrides }: C
           <MessageSquare className="w-8 h-8 text-muted-foreground" />
         </div>
         <h3 className="text-lg font-medium text-foreground mb-1">
-          Nenhuma alteração solicitada
+          Nenhuma alteração pendente
         </h3>
         <p className="text-sm text-muted-foreground">
-          Quando um cliente solicitar ajustes, eles aparecerão aqui.
+          Quando um cliente solicitar ajustes, eles aparecerão aqui para você
+          corrigir e reenviar.
         </p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4">
-      {entries.map(({ production, feedback }) => {
-        const currentStatus = statusOverrides?.[production.id] || production.status
-        const statusColor = getStatusColor(currentStatus)
-        const isDone = currentStatus === 'Aprovado' || currentStatus === 'Publicado'
-        const isUpdating = updatingId === production.id
-        const isVideo = production.thumbnail_is_video
+    <>
+      <div className="space-y-4">
+        {entries.map((entry, index) => {
+          const { production, feedback } = entry
+          const isVideo = production.thumbnail_is_video
 
-        return (
-          <div
-            key={production.id}
-            className="bg-card rounded-xl border border-border overflow-hidden"
-          >
-            {/* Cabeçalho da produção */}
-            <div className="flex items-start gap-4 p-4 border-b border-border">
-              <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden flex items-center justify-center flex-shrink-0">
-                {production.thumbnail_url ? (
-                  isVideo ? (
-                    <video
-                      src={production.thumbnail_url}
-                      className="w-full h-full object-cover"
-                      muted
-                      playsInline
-                    />
+          return (
+            <div
+              key={production.id}
+              className="bg-card rounded-xl border border-border overflow-hidden"
+            >
+              {/* Cabeçalho da produção */}
+              <div className="flex items-start gap-4 p-4 border-b border-border">
+                <div className="w-16 h-16 rounded-lg bg-muted overflow-hidden flex items-center justify-center flex-shrink-0">
+                  {production.thumbnail_url ? (
+                    isVideo ? (
+                      <video
+                        src={production.thumbnail_url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <img
+                        src={production.thumbnail_url || '/placeholder.svg'}
+                        alt={production.title || 'Produção'}
+                        className="w-full h-full object-cover"
+                      />
+                    )
+                  ) : isVideo ? (
+                    <Video className="w-6 h-6 text-muted-foreground/50" />
                   ) : (
-                    <img
-                      src={production.thumbnail_url}
-                      alt={production.title || 'Produção'}
-                      className="w-full h-full object-cover"
-                    />
-                  )
-                ) : isVideo ? (
-                  <Video className="w-6 h-6 text-muted-foreground/50" />
-                ) : (
-                  <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-foreground line-clamp-1">
-                    {production.title || production.notes || 'Sem título'}
-                  </h3>
-                  <Badge
-                    className={cn(
-                      'font-medium border-0 flex-shrink-0',
-                      statusColor.bg,
-                      statusColor.text
-                    )}
-                  >
-                    {currentStatus}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <User className="w-3.5 h-3.5" />
-                    {production.client_name || 'Cliente não informado'}
-                  </span>
-                  {production.post_date && (
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {new Date(production.post_date).toLocaleDateString('pt-BR', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </span>
+                    <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
                   )}
-                  <span className="flex items-center gap-1 text-orange-600 font-medium">
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    {feedback.length}{' '}
-                    {feedback.length === 1 ? 'alteração' : 'alterações'}
-                  </span>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-foreground line-clamp-1">
+                      {production.title || 'Sem título'}
+                    </h3>
+                    <Badge className="font-medium border-0 flex-shrink-0 bg-orange-100 text-orange-700">
+                      {production.status}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <User className="w-3.5 h-3.5" />
+                      {production.client_name || 'Cliente não informado'}
+                    </span>
+                    <span className="flex items-center gap-1 text-orange-600 font-medium">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      {feedback.length}{' '}
+                      {feedback.length === 1 ? 'alteração' : 'alterações'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Lista de alterações solicitadas */}
-            <div className="p-4 space-y-3">
-              {feedback.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-1.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-orange-800">
-                      {item.author || 'Cliente'}
-                    </span>
-                    {item.date && (
-                      <span className="text-xs text-orange-700/70">
-                        {formatDate(item.date)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-orange-900 whitespace-pre-wrap">
-                    {item.comment}
-                  </p>
-                </div>
-              ))}
-
-              {/* Ações */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Status:</span>
-                  <Select
-                    value={currentStatus}
-                    onValueChange={(value) => handleChangeStatus(production.id, value)}
-                    disabled={isUpdating}
+              {/* Lista de alterações solicitadas */}
+              <div className="p-4 space-y-3">
+                {feedback.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-1.5"
                   >
-                    <SelectTrigger className="h-8 w-[180px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {STATUS_OPTIONS.map((status) => (
-                        <SelectItem key={status} value={status} className="text-xs">
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-orange-800">
+                        {item.author || 'Cliente'}
+                      </span>
+                      {item.date && (
+                        <span className="text-xs text-orange-700/70">
+                          {formatDate(item.date)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-orange-900 whitespace-pre-wrap">
+                      {item.comment}
+                    </p>
+                  </div>
+                ))}
 
-                <div className="flex items-center gap-2">
+                {/* Ações */}
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                  {onSelectById && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => onSelectById(production.id)}
+                    >
+                      Ver detalhes
+                    </Button>
+                  )}
                   <Button
-                    variant="outline"
                     size="sm"
                     className="gap-2"
-                    onClick={() => onSelectById(production.id)}
+                    onClick={() => setActiveIndex(index)}
                   >
-                    <Eye className="w-4 h-4" />
-                    Ver produção
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => handleMarkDone(production.id)}
-                    disabled={isUpdating || isDone}
-                  >
-                    {isUpdating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Check className="w-4 h-4" />
-                    )}
-                    {isDone ? 'Concluída' : 'Marcar como feita'}
+                    <Pencil className="w-4 h-4" />
+                    Corrigir e reenviar
                   </Button>
                 </div>
               </div>
             </div>
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+
+      <ProductionRevisionDialog
+        open={activeEntry !== null}
+        onOpenChange={(open) => {
+          if (!open) setActiveIndex(null)
+        }}
+        production={activeEntry?.production || null}
+        feedback={activeEntry?.feedback || []}
+        onResent={handleResent}
+      />
+    </>
   )
 }

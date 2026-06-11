@@ -457,7 +457,6 @@ export default function ProducaoPage() {
                       setDrawerOpen(true)
                     }
                   }}
-                  onUpdateStatus={handleUpdateStatus}
                 />
               )}
             </div>

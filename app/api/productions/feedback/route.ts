@@ -61,6 +61,8 @@ export async function GET() {
     for (const r of rows) {
       const text = r.comment?.trim()
       if (!r.production_id || !text) continue
+      // Só mostramos produções que estão aguardando ajuste do editor
+      if ((r.production_status || '') !== 'Solicitou Ajuste') continue
 
       if (!byProduction.has(r.production_id)) {
         byProduction.set(r.production_id, {
