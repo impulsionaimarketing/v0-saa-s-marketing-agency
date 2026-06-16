@@ -18,7 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown } from 'lucide-react'
-import { getDemands, updateDemandStatus, deleteDemand, type Demand } from '@/lib/data/demands'
+import { getDemands, updateDemand, deleteDemand, type Demand } from '@/lib/data/demands'
 import { getClients } from '@/lib/data/clients'
 import { getUsers } from '@/lib/data/users'
 import { getVideoScriptByDemandId, type VideoScript } from '@/lib/data/video-scripts'

@@ -25,7 +25,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Loader2, Lock } from 'lucide-react'
-import { createUser, updateUser, type User } from '@/lib/data/users'
+import { createNewUser, updateUser, type User } from '@/lib/data/users'
 import { createUserWithAuth } from '@/lib/auth/user-management'
 import { PermissionSelector } from '@/components/permissions/permission-selector'
 import { usePermissions } from '@/lib/hooks/use-permissions'
