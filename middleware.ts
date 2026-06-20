@@ -4,7 +4,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rotas públicas que não requerem autenticação
-  const publicRoutes = ['/auth/login', '/auth/signup']
+  const publicRoutes = ['/auth/login', '/auth/signup', '/manifest.json']
   
   // Se está em rota pública, deixa passar
   if (publicRoutes.includes(pathname)) {
@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Para todas as outras rotas, verifica se usuário está logado
-  const user = request.cookies.get('user')?.value
+  const user = request.cookies.get('auth_user')?.value || request.cookies.get('user')?.value
 
   // Se não está logado e tenta acessar rota protegida, redireciona para login
   if (!user) {
@@ -32,9 +32,10 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - manifest.json (PWA manifest)
      * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

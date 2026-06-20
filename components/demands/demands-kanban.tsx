@@ -14,6 +14,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -107,6 +108,9 @@ function DemandDetailModal({
             ) : null}
             <div className="flex-1 min-w-0">
               <DialogTitle className="text-left leading-tight">{demand.name}</DialogTitle>
+              <DialogDescription className="mt-1">
+                Detalhes da demanda
+              </DialogDescription>
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 <Badge variant="outline" className={cn('text-xs', areaColors[demand.area])}>
                   {demand.area}

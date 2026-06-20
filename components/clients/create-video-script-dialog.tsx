@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { 
   Dialog, 
-  DialogContent, 
+  DialogContent,
+  DialogDescription,
   DialogHeader, 
   DialogTitle 
 } from '@/components/ui/dialog'
@@ -67,6 +68,9 @@ export function CreateVideoScriptDialog({
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo Roteiro de Vídeo</DialogTitle>
+          <DialogDescription>
+            Preencha os detalhes do roteiro para criar um novo vídeo
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

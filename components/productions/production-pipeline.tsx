@@ -16,6 +16,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogClose,
@@ -467,6 +468,9 @@ export function ProductionPipeline() {
               )}
               {selectedProduction?.client_name || 'Produção'}
             </DialogTitle>
+            <DialogDescription>
+              Detalhes da produção
+            </DialogDescription>
             <DialogClose />
           </DialogHeader>
 

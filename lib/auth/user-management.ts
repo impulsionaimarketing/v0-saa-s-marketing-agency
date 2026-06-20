@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import bcryptjs from 'bcryptjs'
 
 export async function createUserWithAuth(
   email: string,
@@ -15,24 +16,55 @@ export async function createUserWithAuth(
   try {
     const supabase = await createClient()
 
-    // Create user using RPC function directly in the users table
-    const { data, error: rpcError } = await supabase.rpc('create_new_user', {
-      p_name: userData.name,
-      p_email: email,
-      p_password: password,
-      p_role: userData.role,
-      p_area: userData.area || 'Arte',
-    })
+    // Verificar se email já existe
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single()
 
-    if (rpcError) {
-      throw new Error(`Erro ao criar usuário: ${rpcError.message}`)
+    if (existingUser) {
+      throw new Error('Este email já está registrado')
     }
 
-    if (!data?.success) {
-      throw new Error(data?.message || 'Erro ao criar usuário')
+    // Criar hash da senha
+    const passwordHash = await bcryptjs.hash(password, 10)
+
+    // Inserir novo usuário no banco de dados
+    const { data: newUser, error: insertError } = await supabase
+      .from('users')
+      .insert({
+        name: userData.name,
+        email: email,
+        password_hash: passwordHash,
+        role: userData.role,
+        area: userData.area || 'Arte',
+        status: userData.status,
+        modules_access: [
+          'dashboard',
+          'clientes',
+          'colaboradores',
+          'demandas',
+          'producao',
+          'trafego',
+          'cobrancas',
+          'relatorios',
+          'alertas',
+          'configuracoes',
+        ],
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      throw new Error(`Erro ao criar usuário: ${insertError.message}`)
     }
 
-    return { success: true, userId: data.user_id }
+    if (!newUser) {
+      throw new Error('Erro ao criar usuário')
+    }
+
+    return { success: true, userId: newUser.id }
   } catch (error) {
     console.error('[v0] Error creating user:', error)
     throw error

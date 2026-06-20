@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Upload, Download, Trash2, FileVideo, FileImage, Eye, Loader2 } from 'lucide-react'
 import { formatBytes } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -223,6 +223,9 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
             <DialogTitle className="text-sm sm:text-base truncate pr-8">
               {previewFile?.filename}
             </DialogTitle>
+            <DialogDescription>
+              Visualização de arquivo
+            </DialogDescription>
           </DialogHeader>
           <div className="mt-4 overflow-hidden">
             {previewFile && isImage(previewFile.file_type) && (
