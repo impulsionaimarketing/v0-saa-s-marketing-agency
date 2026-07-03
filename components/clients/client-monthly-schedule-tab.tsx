@@ -25,6 +25,8 @@ import { Calendar, Plus, Trash2, Video, ImageIcon, DollarSign, Check, Pencil, Do
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog'
 import { RoteirosSection } from './roteiros-section'
 import { ExportPdfSection } from './export-pdf-section'
+import { ImportPdfSection } from './import-pdf-section'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getVideoScripts, type VideoScript } from '@/lib/data/video-scripts'
 import { getArteBriefs, type ArteBrief } from '@/lib/data/arte-briefs'
 import { getClientById } from '@/lib/data/clients'
@@ -179,6 +181,12 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
             <CardTitle>Novo Cronograma</CardTitle>
           </CardHeader>
           <CardContent>
+            <Tabs defaultValue="manual">
+              <TabsList className="mb-4">
+                <TabsTrigger value="manual">Manual</TabsTrigger>
+                <TabsTrigger value="pdf">Importar PDF</TabsTrigger>
+              </TabsList>
+              <TabsContent value="manual">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -242,6 +250,22 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
                 </Button>
               </div>
             </form>
+              </TabsContent>
+              <TabsContent value="pdf">
+                <ImportPdfSection
+                  clientId={clientId}
+                  clientName={clientName}
+                  onImported={() => {
+                    loadData()
+                  }}
+                />
+                <div className="mt-4 flex justify-start">
+                  <Button type="button" variant="outline" onClick={() => setIsAddingNew(false)}>
+                    Fechar
+                  </Button>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       )}
