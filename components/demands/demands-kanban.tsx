@@ -59,6 +59,18 @@ function formatDeadline(deadline: string | null): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+// Retorna a data de calendário local (YYYY-MM-DD) do prazo, coerente com o que
+// é exibido ao usuário. Usado para comparar no filtro de datas sem sofrer com
+// deslocamentos de hora/fuso horário.
+function toLocalDateKey(deadline: string): string {
+  const d = new Date(deadline.includes('T') ? deadline : deadline + 'T00:00:00')
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 // ─── Detail Modal ────────────────────────────────────────────────────────────
 function DemandDetailModal({
   demand,
@@ -385,13 +397,9 @@ export function DemandsKanban() {
 
       let matchesDate = true
       if (demand.deadline) {
-        const demandDate = new Date(demand.deadline.includes('T') ? demand.deadline : demand.deadline + 'T00:00:00')
-        if (dateFrom) {
-          if (demandDate < new Date(dateFrom + 'T00:00:00')) matchesDate = false
-        }
-        if (dateTo) {
-          if (demandDate > new Date(dateTo + 'T23:59:59')) matchesDate = false
-        }
+        const demandKey = toLocalDateKey(demand.deadline)
+        if (dateFrom && demandKey < dateFrom) matchesDate = false
+        if (dateTo && demandKey > dateTo) matchesDate = false
       } else if (dateFrom || dateTo) {
         matchesDate = false
       }
