@@ -316,73 +316,11 @@ CREATE TRIGGER trigger_update_monthly_plannings_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_monthly_plannings_updated_at();
 
--- Função para sincronizar demand para production (Arte/Vídeo)
-CREATE OR REPLACE FUNCTION sync_demand_to_production()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.area IN ('Arte', 'Vídeo') THEN
-    INSERT INTO public.productions (
-      client_id,
-      demand_id,
-      type,
-      responsible_id,
-      status,
-      post_date,
-      notes
-    ) VALUES (
-      NEW.client_id,
-      NEW.id,
-      NEW.area::text,
-      NEW.responsible_id,
-      'Planejamento',
-      NEW.deadline,
-      NEW.name
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trigger_sync_demand_to_production ON public.demands;
-CREATE TRIGGER trigger_sync_demand_to_production
-  AFTER INSERT ON public.demands
-  FOR EACH ROW
-  EXECUTE FUNCTION sync_demand_to_production();
-
--- Função para sincronizar production para demand
-CREATE OR REPLACE FUNCTION sync_production_to_demand()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.demand_id IS NULL THEN
-    INSERT INTO public.demands (
-      name,
-      description,
-      client_id,
-      area,
-      responsible_id,
-      deadline,
-      status,
-      priority
-    ) VALUES (
-      COALESCE(NEW.notes, 'Novo ' || NEW.type),
-      NULL,
-      NEW.client_id,
-      NEW.type::text,
-      NEW.responsible_id,
-      NEW.post_date,
-      'A Fazer',
-      'medium'
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS trigger_sync_production_to_demand ON public.productions;
-CREATE TRIGGER trigger_sync_production_to_demand
-  AFTER INSERT ON public.productions
-  FOR EACH ROW
-  EXECUTE FUNCTION sync_production_to_demand();
+-- NOTA: A sincronização entre demands e productions é feita no código da
+-- aplicação (lib/data/productions.ts -> createLinkedProductionForDemand,
+-- chamado por createDemand). Os antigos triggers de sincronização foram
+-- removidos porque causavam duplicação de registros e recursão infinita.
+-- NÃO recrie triggers de sync aqui.
 
 -- Função para fazer upsert de monthly_planning
 CREATE OR REPLACE FUNCTION upsert_monthly_planning(
