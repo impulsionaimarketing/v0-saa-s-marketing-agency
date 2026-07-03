@@ -172,7 +172,7 @@ export async function createLinkedProductionForDemand(demand: {
       p_responsible_id: demand.responsible_id || null,
       p_status: 'Planejamento',
       p_post_date: demand.deadline || null,
-      p_notes: demand.name ? `Demanda: ${demand.name}` : null,
+      p_notes: demand.name || null,
     })
 
     if (error || !result?.id) {

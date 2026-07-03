@@ -336,7 +336,7 @@ BEGIN
       NEW.responsible_id,
       'Planejamento',
       NEW.deadline,
-      'Demanda: ' || NEW.name
+      NEW.name
     );
   END IF;
   RETURN NEW;
