@@ -33,6 +33,7 @@ import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
 import { AppShell } from '@/components/layout/app-shell'
 import { FeedView, KanbanView, CalendarView, ListView, ChangesView } from '@/components/productions/views'
 import { ProductionDetailDrawer } from '@/components/productions/production-detail-drawer'
+import { ProductionFormDialog } from '@/components/productions/production-form-dialog'
 import { useAuth } from '@/lib/hooks/use-auth'
 import { toast } from 'sonner'
 
@@ -100,6 +101,10 @@ export default function ProducaoPage() {
   const [selectedProduction, setSelectedProduction] = useState<Production | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
 
+  // Edit dialog
+  const [editingProduction, setEditingProduction] = useState<Production | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+
   // Selection mode
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -163,6 +168,11 @@ export default function ProducaoPage() {
     }
     setSelectedProduction(production)
     setDrawerOpen(true)
+  }
+
+  const handleEditProduction = (production: Production) => {
+    setEditingProduction(production)
+    setEditOpen(true)
   }
 
   const handleExitSelection = () => {
@@ -417,6 +427,7 @@ export default function ProducaoPage() {
                 <FeedView
                   productions={filteredProductions}
                   onSelect={handleSelectProduction}
+                  onEdit={handleEditProduction}
                   onUpdateStatus={handleUpdateStatus}
                   selectionMode={selectionMode}
                   selectedIds={selectedIds}
@@ -469,6 +480,17 @@ export default function ProducaoPage() {
             onUpdateStatus={handleUpdateStatus}
             onUpdated={() => {
               setDrawerOpen(false)
+              fetchData()
+            }}
+          />
+
+          <ProductionFormDialog
+            production={editingProduction}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            onSuccess={() => {
+              setEditOpen(false)
+              setEditingProduction(null)
               fetchData()
             }}
           />

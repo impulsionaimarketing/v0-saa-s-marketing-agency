@@ -37,6 +37,7 @@ interface Production {
 interface FeedViewProps {
   productions: Production[]
   onSelect: (production: Production) => void
+  onEdit?: (production: Production) => void
   onUpdateStatus: (id: string, newStatus: string) => void
   selectionMode?: boolean
   selectedIds?: Set<string>
@@ -65,12 +66,14 @@ function formatDate(dateString?: string) {
 function FeedItem({
   production,
   onSelect,
+  onEdit,
   onUpdateStatus,
   selectionMode,
   isSelected,
 }: {
   production: Production
   onSelect: (p: Production) => void
+  onEdit?: (p: Production) => void
   onUpdateStatus: (id: string, status: string) => void
   selectionMode?: boolean
   isSelected?: boolean
@@ -197,7 +200,7 @@ function FeedItem({
             size="sm"
             variant="secondary"
             className="h-9 px-3 bg-white text-black hover:bg-white/90"
-            onClick={(e) => { e.stopPropagation(); onSelect(production); }}
+            onClick={(e) => { e.stopPropagation(); (onEdit ?? onSelect)(production); }}
           >
             <Pencil className="w-4 h-4 mr-1.5" />
             Editar
@@ -223,7 +226,7 @@ function FeedItem({
   )
 }
 
-export function FeedView({ productions, onSelect, onUpdateStatus, selectionMode, selectedIds }: FeedViewProps) {
+export function FeedView({ productions, onSelect, onEdit, onUpdateStatus, selectionMode, selectedIds }: FeedViewProps) {
   if (productions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -243,6 +246,7 @@ export function FeedView({ productions, onSelect, onUpdateStatus, selectionMode,
           key={production.id}
           production={production}
           onSelect={onSelect}
+          onEdit={onEdit}
           onUpdateStatus={onUpdateStatus}
           selectionMode={selectionMode}
           isSelected={selectedIds?.has(production.id)}

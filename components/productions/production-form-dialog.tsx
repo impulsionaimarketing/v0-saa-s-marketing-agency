@@ -90,7 +90,7 @@ export function ProductionFormDialog({
     if (open) {
       if (production) {
         setFormData({
-          title: production.title || '',
+          title: production.title || production.notes || '',
           client_id: production.client_id || '',
           type: production.type || 'Vídeo',
           responsible_id: production.responsible_id || 'none',
