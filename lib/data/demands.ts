@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
+import { createLinkedProductionForDemand } from "@/lib/data/productions"
 
 export interface Demand {
   id: string
@@ -122,6 +123,12 @@ export async function createDemand(data: Partial<Demand>): Promise<Demand | null
 
     // Send webhook notification
     await sendWebhookNotification('demand.created', result)
+
+    // Auto-create a linked production for Arte/Vídeo demands so they
+    // automatically show up in the Produção tab.
+    if (result.area === 'Arte' || result.area === 'Vídeo') {
+      await createLinkedProductionForDemand(result as Demand)
+    }
 
     return result as Demand
   } catch (error) {

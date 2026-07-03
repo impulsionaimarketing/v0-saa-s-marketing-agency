@@ -149,6 +149,57 @@ export async function createProduction(data: {
   }
 }
 
+// Automatically creates a production linked to a demand (Arte/Vídeo) so it
+// shows up in the Produção tab. Links via demand_id to keep two-way sync working.
+export async function createLinkedProductionForDemand(demand: {
+  id: string
+  client_id: string
+  area?: string | null
+  type?: string | null
+  name?: string | null
+  responsible_id?: string | null
+  deadline?: string | null
+}): Promise<Production | null> {
+  const type = demand.area || demand.type
+  if (type !== 'Arte' && type !== 'Vídeo') return null
+
+  try {
+    const supabase = await createClient()
+
+    const { data: result, error } = await supabase.rpc('insert_production', {
+      p_client_id: demand.client_id,
+      p_type: type,
+      p_responsible_id: demand.responsible_id || null,
+      p_status: 'Planejamento',
+      p_post_date: demand.deadline || null,
+      p_notes: demand.name ? `Demanda: ${demand.name}` : null,
+    })
+
+    if (error || !result?.id) {
+      console.error('[v0] Error auto-creating linked production:', error)
+      return null
+    }
+
+    // Link the production back to the demand for two-way sync
+    const { error: linkError } = await supabase
+      .from('productions')
+      .update({ demand_id: demand.id })
+      .eq('id', result.id)
+
+    if (linkError) {
+      console.error('[v0] Error linking production to demand:', linkError)
+    }
+
+    const linked = { ...result, demand_id: demand.id } as Production
+    await sendWebhookNotification('production.created', linked)
+
+    return linked
+  } catch (error) {
+    console.error('[v0] Error auto-creating linked production:', error)
+    return null
+  }
+}
+
 export async function updateProduction(
   id: string,
   data: Partial<Production>

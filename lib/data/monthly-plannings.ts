@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createLinkedProductionForDemand } from '@/lib/data/productions'
 
 export interface MonthlyPlanning {
   id: string
@@ -286,6 +287,15 @@ export async function convertItemToDemand(itemId: string, clientId: string): Pro
       console.error('[v0] Error updating item:', updateError)
       throw new Error(updateError.message)
     }
+
+    // Auto-create a linked production so the demand appears in the Produção tab
+    await createLinkedProductionForDemand({
+      id: demand.id,
+      client_id: clientId,
+      area: item.type === 'video' ? 'Vídeo' : 'Arte',
+      name: item.title,
+      deadline: null,
+    })
 
     return demand.id
   } catch (error) {
