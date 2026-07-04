@@ -119,10 +119,10 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
     const files: PublicProductionFile[] = Array.isArray(p.production_files)
       ? [...p.production_files]
           .sort((a, b) => {
-            const da = a?.uploaded_at ? new Date(a.uploaded_at).getTime() : 0
-            const db = b?.uploaded_at ? new Date(b.uploaded_at).getTime() : 0
-            return da - db
-          })
+  const pa = a.position ?? new Date(a.uploaded_at ?? 0).getTime()
+  const pb = b.position ?? new Date(b.uploaded_at ?? 0).getTime()
+  return pa - pb
+})
           .map((f) => ({
             url: f.url,
             filename: f.filename,
