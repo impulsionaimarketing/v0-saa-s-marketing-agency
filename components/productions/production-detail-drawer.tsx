@@ -17,18 +17,16 @@ import {
   Calendar, 
   User, 
   FileText, 
-  Link as LinkIcon,
   Check,
   AlertCircle,
   Copy,
-  ExternalLink,
   Clock,
-  X,
   Pencil,
   MessageSquare
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ProductionFormDialog } from './production-form-dialog'
+import { VideoUploadSection } from './video-upload-section'
 
 interface ProductionFile {
   id: string
@@ -343,32 +341,21 @@ const copyLink = async () => {
               </div>
             )}
 
-            {/* All Files */}
-            {production.files && production.files.length > 1 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <LinkIcon className="w-4 h-4" />
-                  <span className="text-xs font-medium uppercase tracking-wide">Arquivos ({production.files.length})</span>
-                </div>
-                <div className="space-y-2">
-                  {production.files.map((file) => (
-                    <a
-                      key={file.id}
-                      href={file.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-primary hover:underline bg-muted/50 rounded-lg p-3"
-                    >
-                      {file.file_type?.startsWith('video/') ? (
-                        <Video className="w-4 h-4" />
-                      ) : (
-                        <ImageIcon className="w-4 h-4" />
-                      )}
-                      <span className="truncate flex-1">{file.filename}</span>
-                      <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
-                    </a>
-                  ))}
-                </div>
+            {/* Media Files - upload, preview, delete e reordenar */}
+            {production.files && production.files.length > 0 && (
+              <div className="space-y-2 pt-4 border-t border-border">
+                <VideoUploadSection
+                  productionId={production.id}
+                  files={production.files.map((f) => ({
+                    id: f.id,
+                    filename: f.filename,
+                    url: f.url,
+                    file_size: f.file_size ?? 0,
+                    file_type: f.file_type ?? '',
+                    uploaded_at: f.uploaded_at ?? '',
+                  }))}
+                  onUpdate={() => onUpdated?.()}
+                />
               </div>
             )}
 
