@@ -28,52 +28,83 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
   const [isUploading, setIsUploading] = useState(false)
   const [previewFile, setPreviewFile] = useState<ProductionFile | null>(null)
 
+  const uploadSingleFile = async (file: File) => {
+    const { upload } = await import('@vercel/blob/client')
+
+    const blob = await upload(file.name, file, {
+      access: 'public',
+      handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
+    })
+
+    const confirmRes = await fetch('/api/upload-video/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productionId,
+        url: blob.url,
+        filename: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+      }),
+    })
+
+    if (!confirmRes.ok) throw new Error('Erro ao salvar referência')
+  }
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const selectedFiles = Array.from(e.target.files ?? [])
+    if (selectedFiles.length === 0) return
 
-    const isImageFile = file.type.startsWith('image/')
-    const isVideoFile = file.type.startsWith('video/')
+    // Valida cada arquivo antes de iniciar
+    const validFiles = selectedFiles.filter((file) => {
+      const isValidType = file.type.startsWith('image/') || file.type.startsWith('video/')
+      if (!isValidType) {
+        toast.error(`"${file.name}" não é uma imagem ou vídeo`)
+        return false
+      }
+      if (file.size > 5 * 1024 * 1024 * 1024) {
+        toast.error(`"${file.name}" é muito grande (máx. 5GB)`)
+        return false
+      }
+      return true
+    })
 
-    if (!isImageFile && !isVideoFile) {
-      toast.error('Por favor, selecione uma imagem ou vídeo')
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024 * 1024) {
-      toast.error('Arquivo muito grande. Tamanho máximo: 5GB')
+    if (validFiles.length === 0) {
+      e.target.value = ''
       return
     }
 
     setIsUploading(true)
 
+    let successCount = 0
+    let errorCount = 0
+
     try {
-      const { upload } = await import('@vercel/blob/client')
+      for (const file of validFiles) {
+        try {
+          await uploadSingleFile(file)
+          successCount++
+        } catch (error) {
+          console.error('[v0] Upload error:', error)
+          errorCount++
+        }
+      }
 
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
-      })
-
-      const confirmRes = await fetch('/api/upload-video/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productionId,
-          url: blob.url,
-          filename: file.name,
-          fileSize: file.size,
-          fileType: file.type,
-        }),
-      })
-
-      if (!confirmRes.ok) throw new Error('Erro ao salvar referência')
-
-      toast.success('Arquivo enviado com sucesso!')
-      onUpdate()
-    } catch (error) {
-      console.error('[v0] Upload error:', error)
-      toast.error('Erro ao fazer upload do arquivo')
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1
+            ? 'Arquivo enviado com sucesso!'
+            : `${successCount} arquivos enviados com sucesso!`
+        )
+        onUpdate()
+      }
+      if (errorCount > 0) {
+        toast.error(
+          errorCount === 1
+            ? 'Erro ao enviar 1 arquivo'
+            : `Erro ao enviar ${errorCount} arquivos`
+        )
+      }
     } finally {
       setIsUploading(false)
       e.target.value = ''
@@ -114,7 +145,7 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
             Arquivos de Mídia
           </CardTitle>
           <CardDescription>
-            Faça upload de imagens e vídeos finalizados (máx. 5GB por arquivo)
+            Faça upload de uma ou várias imagens e vídeos finalizados (máx. 5GB por arquivo)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -123,6 +154,7 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
               type="file"
               id={`media-upload-${productionId}`}
               accept="image/*,video/*"
+              multiple
               onChange={handleUpload}
               disabled={isUploading}
               className="hidden"
@@ -144,7 +176,7 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
                   ) : (
                     <>
                       <Upload className="h-4 w-4" />
-                      Enviar Arquivo
+                      Enviar Arquivos
                     </>
                   )}
                 </span>

@@ -59,6 +59,11 @@ export async function regenerateApprovalLink(productionId: string): Promise<stri
 }
 
 // ─── Buscar produção pelo token (página pública do cliente) ──────────────────
+type PublicProductionFile = {
+  url: string
+  file_type: string | null
+}
+
 type PublicProduction = {
   id: string
   title: string
@@ -68,6 +73,7 @@ type PublicProduction = {
   caption: string
   status: string
   video_url: string | null
+  files: PublicProductionFile[]
 }
 
 export async function getProductionByToken(token: string): Promise<PublicProduction[] | null> {
@@ -116,14 +122,17 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
 
   // 3. Normaliza para o formato esperado pela página pública
   return productions.map((p: any) => {
-    const files = Array.isArray(p.production_files) ? [...p.production_files] : []
-    // Usa o arquivo mais recente como preview
-    files.sort((a, b) => {
+    const rawFiles = Array.isArray(p.production_files) ? [...p.production_files] : []
+    // Ordena do mais antigo para o mais recente (ordem de envio)
+    rawFiles.sort((a, b) => {
       const da = a?.uploaded_at ? new Date(a.uploaded_at).getTime() : 0
       const db = b?.uploaded_at ? new Date(b.uploaded_at).getTime() : 0
-      return db - da
+      return da - db
     })
-    const previewFile = files[0]
+
+    const files: PublicProductionFile[] = rawFiles
+      .filter((f) => f?.url)
+      .map((f) => ({ url: f.url as string, file_type: f.file_type ?? null }))
 
     return {
       id: p.id,
@@ -133,7 +142,8 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
       post_date: p.post_date || '',
       caption: p.caption || '',
       status: p.status || '',
-      video_url: previewFile?.url || null,
+      video_url: files[0]?.url || null,
+      files,
     }
   })
 }

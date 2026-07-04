@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { submitApprovalResponse } from '@/lib/data/approval'
+import { MediaCarousel, type CarouselMedia } from '@/components/productions/media-carousel'
 import { Heart, MessageCircle, Check, X, Clock, Loader2, CheckCircle2 } from 'lucide-react'
 
 type Production = {
@@ -19,6 +20,7 @@ type Production = {
   caption: string
   status: string
   video_url: string | null
+  files: CarouselMedia[]
 }
 
 type Decision = 'aprovado' | 'reprovado'
@@ -162,7 +164,18 @@ export function ApprovalClient({
         <div className="space-y-6">
           {productions.map((production, index) => {
             const d = decisions[production.id]
-            const isVideo = production.video_url && /\.(mp4|mov|webm)$/i.test(production.video_url)
+            const mediaItems: CarouselMedia[] =
+              production.files && production.files.length > 0
+                ? production.files
+                : production.video_url
+                  ? [{ url: production.video_url, file_type: null }]
+                  : []
+            const firstItem = mediaItems[0]
+            const firstIsVideo = firstItem
+              ? (firstItem.file_type
+                  ? firstItem.file_type.startsWith('video/') || firstItem.file_type === 'video'
+                  : /\.(mp4|mov|webm|m4v)$/i.test(firstItem.url))
+              : false
             const formattedDate = production.post_date
               ? new Date(production.post_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
               : 'A definir'
@@ -182,18 +195,11 @@ export function ApprovalClient({
                 </header>
 
                 {/* Preview */}
-                <div className={cn('relative w-full bg-black', isVideo ? 'aspect-[9/16]' : 'aspect-square')}>
-                  {isVideo ? (
-                    <video src={production.video_url ?? undefined} className="h-full w-full object-contain" controls playsInline />
-                  ) : production.video_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={production.video_url} alt={production.title} className="h-full w-full object-contain" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-                      Arquivo não disponível
-                    </div>
-                  )}
-                </div>
+                <MediaCarousel
+                  items={mediaItems}
+                  alt={production.title}
+                  aspectClassName={firstIsVideo ? 'aspect-[9/16]' : 'aspect-square'}
+                />
 
                 {/* Botões de decisão */}
                 <div className="grid grid-cols-2 gap-3 px-4 pb-1 pt-4">
