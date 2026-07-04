@@ -31,7 +31,10 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
   const uploadSingleFile = async (file: File) => {
     const { upload } = await import('@vercel/blob/client')
 
-    const blob = await upload(file.name, file, {
+    // Caminho único para evitar colisão de nomes (arquivos com o mesmo nome
+    // fariam o segundo upload falhar, já que o Blob não usa sufixo aleatório por padrão)
+    const uniquePath = `productions/${productionId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
+    const blob = await upload(uniquePath, file, {
       access: 'public',
       handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
     })
