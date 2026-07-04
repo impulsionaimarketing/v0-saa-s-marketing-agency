@@ -71,7 +71,7 @@ export function ProductionFormDialog({
   const [isPending, startTransition] = useTransition()
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<User[]>([])
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
 
   const [formData, setFormData] = useState({ ...EMPTY_FORM })
@@ -102,66 +102,85 @@ export function ProductionFormDialog({
       } else {
         setFormData({ ...EMPTY_FORM })
       }
-      setSelectedFile(null)
+      setSelectedFiles([])
     }
   }, [open, production])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0) return
 
-    // Validate file type
-    const isImage = file.type.startsWith('image/')
-    const isVideo = file.type.startsWith('video/')
+    const validFiles = files.filter((file) => {
+      const isImage = file.type.startsWith('image/')
+      const isVideo = file.type.startsWith('video/')
 
-    if (!isImage && !isVideo) {
-      toast.error('Por favor, selecione uma imagem ou vídeo')
-      return
+      if (!isImage && !isVideo) {
+        toast.error(`"${file.name}" não é uma imagem ou vídeo`)
+        return false
+      }
+      if (file.size > 5 * 1024 * 1024 * 1024) {
+        toast.error(`"${file.name}" é muito grande (máx. 5GB)`)
+        return false
+      }
+      return true
+    })
+
+    if (validFiles.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...validFiles])
     }
-
-    // Validate file size (max 5GB)
-    if (file.size > 5 * 1024 * 1024 * 1024) {
-      toast.error('Arquivo muito grande. Tamanho máximo: 5GB')
-      return
-    }
-
-    setSelectedFile(file)
+    // Permite selecionar o(s) mesmo(s) arquivo(s) novamente
+    e.target.value = ''
   }
 
-  const handleRemoveFile = () => {
-    setSelectedFile(null)
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const uploadFile = async (productionId: string) => {
-    if (!selectedFile) return
+  const uploadFiles = async (productionId: string) => {
+    if (selectedFiles.length === 0) return
 
     setIsUploading(true)
+    let successCount = 0
     try {
       const { upload } = await import('@vercel/blob/client')
 
-      const blob = await upload(selectedFile.name, selectedFile, {
-        access: 'public',
-        handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
-      })
+      for (const file of selectedFiles) {
+        try {
+          const blob = await upload(file.name, file, {
+            access: 'public',
+            handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
+          })
 
-      const confirmRes = await fetch('/api/upload-video/confirm', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productionId: productionId,
-          url: blob.url,
-          filename: selectedFile.name,
-          fileSize: selectedFile.size,
-          fileType: selectedFile.type,
-        }),
-      })
+          const confirmRes = await fetch('/api/upload-video/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productionId: productionId,
+              url: blob.url,
+              filename: file.name,
+              fileSize: file.size,
+              fileType: file.type,
+            }),
+          })
 
-      if (!confirmRes.ok) throw new Error('Erro ao salvar referência do arquivo')
+          if (!confirmRes.ok) throw new Error('Erro ao salvar referência do arquivo')
+          successCount++
+        } catch (error) {
+          console.error('[v0] Upload error:', error)
+        }
+      }
 
-      toast.success('Arquivo enviado com sucesso!')
-    } catch (error) {
-      console.error('[v0] Upload error:', error)
-      toast.error('Erro ao enviar arquivo')
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1
+            ? 'Arquivo enviado com sucesso!'
+            : `${successCount} arquivos enviados com sucesso!`
+        )
+      }
+      if (successCount < selectedFiles.length) {
+        const failed = selectedFiles.length - successCount
+        toast.error(failed === 1 ? 'Erro ao enviar 1 arquivo' : `Erro ao enviar ${failed} arquivos`)
+      }
     } finally {
       setIsUploading(false)
     }
@@ -190,9 +209,9 @@ export function ProductionFormDialog({
             notes: formData.notes || undefined,
           })
 
-          // Upload new file if one was selected
-          if (selectedFile) {
-            await uploadFile(production.id)
+          // Upload new files if any were selected
+          if (selectedFiles.length > 0) {
+            await uploadFiles(production.id)
           }
 
           toast.success('Criativo atualizado com sucesso!')
@@ -207,15 +226,15 @@ export function ProductionFormDialog({
             notes: formData.notes || undefined,
           })
 
-          // Upload file if selected
-          if (selectedFile && created?.id) {
-            await uploadFile(created.id)
+          // Upload files if selected
+          if (selectedFiles.length > 0 && created?.id) {
+            await uploadFiles(created.id)
           }
         }
 
         setOpen(false)
         setFormData({ ...EMPTY_FORM })
-        setSelectedFile(null)
+        setSelectedFiles([])
         onSuccess?.()
       } catch (error) {
         console.error('Error saving production:', error)
@@ -413,52 +432,67 @@ export function ProductionFormDialog({
             )}
 
             <div className="grid gap-2">
-              <Label htmlFor="file">
-                {isEditMode ? 'Adicionar nova mídia (Opcional)' : 'Arquivo (Opcional)'}
+              <Label htmlFor="file-upload">
+                {isEditMode
+                  ? `Adicionar novas mídias (Opcional)${selectedFiles.length > 0 ? ` — ${selectedFiles.length} selecionada(s)` : ''}`
+                  : `Arquivos (Opcional)${selectedFiles.length > 0 ? ` — ${selectedFiles.length} selecionado(s)` : ''}`}
               </Label>
               <div className="space-y-2">
-                {selectedFile ? (
-                  <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Upload className="h-4 w-4 text-primary shrink-0" />
-                      <span className="text-sm truncate">{selectedFile.name}</span>
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleRemoveFile}
-                      className="shrink-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                {selectedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    {selectedFiles.map((file, index) => {
+                      const isVideoFile = file.type.startsWith('video/')
+                      return (
+                        <div
+                          key={`${file.name}-${index}`}
+                          className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30"
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {isVideoFile ? (
+                              <Video className="h-4 w-4 text-primary shrink-0" />
+                            ) : (
+                              <ImageIcon className="h-4 w-4 text-primary shrink-0" />
+                            )}
+                            <span className="text-sm truncate">{file.name}</span>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleRemoveFile(index)}
+                            className="shrink-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )
+                    })}
                   </div>
-                ) : (
-                  <>
-                    <input
-                      type="file"
-                      id="file-upload"
-                      accept="image/*,video/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <label htmlFor="file-upload">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full cursor-pointer"
-                        asChild
-                      >
-                        <span className="flex items-center gap-2">
-                          <Upload className="h-4 w-4" />
-                          Selecionar Arquivo
-                        </span>
-                      </Button>
-                    </label>
-                  </>
                 )}
+
+                <input
+                  type="file"
+                  id="file-upload"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <label htmlFor="file-upload">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full cursor-pointer"
+                    asChild
+                  >
+                    <span className="flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      {selectedFiles.length > 0 ? 'Adicionar mais arquivos' : 'Selecionar Arquivos'}
+                    </span>
+                  </Button>
+                </label>
                 <p className="text-xs text-muted-foreground">
-                  Imagens ou vídeos até 5GB
+                  Você pode selecionar várias imagens ou vídeos (até 5GB cada)
                 </p>
               </div>
             </div>
