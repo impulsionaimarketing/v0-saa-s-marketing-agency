@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckCircle2, XCircle, Clock, Send, Video, Image as ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MediaCarousel } from '@/components/productions/media-carousel'
 
 interface ProductionFile {
   id: string
@@ -130,8 +131,6 @@ export function BulkApprovalClient({ productions, token }: BulkApprovalClientPro
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
         {productions.map((production, index) => {
           const d = decisions[production.id]
-          const firstFile = production.files[0]
-          const isVideo = firstFile?.file_type?.startsWith('video/')
 
           return (
             <Card key={production.id} className={cn(
@@ -169,22 +168,13 @@ export function BulkApprovalClient({ productions, token }: BulkApprovalClientPro
 
               <CardContent className="space-y-4">
                 {/* Media */}
-                {firstFile && (
-                  <div className="rounded-xl overflow-hidden bg-muted aspect-video">
-                    {isVideo ? (
-                      <video
-                        src={firstFile.url}
-                        controls
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <img
-                        src={firstFile.url}
-                        alt={production.title}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
+                {production.files.length > 0 && (
+                  <MediaCarousel
+                    items={production.files}
+                    alt={production.title}
+                    aspectClassName="aspect-square"
+                    className="rounded-xl"
+                  />
                 )}
 
                 {/* Caption */}
