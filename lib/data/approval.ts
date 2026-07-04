@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server'
 export async function generateApprovalLink(productionId: string): Promise<string> {
   const supabase = await createClient()
 
-  // Verifica se já existe um link ativo
   const { data: existing } = await supabase
     .from('approval_links')
     .select('token')
@@ -20,7 +19,6 @@ export async function generateApprovalLink(productionId: string): Promise<string
     return buildApprovalUrl(existing.token)
   }
 
-  // Cria novo token
   const { data, error } = await supabase
     .from('approval_links')
     .insert({ production_id: productionId })
@@ -34,17 +32,15 @@ export async function generateApprovalLink(productionId: string): Promise<string
   return buildApprovalUrl(data.token)
 }
 
-// ─── Regenerar link (invalida o anterior criando um novo) ────────────────────
+// ─── Regenerar link ───────────────────────────────────────────────────────────
 export async function regenerateApprovalLink(productionId: string): Promise<string> {
   const supabase = await createClient()
 
-  // Deleta links anteriores
   await supabase
     .from('approval_links')
     .delete()
     .eq('production_id', productionId)
 
-  // Cria novo
   const { data, error } = await supabase
     .from('approval_links')
     .insert({ production_id: productionId })
@@ -58,7 +54,13 @@ export async function regenerateApprovalLink(productionId: string): Promise<stri
   return buildApprovalUrl(data.token)
 }
 
-// ─── Buscar produção pelo token (página pública do cliente) ──────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+type PublicProductionFile = {
+  url: string
+  filename: string
+  file_type: string
+}
+
 type PublicProduction = {
   id: string
   title: string
@@ -68,8 +70,10 @@ type PublicProduction = {
   caption: string
   status: string
   video_url: string | null
+  files: PublicProductionFile[]
 }
 
+// ─── Buscar produção pelo token ───────────────────────────────────────────────
 export async function getProductionByToken(token: string): Promise<PublicProduction[] | null> {
   const { createClient } = await import('@supabase/supabase-js')
 
@@ -78,7 +82,6 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // 1. Busca o link de aprovação pelo token (suporta link individual e em lote)
   const { data: link, error: linkError } = await supabase
     .from('approval_links')
     .select('production_id, production_ids')
@@ -87,7 +90,6 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
 
   if (linkError || !link) return null
 
-  // Reúne todos os IDs de produção do link (individual ou bulk)
   const productionIds: string[] = []
   if (link.production_id) productionIds.push(link.production_id as string)
   if (Array.isArray(link.production_ids)) {
@@ -98,7 +100,6 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
 
   if (productionIds.length === 0) return null
 
-  // 2. Busca as produções com cliente, responsável e arquivos
   const { data: productions, error: prodError } = await supabase
     .from('productions')
     .select(`
@@ -114,15 +115,21 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
 
   if (prodError || !productions || productions.length === 0) return null
 
-  // 3. Normaliza para o formato esperado pela página pública
   return productions.map((p: any) => {
-    const files = Array.isArray(p.production_files) ? [...p.production_files] : []
-    // Usa o arquivo mais recente como preview
-    files.sort((a, b) => {
-      const da = a?.uploaded_at ? new Date(a.uploaded_at).getTime() : 0
-      const db = b?.uploaded_at ? new Date(b.uploaded_at).getTime() : 0
-      return db - da
-    })
+    const files: PublicProductionFile[] = Array.isArray(p.production_files)
+      ? [...p.production_files]
+          .sort((a, b) => {
+            const da = a?.uploaded_at ? new Date(a.uploaded_at).getTime() : 0
+            const db = b?.uploaded_at ? new Date(b.uploaded_at).getTime() : 0
+            return da - db
+          })
+          .map((f) => ({
+            url: f.url,
+            filename: f.filename,
+            file_type: f.file_type,
+          }))
+      : []
+
     const previewFile = files[0]
 
     return {
@@ -134,6 +141,7 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
       caption: p.caption || '',
       status: p.status || '',
       video_url: previewFile?.url || null,
+      files,
     }
   })
 }
@@ -153,7 +161,6 @@ export async function submitApprovalResponse(params: {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Salva na tabela de aprovações
   const { error: approvalError } = await supabase
     .from('production_approvals')
     .insert({
@@ -165,7 +172,6 @@ export async function submitApprovalResponse(params: {
 
   if (approvalError) throw new Error('Erro ao salvar aprovação.')
 
-  // Salva o comentário se houver
   if (params.comment?.trim()) {
     await supabase.from('production_comments').insert({
       production_id: params.productionId,
@@ -175,7 +181,6 @@ export async function submitApprovalResponse(params: {
     })
   }
 
-  // Atualiza o status da produção
   const newStatus = params.decision === 'aprovado' ? 'Aprovado' : 'Solicitou Ajuste'
   await supabase
     .from('productions')
@@ -183,7 +188,7 @@ export async function submitApprovalResponse(params: {
     .eq('id', params.productionId)
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildApprovalUrl(token: string): string {
   const base =
     process.env.NEXT_PUBLIC_APP_URL ||
