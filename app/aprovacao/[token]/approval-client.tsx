@@ -8,8 +8,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { submitApprovalResponse } from '@/lib/data/approval'
-import { MediaCarousel, type CarouselMedia } from '@/components/productions/media-carousel'
-import { Heart, MessageCircle, Check, X, Clock, Loader2, CheckCircle2 } from 'lucide-react'
+import { Check, X, Clock, Loader2, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
+
+type ProductionFile = {
+  url: string
+  filename: string
+  file_type: string
+}
 
 type Production = {
   id: string
@@ -20,7 +25,7 @@ type Production = {
   caption: string
   status: string
   video_url: string | null
-  files: CarouselMedia[]
+  files?: ProductionFile[] | null
 }
 
 type Decision = 'aprovado' | 'reprovado'
@@ -32,6 +37,91 @@ type ProductionDecision = {
 
 const AGENCY_NAME = 'Impulsionaí Marketing'
 const AGENCY_INITIALS = 'IM'
+
+function MediaCarousel({ files, videoUrl }: { files?: ProductionFile[] | null; videoUrl: string | null }) {
+  const [current, setCurrent] = useState(0)
+
+  const mediaList: ProductionFile[] = files && files.length > 0
+    ? files
+    : videoUrl
+      ? [{ url: videoUrl, filename: 'media', file_type: videoUrl.match(/\.(mp4|mov|webm)/i) ? 'video/mp4' : 'image/jpeg' }]
+      : []
+
+  if (mediaList.length === 0) {
+    return (
+      <div className="flex aspect-square w-full items-center justify-center bg-black text-sm text-muted-foreground">
+        Arquivo não disponível
+      </div>
+    )
+  }
+
+  const item = mediaList[current]
+  const isVideo = item.file_type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(item.url)
+
+  return (
+    <div className="relative w-full bg-black">
+      <div className={cn('relative w-full', isVideo ? 'aspect-[9/16]' : 'aspect-square')}>
+        {isVideo ? (
+          <video
+            key={item.url}
+            src={item.url}
+            className="h-full w-full object-contain"
+            controls
+            playsInline
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={item.url}
+            src={item.url}
+            alt={item.filename}
+            className="h-full w-full object-contain"
+          />
+        )}
+      </div>
+
+      {/* Navegação */}
+      {mediaList.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setCurrent((prev) => (prev - 1 + mediaList.length) % mediaList.length)}
+            className="absolute left-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrent((prev) => (prev + 1) % mediaList.length)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+
+          {/* Indicadores */}
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
+            {mediaList.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setCurrent(i)}
+                className={cn(
+                  'h-1.5 rounded-full transition-all',
+                  i === current ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                )}
+              />
+            ))}
+          </div>
+
+          {/* Contador */}
+          <div className="absolute right-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white backdrop-blur-sm">
+            {current + 1}/{mediaList.length}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 export function ApprovalClient({
   productions,
@@ -69,19 +159,17 @@ export function ApprovalClient({
   }
 
   const handleSubmit = async () => {
-    // Valida que todos têm decisão
     const undecided = productions.filter((p) => !decisions[p.id]?.decision)
     if (undecided.length > 0) {
-      toast.error(`Tome uma decisão para todos os conteúdos antes de confirmar.`)
+      toast.error('Tome uma decisão para todos os conteúdos antes de confirmar.')
       return
     }
 
-    // Valida comentário obrigatório para reprovados
     const missingComment = productions.filter(
       (p) => decisions[p.id]?.decision === 'reprovado' && !decisions[p.id]?.comment.trim()
     )
     if (missingComment.length > 0) {
-      toast.error(`Descreva o ajuste necessário para os conteúdos reprovados.`)
+      toast.error('Descreva o ajuste necessário para os conteúdos reprovados.')
       return
     }
 
@@ -108,7 +196,6 @@ export function ApprovalClient({
     }
   }
 
-  // ----------------------------- TELA DE CONFIRMAÇÃO -----------------------------
   if (submitted) {
     return (
       <div className="min-h-screen bg-background">
@@ -116,13 +203,10 @@ export function ApprovalClient({
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-success/15 text-success">
             <CheckCircle2 className="h-12 w-12" />
           </div>
-          <h1 className="mt-6 text-xl font-semibold text-foreground">
-            Respostas enviadas!
-          </h1>
+          <h1 className="mt-6 text-xl font-semibold text-foreground">Respostas enviadas!</h1>
           <p className="mt-2 max-w-xs text-pretty text-sm leading-relaxed text-muted-foreground">
             Nossa equipe já foi notificada e irá tomar as providências necessárias.
           </p>
-
           <div className="mt-8 flex w-full gap-3">
             {totalApproved > 0 && (
               <div className="flex flex-1 flex-col items-center gap-1 rounded-xl border border-success/30 bg-success/10 py-4">
@@ -144,12 +228,9 @@ export function ApprovalClient({
     )
   }
 
-  // ----------------------------- FEED DE PRODUÇÕES -----------------------------
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-[480px] px-0 py-4 sm:px-4">
-
-        {/* Header com contagem */}
         <div className="mb-4 flex items-center justify-between px-4 sm:px-0">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
             {AGENCY_INITIALS}
@@ -160,29 +241,15 @@ export function ApprovalClient({
           </Badge>
         </div>
 
-        {/* Feed de posts */}
         <div className="space-y-6">
           {productions.map((production, index) => {
             const d = decisions[production.id]
-            const mediaItems: CarouselMedia[] =
-              production.files && production.files.length > 0
-                ? production.files
-                : production.video_url
-                  ? [{ url: production.video_url, file_type: null }]
-                  : []
-            const firstItem = mediaItems[0]
-            const firstIsVideo = firstItem
-              ? (firstItem.file_type
-                  ? firstItem.file_type.startsWith('video/') || firstItem.file_type === 'video'
-                  : /\.(mp4|mov|webm|m4v)$/i.test(firstItem.url))
-              : false
             const formattedDate = production.post_date
               ? new Date(production.post_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
               : 'A definir'
 
             return (
               <article key={production.id} className="overflow-hidden border-y border-border bg-card sm:rounded-xl sm:border">
-                {/* Cabeçalho */}
                 <header className="flex items-center gap-3 px-4 py-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-foreground text-xs font-bold text-background">
                     {AGENCY_INITIALS}
@@ -194,14 +261,8 @@ export function ApprovalClient({
                   <span className="text-xs text-muted-foreground">{index + 1}/{productions.length}</span>
                 </header>
 
-                {/* Preview */}
-                <MediaCarousel
-                  items={mediaItems}
-                  alt={production.title}
-                  aspectClassName={firstIsVideo ? 'aspect-[9/16]' : 'aspect-square'}
-                />
+                <MediaCarousel files={production.files} videoUrl={production.video_url} />
 
-                {/* Botões de decisão */}
                 <div className="grid grid-cols-2 gap-3 px-4 pb-1 pt-4">
                   <button
                     type="button"
@@ -231,7 +292,6 @@ export function ApprovalClient({
                   </button>
                 </div>
 
-                {/* Legenda */}
                 <div className="px-4 pb-4 pt-3">
                   <p className="text-sm font-semibold text-foreground">{production.title}</p>
                   {production.caption?.trim() && (
@@ -244,7 +304,6 @@ export function ApprovalClient({
                   </p>
                 </div>
 
-                {/* Comentário (aparece quando reprovado) */}
                 {d?.decision === 'reprovado' && (
                   <div className="border-t border-border px-4 pb-4 pt-3">
                     <Textarea
@@ -260,7 +319,6 @@ export function ApprovalClient({
           })}
         </div>
 
-        {/* Seção de confirmação global */}
         <section className="mt-6 space-y-3 px-4 pb-8 sm:px-0">
           {productions.length > 1 && (
             <div className="flex items-center justify-between rounded-xl border border-border bg-card p-3 text-sm">
