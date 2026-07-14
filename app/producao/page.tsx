@@ -13,6 +13,16 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { 
   PlusCircle, 
   Search, 
@@ -27,6 +37,7 @@ import {
   Link as LinkIcon,
   Loader2,
   MessageSquare,
+  Trash2,
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
@@ -109,6 +120,8 @@ export default function ProducaoPage() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isGeneratingBulkLink, setIsGeneratingBulkLink] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -201,6 +214,47 @@ export default function ProducaoPage() {
       toast.error('Erro ao gerar link.')
     } finally {
       setIsGeneratingBulkLink(false)
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return
+    setIsDeleting(true)
+    const ids = Array.from(selectedIds)
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/productions/${id}`, { method: 'DELETE' }).then((res) => {
+            if (!res.ok) throw new Error('Falha ao excluir')
+            return id
+          })
+        )
+      )
+
+      const deletedIds = results
+        .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+        .map((r) => r.value)
+      const failedCount = results.length - deletedIds.length
+
+      if (deletedIds.length > 0) {
+        const deletedSet = new Set(deletedIds)
+        setProductions((prev) => prev.filter((p) => !deletedSet.has(p.id)))
+        toast.success(
+          deletedIds.length === 1
+            ? 'Produção excluída!'
+            : `${deletedIds.length} produções excluídas!`
+        )
+      }
+      if (failedCount > 0) {
+        toast.error(`Erro ao excluir ${failedCount} produção${failedCount > 1 ? 'ões' : ''}`)
+      }
+
+      handleExitSelection()
+    } catch {
+      toast.error('Erro ao excluir produções.')
+    } finally {
+      setIsDeleting(false)
+      setDeleteDialogOpen(false)
     }
   }
 
@@ -303,6 +357,19 @@ export default function ProducaoPage() {
                     <Button variant="outline" className="gap-2" onClick={handleExitSelection}>
                       <X className="h-4 w-4" />
                       Cancelar
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="gap-2"
+                      disabled={selectedIds.size === 0 || isDeleting}
+                      onClick={() => setDeleteDialogOpen(true)}
+                    >
+                      {isDeleting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4" />
+                      )}
+                      {selectedIds.size > 0 ? `Excluir (${selectedIds.size})` : 'Excluir'}
                     </Button>
                     <Button
                       className="gap-2"
@@ -494,6 +561,40 @@ export default function ProducaoPage() {
               fetchData()
             }}
           />
+
+          <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Excluir {selectedIds.size > 1 ? `${selectedIds.size} produções` : 'produção'}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação não pode ser desfeita. {selectedIds.size > 1 ? 'As produções serão removidas' : 'A produção será removida'} permanentemente,
+                  incluindo todos os arquivos de mídia armazenados no MinIO.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleDeleteSelected()
+                  }}
+                  disabled={isDeleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeleting ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Excluindo...
+                    </span>
+                  ) : (
+                    'Excluir'
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </AppShell>
       </ModuleAccessWrapper>
     </ProtectedRoute>
