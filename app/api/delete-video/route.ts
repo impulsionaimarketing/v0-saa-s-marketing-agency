@@ -1,7 +1,7 @@
 // Delete video API route - v2024
-import { del } from '@vercel/blob'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deleteProductionFile } from '@/lib/data/production-files'
+import { deleteFromStorage } from '@/lib/storage'
 
 export async function DELETE(request: NextRequest) {
   try {
@@ -14,8 +14,8 @@ export async function DELETE(request: NextRequest) {
     // Delete from database first
     await deleteProductionFile(fileId)
 
-    // Delete from Vercel Blob
-    await del(url)
+    // Delete from MinIO storage
+    await deleteFromStorage(url)
 
     return NextResponse.json({ success: true })
   } catch (error) {

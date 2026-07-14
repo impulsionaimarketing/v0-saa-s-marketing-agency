@@ -65,12 +65,9 @@ export default function AprovacaoConteudoPage() {
 
       if (data.file) {
         try {
-          const { upload } = await import('@vercel/blob/client')
+          const { uploadFile } = await import('@/lib/upload-client')
 
-          const blob = await upload(data.file.name, data.file, {
-            access: 'public',
-            handleUploadUrl: `/api/upload-video/token?productionId=${created.id}`,
-          })
+          const blob = await uploadFile(data.file, `/api/upload-video/token?productionId=${created.id}`)
 
           await fetch('/api/upload-video/confirm', {
             method: 'POST',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -35,18 +35,14 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
   const dragIndex = useRef<number | null>(null)
   const dragOverIndex = useRef<number | null>(null)
 
-  // Sync when files prop changes
-  useState(() => {
+  // Sync when files prop changes (após upload/exclusão/reordenar)
+  useEffect(() => {
     setOrderedFiles([...files].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)))
-  })
+  }, [files])
 
   const uploadSingleFile = async (file: File) => {
-    const { upload } = await import('@vercel/blob/client')
-    const uniquePath = `productions/${productionId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
-    const blob = await upload(uniquePath, file, {
-      access: 'public',
-      handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
-    })
+    const { uploadFile } = await import('@/lib/upload-client')
+    const blob = await uploadFile(file, `/api/upload-video/token?productionId=${productionId}`)
 
     const confirmRes = await fetch('/api/upload-video/confirm', {
       method: 'POST',

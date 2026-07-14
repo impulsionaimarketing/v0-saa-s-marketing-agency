@@ -235,7 +235,7 @@ const copyLink = async () => {
           </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-6 space-y-6">
             {/* Media Preview */}
             <div className="relative aspect-video rounded-xl overflow-hidden bg-muted">
@@ -342,22 +342,20 @@ const copyLink = async () => {
             )}
 
             {/* Media Files - upload, preview, delete e reordenar */}
-            {production.files && production.files.length > 0 && (
-              <div className="space-y-2 pt-4 border-t border-border">
-                <VideoUploadSection
-                  productionId={production.id}
-                  files={production.files.map((f) => ({
-                    id: f.id,
-                    filename: f.filename,
-                    url: f.url,
-                    file_size: f.file_size ?? 0,
-                    file_type: f.file_type ?? '',
-                    uploaded_at: f.uploaded_at ?? '',
-                  }))}
-                  onUpdate={() => onUpdated?.()}
-                />
-              </div>
-            )}
+            <div className="space-y-2 pt-4 border-t border-border">
+              <VideoUploadSection
+                productionId={production.id}
+                files={(production.files ?? []).map((f) => ({
+                  id: f.id,
+                  filename: f.filename,
+                  url: f.url,
+                  file_size: f.file_size ?? 0,
+                  file_type: f.file_type ?? '',
+                  uploaded_at: f.uploaded_at ?? '',
+                }))}
+                onUpdate={() => onUpdated?.()}
+              />
+            </div>
 
             {/* Alterações / Feedback do Cliente */}
             {(loadingFeedback || clientFeedbackList.length > 0) && (

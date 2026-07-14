@@ -94,11 +94,8 @@ export function ProductionRevisionDialog({
     if (!selectedFile || !production) return
     setIsUploading(true)
     try {
-      const { upload } = await import('@vercel/blob/client')
-      const blob = await upload(selectedFile.name, selectedFile, {
-        access: 'public',
-        handleUploadUrl: `/api/upload-video/token?productionId=${production.id}`,
-      })
+      const { uploadFile } = await import('@/lib/upload-client')
+      const blob = await uploadFile(selectedFile, `/api/upload-video/token?productionId=${production.id}`)
       const confirmRes = await fetch('/api/upload-video/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

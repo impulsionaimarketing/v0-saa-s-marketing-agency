@@ -142,17 +142,11 @@ export function ProductionFormDialog({
     setIsUploading(true)
     let successCount = 0
     try {
-      const { upload } = await import('@vercel/blob/client')
+      const { uploadFile } = await import('@/lib/upload-client')
 
       for (const file of selectedFiles) {
         try {
-          // Caminho único para evitar colisão de nomes (o segundo arquivo com o
-          // mesmo nome falharia, pois o Blob não adiciona sufixo aleatório por padrão)
-          const uniquePath = `productions/${productionId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
-          const blob = await upload(uniquePath, file, {
-            access: 'public',
-            handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
-          })
+          const blob = await uploadFile(file, `/api/upload-video/token?productionId=${productionId}`)
 
           const confirmRes = await fetch('/api/upload-video/confirm', {
             method: 'POST',
