@@ -16,7 +16,7 @@ This file describes the tech stack and coding rules for AI assistants working on
 - **Forms:** [React Hook Form](https://react-hook-form.com/) (`react-hook-form`) with [Zod](https://zod.dev/) schemas for validation via `@hookform/resolvers/zod`. Always pair `<Form>` from `components/ui/form.tsx` with a Zod schema.
 - **Charts:** [Recharts](https://recharts.org/) via the `components/ui/chart.tsx` wrapper. Do not use any other charting library.
 - **Notifications / Toasts:** [Sonner](https://sonner.emilkowal.ski/) (`sonner`) for toast notifications. Import `toast` from `sonner` directly. Do not use the legacy `useToast` hook for new code.
-- **File Storage:** [@vercel/blob](https://vercel.com/docs/storage/vercel-blob) for video and file uploads (see `app/api/upload-video/route.ts`).
+- **File Storage:** Self-hosted MinIO (S3-compatible) via `@aws-sdk/client-s3`. Use the reusable client and helpers in `lib/storage.ts` for all uploads/deletes (see `app/api/upload-video/route.ts`).
 - **Analytics:** [@vercel/analytics](https://vercel.com/analytics) — already included in `app/layout.tsx`. Do not add any other analytics scripts.
 
 ---

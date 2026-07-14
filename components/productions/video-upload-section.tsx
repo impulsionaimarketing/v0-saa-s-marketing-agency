@@ -41,12 +41,8 @@ export function VideoUploadSection({ productionId, files, onUpdate }: VideoUploa
   })
 
   const uploadSingleFile = async (file: File) => {
-    const { upload } = await import('@vercel/blob/client')
-    const uniquePath = `productions/${productionId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${file.name}`
-    const blob = await upload(uniquePath, file, {
-      access: 'public',
-      handleUploadUrl: `/api/upload-video/token?productionId=${productionId}`,
-    })
+    const { uploadFile } = await import('@/lib/upload-client')
+    const blob = await uploadFile(file, `/api/upload-video/token?productionId=${productionId}`)
 
     const confirmRes = await fetch('/api/upload-video/confirm', {
       method: 'POST',

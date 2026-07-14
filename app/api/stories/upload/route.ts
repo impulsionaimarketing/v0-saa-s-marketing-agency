@@ -1,11 +1,11 @@
-import { put } from "@vercel/blob"
 import { NextRequest, NextResponse } from "next/server"
+import { uploadToStorage } from "@/lib/storage"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 // Upload de mídia (imagem/vídeo) para os Stories Automáticos.
-// Retorna a URL do blob; o registro em story_contents é feito
+// Retorna a URL do arquivo; o registro em story_contents é feito
 // na sequência via POST /api/stories/contents.
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -20,12 +20,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "arquivo ausente" }, { status: 400 })
     }
 
-    const blob = await put(`stories/${Date.now()}-${filename}`, req.body, {
-      access: "public",
-      contentType: req.headers.get("content-type") || "application/octet-stream",
-    })
+    const contentType = req.headers.get("content-type") || "application/octet-stream"
+    const body = Buffer.from(await req.arrayBuffer())
 
-    return NextResponse.json({ success: true, url: blob.url })
+    const { url } = await uploadToStorage(body, contentType, filename, "stories")
+
+    return NextResponse.json({ success: true, url })
   } catch (error) {
     console.error("[v0] Error in /api/stories/upload:", error)
     return NextResponse.json({ error: String(error) }, { status: 500 })
