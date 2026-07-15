@@ -56,10 +56,27 @@ export default function AprovacaoConteudoPage() {
         console.error('[v0] Erro ao criar demanda vinculada:', demandError)
       }
 
+      // Upload da capa do reels (quando for vídeo)
+      let coverUrl: string | undefined
+      if (data.coverFile) {
+        try {
+          const { uploadFile } = await import('@/lib/upload-client')
+          const blob = await uploadFile(
+            data.coverFile,
+            `/api/upload-video/token?productionId=${created.id}`,
+          )
+          coverUrl = blob.url
+        } catch (coverError) {
+          console.error('[v0] Erro no upload da capa:', coverError)
+          toast.error('Produção criada, mas houve falha no upload da capa.')
+        }
+      }
+
       await updateProduction(created.id, {
         title: data.title,
         caption: data.caption || undefined,
         reference_link: data.referenceUrl || undefined,
+        cover_url: coverUrl,
         demand_id: demandId,
       })
 

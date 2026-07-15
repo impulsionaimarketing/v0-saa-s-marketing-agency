@@ -69,6 +69,8 @@ type PublicProduction = {
   post_date: string
   caption: string
   status: string
+  type: string
+  cover_url: string | null
   video_url: string | null
   files: PublicProductionFile[]
 }
@@ -107,6 +109,8 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
       title,
       caption,
       status,
+      type,
+      cover_url,
       post_date,
       clients(name),
       production_files(id, filename, url, file_type, uploaded_at)
@@ -140,19 +144,32 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
       post_date: p.post_date || '',
       caption: p.caption || '',
       status: p.status || '',
+      type: p.type || '',
+      cover_url: p.cover_url || null,
       video_url: previewFile?.url || null,
       files,
     }
   })
 }
 
-// ─── Salvar resposta do cliente ───────────────────────────────────────────────
+// ─── Salvar resposta do cliente (aprovação por elemento) ──────────────────────
+export type ApprovalElement = 'capa' | 'midia' | 'legenda'
+
+const ELEMENT_LABELS: Record<ApprovalElement, string> = {
+  capa: 'Capa',
+  midia: 'Mídia',
+  legenda: 'Legenda',
+}
+
 export async function submitApprovalResponse(params: {
   token: string
   productionId: string
-  decision: 'aprovado' | 'reprovado'
-  comment?: string
   clientName?: string
+  elements: {
+    element: ApprovalElement
+    decision: 'aprovado' | 'reprovado'
+    comment?: string
+  }[]
 }): Promise<void> {
   const { createClient } = await import('@supabase/supabase-js')
 
@@ -161,27 +178,41 @@ export async function submitApprovalResponse(params: {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  const author = params.clientName?.trim() || 'Cliente'
+
+  // Uma decisão (linha) por elemento
+  const approvalRows = params.elements.map((el) => ({
+    production_id: params.productionId,
+    element: el.element,
+    action: el.decision,
+    comment: el.comment?.trim() || null,
+    approved_by: author,
+  }))
+
   const { error: approvalError } = await supabase
     .from('production_approvals')
-    .insert({
-      production_id: params.productionId,
-      action: params.decision,
-      comment: params.comment || null,
-      approved_by: params.clientName || 'Cliente',
-    })
+    .insert(approvalRows)
 
   if (approvalError) throw new Error('Erro ao salvar aprovação.')
 
-  if (params.comment?.trim()) {
-    await supabase.from('production_comments').insert({
+  // Registra os comentários de ajuste (com prefixo do elemento) no feed de comentários
+  const commentRows = params.elements
+    .filter((el) => el.decision === 'reprovado' && el.comment?.trim())
+    .map((el) => ({
       production_id: params.productionId,
-      author_name: params.clientName || 'Cliente',
-      comment: params.comment.trim(),
+      author_name: author,
+      comment: `[${ELEMENT_LABELS[el.element]}] ${el.comment!.trim()}`,
       is_client: true,
-    })
+    }))
+
+  if (commentRows.length > 0) {
+    await supabase.from('production_comments').insert(commentRows)
   }
 
-  const newStatus = params.decision === 'aprovado' ? 'Aprovado' : 'Solicitou Ajuste'
+  // Status geral: aprovado só se TODOS os elementos foram aprovados
+  const allApproved = params.elements.every((el) => el.decision === 'aprovado')
+  const newStatus = allApproved ? 'Aprovado' : 'Solicitou Ajuste'
+
   await supabase
     .from('productions')
     .update({ status: newStatus, updated_at: new Date().toISOString() })

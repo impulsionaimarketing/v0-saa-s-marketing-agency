@@ -44,6 +44,7 @@ export interface Production {
   title?: string
   caption?: string
   reference_link?: string
+  cover_url?: string
   approval_token?: string
   files?: ProductionFile[]
 }
@@ -73,6 +74,21 @@ export async function getProductions(filters?: {
     // Fetch files for each production
     if (productions.length > 0) {
       const productionIds = productions.map(p => p.id)
+
+      // cover_url is not returned by the RPC, so fetch it directly
+      const { data: coverRows } = await supabase
+        .from('productions')
+        .select('id, cover_url')
+        .in('id', productionIds)
+
+      if (coverRows) {
+        const coverMap = new Map<string, string | undefined>()
+        for (const row of coverRows) {
+          coverMap.set(row.id as string, (row.cover_url as string) || undefined)
+        }
+        productions = productions.map(p => ({ ...p, cover_url: coverMap.get(p.id) }))
+      }
+
       const { data: allFiles } = await supabase
         .from('production_files')
         .select('id, production_id, filename, url, file_size, file_type, uploaded_at')
@@ -227,6 +243,7 @@ export async function updateProduction(
         title: data.title,
         caption: data.caption,
         reference_link: data.reference_link,
+        cover_url: data.cover_url,
         demand_id: data.demand_id,
         updated_at: new Date().toISOString()
       })

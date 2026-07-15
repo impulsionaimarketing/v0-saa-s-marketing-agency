@@ -73,6 +73,8 @@ export function ProductionFormDialog({
   const [users, setUsers] = useState<User[]>([])
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [coverFile, setCoverFile] = useState<File | null>(null)
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({ ...EMPTY_FORM })
 
@@ -103,6 +105,8 @@ export function ProductionFormDialog({
         setFormData({ ...EMPTY_FORM })
       }
       setSelectedFiles([])
+      setCoverFile(null)
+      setCoverPreview(null)
     }
   }, [open, production])
 
@@ -134,6 +138,32 @@ export function ProductionFormDialog({
 
   const handleRemoveFile = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('A capa precisa ser uma imagem')
+      return
+    }
+    setCoverFile(file)
+    setCoverPreview(URL.createObjectURL(file))
+  }
+
+  // Faz upload da capa e retorna a URL pública (não entra em production_files)
+  const uploadCover = async (productionId: string): Promise<string | undefined> => {
+    if (!coverFile) return undefined
+    try {
+      const { uploadFile } = await import('@/lib/upload-client')
+      const blob = await uploadFile(coverFile, `/api/upload-video/token?productionId=${productionId}`)
+      return blob.url
+    } catch (error) {
+      console.error('[v0] Cover upload error:', error)
+      toast.error('Erro ao enviar a capa')
+      return undefined
+    }
   }
 
   const uploadFiles = async (productionId: string) => {
@@ -194,6 +224,9 @@ export function ProductionFormDialog({
             : undefined
 
         if (isEditMode && production) {
+          // Upload da nova capa (se selecionada) antes de atualizar
+          const coverUrl = formData.type === 'Vídeo' ? await uploadCover(production.id) : undefined
+
           // Update existing production
           await updateProduction(production.id, {
             title: formData.title || undefined,
@@ -204,6 +237,7 @@ export function ProductionFormDialog({
             post_date: formData.post_date || undefined,
             caption: formData.caption || undefined,
             notes: formData.notes || undefined,
+            cover_url: coverUrl,
           })
 
           // Upload new files if any were selected
@@ -224,14 +258,26 @@ export function ProductionFormDialog({
           })
 
           // Upload files if selected
-          if (selectedFiles.length > 0 && created?.id) {
-            await uploadFiles(created.id)
+          if (created?.id) {
+            const coverUrl = formData.type === 'Vídeo' ? await uploadCover(created.id) : undefined
+            if (coverUrl || formData.title || formData.caption) {
+              await updateProduction(created.id, {
+                title: formData.title || undefined,
+                caption: formData.caption || undefined,
+                cover_url: coverUrl,
+              })
+            }
+            if (selectedFiles.length > 0) {
+              await uploadFiles(created.id)
+            }
           }
         }
 
         setOpen(false)
         setFormData({ ...EMPTY_FORM })
         setSelectedFiles([])
+        setCoverFile(null)
+        setCoverPreview(null)
         onSuccess?.()
       } catch (error) {
         console.error('Error saving production:', error)
@@ -373,6 +419,40 @@ export function ProductionFormDialog({
                 }
               />
             </div>
+
+            {formData.type === 'Vídeo' && (
+              <div className="grid gap-2">
+                <Label htmlFor="cover-upload">Capa do Reels (Opcional)</Label>
+                {(coverPreview || production?.cover_url) && (
+                  <div className="relative w-24 overflow-hidden rounded-lg border border-border bg-secondary">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={coverPreview || production?.cover_url || '/placeholder.svg'}
+                      alt="Capa do reels"
+                      className="aspect-[9/16] w-full object-cover"
+                    />
+                  </div>
+                )}
+                <input
+                  type="file"
+                  id="cover-upload"
+                  accept="image/*"
+                  onChange={handleCoverChange}
+                  className="hidden"
+                />
+                <label htmlFor="cover-upload">
+                  <Button type="button" variant="outline" className="w-full cursor-pointer" asChild>
+                    <span className="flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4" />
+                      {coverPreview || production?.cover_url ? 'Trocar capa' : 'Selecionar capa'}
+                    </span>
+                  </Button>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Imagem exibida como thumbnail do reels na aprovação do cliente
+                </p>
+              </div>
+            )}
 
             <div className="grid gap-2">
               <Label htmlFor="caption">Legenda</Label>

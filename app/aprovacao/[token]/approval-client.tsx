@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { submitApprovalResponse } from '@/lib/data/approval'
-import { Check, X, Clock, Loader2, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { submitApprovalResponse, type ApprovalElement } from '@/lib/data/approval'
+import { Check, X, Clock, Loader2, CheckCircle2, ChevronLeft, ChevronRight, ImageIcon, Film, Type } from 'lucide-react'
 
 type ProductionFile = {
   url: string
@@ -24,19 +24,33 @@ type Production = {
   post_date: string
   caption: string
   status: string
+  type: string
+  cover_url: string | null
   video_url: string | null
   files?: ProductionFile[] | null
 }
 
 type Decision = 'aprovado' | 'reprovado'
 
-type ProductionDecision = {
-  decision: Decision | null
-  comment: string
-}
+type ElementState = { decision: Decision | null; comment: string }
 
 const AGENCY_NAME = 'Impulsionaí Marketing'
 const AGENCY_INITIALS = 'IM'
+
+const ELEMENT_META: Record<ApprovalElement, { label: string; icon: typeof ImageIcon }> = {
+  capa: { label: 'Capa', icon: ImageIcon },
+  midia: { label: 'Mídia', icon: Film },
+  legenda: { label: 'Legenda', icon: Type },
+}
+
+// Elementos aplicáveis por conteúdo
+function getElements(p: Production): ApprovalElement[] {
+  const els: ApprovalElement[] = []
+  if (p.type === 'Vídeo' && p.cover_url) els.push('capa')
+  els.push('midia')
+  if (p.caption?.trim()) els.push('legenda')
+  return els
+}
 
 function MediaCarousel({ files, videoUrl }: { files?: ProductionFile[] | null; videoUrl: string | null }) {
   const [current, setCurrent] = useState(0)
@@ -80,7 +94,6 @@ function MediaCarousel({ files, videoUrl }: { files?: ProductionFile[] | null; v
         )}
       </div>
 
-      {/* Navegação */}
       {mediaList.length > 1 && (
         <>
           <button
@@ -98,7 +111,6 @@ function MediaCarousel({ files, videoUrl }: { files?: ProductionFile[] | null; v
             <ChevronRight className="h-5 w-5" />
           </button>
 
-          {/* Indicadores */}
           <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
             {mediaList.map((_, i) => (
               <button
@@ -113,11 +125,62 @@ function MediaCarousel({ files, videoUrl }: { files?: ProductionFile[] | null; v
             ))}
           </div>
 
-          {/* Contador */}
           <div className="absolute right-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white backdrop-blur-sm">
             {current + 1}/{mediaList.length}
           </div>
         </>
+      )}
+    </div>
+  )
+}
+
+// Botões de decisão + comentário reutilizados por elemento
+function ElementDecisionControls({
+  state,
+  onSelect,
+  onComment,
+}: {
+  state: ElementState
+  onSelect: (value: Decision) => void
+  onComment: (value: string) => void
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => onSelect('aprovado')}
+          className={cn(
+            'flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-semibold transition-colors',
+            state.decision === 'aprovado'
+              ? 'border-success bg-success text-background'
+              : 'border-success/40 bg-transparent text-success hover:bg-success/10',
+          )}
+        >
+          <Check className="h-4 w-4" />
+          Aprovar
+        </button>
+        <button
+          type="button"
+          onClick={() => onSelect('reprovado')}
+          className={cn(
+            'flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 text-sm font-semibold transition-colors',
+            state.decision === 'reprovado'
+              ? 'border-warning bg-warning text-background'
+              : 'border-warning/40 bg-transparent text-warning hover:bg-warning/10',
+          )}
+        >
+          <X className="h-4 w-4" />
+          Solicitar Ajuste
+        </button>
+      </div>
+      {state.decision === 'reprovado' && (
+        <Textarea
+          value={state.comment}
+          onChange={(e) => onComment(e.target.value)}
+          placeholder="Descreva o ajuste necessário..."
+          className="min-h-[72px] resize-none border-border bg-background"
+        />
       )}
     </div>
   )
@@ -130,47 +193,67 @@ export function ApprovalClient({
   productions: Production[]
   token: string
 }) {
-  const [decisions, setDecisions] = useState<Record<string, ProductionDecision>>(
-    Object.fromEntries(productions.map((p) => [p.id, { decision: null, comment: '' }]))
+  // decisions[productionId][element] = { decision, comment }
+  const [decisions, setDecisions] = useState<Record<string, Record<string, ElementState>>>(() =>
+    Object.fromEntries(
+      productions.map((p) => [
+        p.id,
+        Object.fromEntries(getElements(p).map((el) => [el, { decision: null, comment: '' }])),
+      ])
+    )
   )
   const [clientName, setClientName] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  const allDecided = productions.every((p) => decisions[p.id]?.decision !== null)
-  const totalApproved = Object.values(decisions).filter((d) => d.decision === 'aprovado').length
-  const totalAdjust = Object.values(decisions).filter((d) => d.decision === 'reprovado').length
+  const totalElements = productions.reduce((acc, p) => acc + getElements(p).length, 0)
+  const allStates = productions.flatMap((p) => getElements(p).map((el) => decisions[p.id]?.[el]))
+  const decidedCount = allStates.filter((s) => s?.decision).length
+  const allDecided = decidedCount === totalElements
+  const totalApproved = allStates.filter((s) => s?.decision === 'aprovado').length
+  const totalAdjust = allStates.filter((s) => s?.decision === 'reprovado').length
 
-  const handleSelect = (productionId: string, value: Decision) => {
+  const handleSelect = (productionId: string, element: ApprovalElement, value: Decision) => {
+    setDecisions((prev) => {
+      const current = prev[productionId]?.[element]
+      return {
+        ...prev,
+        [productionId]: {
+          ...prev[productionId],
+          [element]: {
+            ...current,
+            decision: current?.decision === value ? null : value,
+          },
+        },
+      }
+    })
+  }
+
+  const handleComment = (productionId: string, element: ApprovalElement, value: string) => {
     setDecisions((prev) => ({
       ...prev,
       [productionId]: {
         ...prev[productionId],
-        decision: prev[productionId]?.decision === value ? null : value,
+        [element]: { ...prev[productionId]?.[element], comment: value },
       },
     }))
   }
 
-  const handleComment = (productionId: string, value: string) => {
-    setDecisions((prev) => ({
-      ...prev,
-      [productionId]: { ...prev[productionId], comment: value },
-    }))
-  }
-
   const handleSubmit = async () => {
-    const undecided = productions.filter((p) => !decisions[p.id]?.decision)
-    if (undecided.length > 0) {
-      toast.error('Tome uma decisão para todos os conteúdos antes de confirmar.')
+    if (!allDecided) {
+      toast.error('Tome uma decisão para todos os elementos antes de confirmar.')
       return
     }
 
-    const missingComment = productions.filter(
-      (p) => decisions[p.id]?.decision === 'reprovado' && !decisions[p.id]?.comment.trim()
-    )
-    if (missingComment.length > 0) {
-      toast.error('Descreva o ajuste necessário para os conteúdos reprovados.')
-      return
+    // Verifica se ajustes têm comentário
+    for (const p of productions) {
+      for (const el of getElements(p)) {
+        const s = decisions[p.id]?.[el]
+        if (s?.decision === 'reprovado' && !s.comment.trim()) {
+          toast.error('Descreva o ajuste necessário em cada elemento reprovado.')
+          return
+        }
+      }
     }
 
     setIsSubmitting(true)
@@ -180,9 +263,12 @@ export function ApprovalClient({
           submitApprovalResponse({
             token,
             productionId: p.id,
-            decision: decisions[p.id].decision!,
-            comment: decisions[p.id].comment.trim() || undefined,
             clientName: clientName.trim() || undefined,
+            elements: getElements(p).map((el) => ({
+              element: el,
+              decision: decisions[p.id][el].decision!,
+              comment: decisions[p.id][el].comment.trim() || undefined,
+            })),
           })
         )
       )
@@ -243,7 +329,7 @@ export function ApprovalClient({
 
         <div className="space-y-6">
           {productions.map((production, index) => {
-            const d = decisions[production.id]
+            const elements = getElements(production)
             const formattedDate = production.post_date
               ? new Date(production.post_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
               : 'A definir'
@@ -261,58 +347,64 @@ export function ApprovalClient({
                   <span className="text-xs text-muted-foreground">{index + 1}/{productions.length}</span>
                 </header>
 
-                <MediaCarousel files={production.files} videoUrl={production.video_url} />
-
-                <div className="grid grid-cols-2 gap-3 px-4 pb-1 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(production.id, 'aprovado')}
-                    className={cn(
-                      'flex items-center justify-center gap-2 rounded-lg border-2 py-3 text-sm font-semibold transition-colors',
-                      d?.decision === 'aprovado'
-                        ? 'border-success bg-success text-background'
-                        : 'border-success/40 bg-transparent text-success hover:bg-success/10',
-                    )}
-                  >
-                    <Check className="h-5 w-5" />
-                    Aprovar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSelect(production.id, 'reprovado')}
-                    className={cn(
-                      'flex items-center justify-center gap-2 rounded-lg border-2 py-3 text-sm font-semibold transition-colors',
-                      d?.decision === 'reprovado'
-                        ? 'border-warning bg-warning text-background'
-                        : 'border-warning/40 bg-transparent text-warning hover:bg-warning/10',
-                    )}
-                  >
-                    <X className="h-5 w-5" />
-                    Solicitar Ajuste
-                  </button>
-                </div>
-
-                <div className="px-4 pb-4 pt-3">
+                <div className="px-4 pb-2">
                   <p className="text-sm font-semibold text-foreground">{production.title}</p>
-                  {production.caption?.trim() && (
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground line-clamp-3">
-                      <span className="font-semibold">{AGENCY_NAME}</span>{' '}{production.caption}
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">
+                  <p className="mt-0.5 text-xs uppercase tracking-wide text-muted-foreground">
                     Data prevista · {formattedDate}
                   </p>
                 </div>
 
-                {d?.decision === 'reprovado' && (
-                  <div className="border-t border-border px-4 pb-4 pt-3">
-                    <Textarea
-                      value={d.comment}
-                      onChange={(e) => handleComment(production.id, e.target.value)}
-                      placeholder="Descreva o ajuste necessário..."
-                      className="min-h-[72px] resize-none border-border bg-background"
+                {/* ─── CAPA ─── */}
+                {elements.includes('capa') && (
+                  <ElementBlock element="capa">
+                    <div className="bg-black">
+                      <div className="relative mx-auto aspect-[9/16] w-full max-w-[280px]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={production.cover_url || '/placeholder.svg'}
+                          alt="Capa do reels"
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <ElementDecisionControls
+                        state={decisions[production.id].capa}
+                        onSelect={(v) => handleSelect(production.id, 'capa', v)}
+                        onComment={(v) => handleComment(production.id, 'capa', v)}
+                      />
+                    </div>
+                  </ElementBlock>
+                )}
+
+                {/* ─── MÍDIA ─── */}
+                <ElementBlock element="midia">
+                  <MediaCarousel files={production.files} videoUrl={production.video_url} />
+                  <div className="px-4 py-3">
+                    <ElementDecisionControls
+                      state={decisions[production.id].midia}
+                      onSelect={(v) => handleSelect(production.id, 'midia', v)}
+                      onComment={(v) => handleComment(production.id, 'midia', v)}
                     />
                   </div>
+                </ElementBlock>
+
+                {/* ─── LEGENDA ─── */}
+                {elements.includes('legenda') && (
+                  <ElementBlock element="legenda">
+                    <div className="px-4 py-3">
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                        <span className="font-semibold">{AGENCY_NAME}</span>{' '}{production.caption}
+                      </p>
+                    </div>
+                    <div className="px-4 pb-3">
+                      <ElementDecisionControls
+                        state={decisions[production.id].legenda}
+                        onSelect={(v) => handleSelect(production.id, 'legenda', v)}
+                        onComment={(v) => handleComment(production.id, 'legenda', v)}
+                      />
+                    </div>
+                  </ElementBlock>
                 )}
               </article>
             )
@@ -320,14 +412,12 @@ export function ApprovalClient({
         </div>
 
         <section className="mt-6 space-y-3 px-4 pb-8 sm:px-0">
-          {productions.length > 1 && (
-            <div className="flex items-center justify-between rounded-xl border border-border bg-card p-3 text-sm">
-              <span className="text-muted-foreground">Decisões tomadas</span>
-              <span className="font-semibold text-foreground">
-                {Object.values(decisions).filter((d) => d.decision).length}/{productions.length}
-              </span>
-            </div>
-          )}
+          <div className="flex items-center justify-between rounded-xl border border-border bg-card p-3 text-sm">
+            <span className="text-muted-foreground">Decisões tomadas</span>
+            <span className="font-semibold text-foreground">
+              {decidedCount}/{totalElements}
+            </span>
+          </div>
           <Input
             value={clientName}
             onChange={(e) => setClientName(e.target.value)}
@@ -351,11 +441,28 @@ export function ApprovalClient({
           </Button>
           {!allDecided && (
             <p className="text-center text-xs text-muted-foreground">
-              Tome uma decisão em cada conteúdo para confirmar
+              Tome uma decisão em cada elemento (capa, mídia e legenda) para confirmar
             </p>
           )}
         </section>
       </main>
+    </div>
+  )
+}
+
+// Cabeçalho de seção de elemento com rótulo
+function ElementBlock({ element, children }: { element: ApprovalElement; children: React.ReactNode }) {
+  const meta = ELEMENT_META[element]
+  const Icon = meta.icon
+  return (
+    <div className="border-t border-border">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {meta.label}
+        </span>
+      </div>
+      {children}
     </div>
   )
 }

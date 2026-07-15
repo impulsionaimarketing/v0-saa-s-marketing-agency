@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import {
   UploadCloud,
   FileVideo,
+  Image as ImageIcon,
   X,
   Building2,
   User,
@@ -43,6 +44,8 @@ export interface ProductionFormData {
   videoName: string
   videoPreview: string | null
   file: File | null
+  coverFile: File | null
+  coverPreview: string | null
 }
 
 export function ProductionForm({
@@ -53,10 +56,14 @@ export function ProductionForm({
   isSubmitting?: boolean
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [videoName, setVideoName] = useState<string>('')
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [coverName, setCoverName] = useState<string>('')
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const [coverFile, setCoverFile] = useState<File | null>(null)
 
   const [clients, setClients] = useState<Client[]>([])
   const [users, setUsers] = useState<AppUser[]>([])
@@ -110,6 +117,21 @@ export function ProductionForm({
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  const handleCover = (file: File | undefined) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) return
+    setCoverFile(file)
+    setCoverName(file.name)
+    setCoverPreview(URL.createObjectURL(file))
+  }
+
+  const clearCover = () => {
+    setCoverName('')
+    setCoverPreview(null)
+    setCoverFile(null)
+    if (coverInputRef.current) coverInputRef.current.value = ''
+  }
+
   const isValid = title.trim() && client && responsible && videoName
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -130,6 +152,8 @@ export function ProductionForm({
       videoName,
       videoPreview,
       file: selectedFile,
+      coverFile: type === 'Vídeo' ? coverFile : null,
+      coverPreview: type === 'Vídeo' ? coverPreview : null,
     })
   }
 
@@ -231,6 +255,83 @@ export function ProductionForm({
             )}
           </CardContent>
         </Card>
+
+        {/* -------------------------- CAPA DO REELS (só vídeo) -------------------------- */}
+        {type === 'Vídeo' && (
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                Capa do Reels (opcional)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleCover(e.target.files?.[0])}
+              />
+
+              {!coverPreview ? (
+                <button
+                  type="button"
+                  onClick={() => coverInputRef.current?.click()}
+                  className="flex aspect-[9/16] w-full max-w-[300px] mx-auto flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-border bg-secondary/40 p-6 text-center transition-colors hover:border-primary/50 hover:bg-secondary"
+                >
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <ImageIcon className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Adicionar capa
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Imagem exibida como thumbnail do reels
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">JPG ou PNG</p>
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-2xl border border-border bg-secondary">
+                    <div className="relative aspect-[9/16] w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={coverPreview || '/placeholder.svg'}
+                        alt="Pré-visualização da capa"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearCover}
+                      aria-label="Remover capa"
+                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-background/80 text-foreground backdrop-blur-sm transition-colors hover:bg-background"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-border bg-secondary/40 px-3 py-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ImageIcon className="h-4 w-4 shrink-0 text-chart-2" />
+                      <span className="truncate text-sm text-foreground">{coverName}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => coverInputRef.current?.click()}
+                    >
+                      Trocar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* ----------------------------- COLUNA DIREITA: DADOS ----------------------------- */}
