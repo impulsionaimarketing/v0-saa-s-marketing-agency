@@ -36,7 +36,11 @@ CREATE INDEX IF NOT EXISTS idx_story_automations_folder
 -- ---------------------------------------------------------------------
 -- 3. View de fila: expor folder_id (para depuração / n8n)
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.vw_story_automation_queue AS
+-- Recriada com DROP para permitir reordenar/adicionar colunas com segurança.
+-- (vw_story_automation_health depende dela — recriada logo abaixo, no passo 5.)
+DROP VIEW IF EXISTS public.vw_story_automation_health;
+DROP VIEW IF EXISTS public.vw_story_automation_queue;
+CREATE VIEW public.vw_story_automation_queue AS
 SELECT
   a.id                       AS automation_id,
   a.company_id               AS company_id,
@@ -63,7 +67,8 @@ WHERE a.enabled = TRUE;
 -- 4. View de pendências: cada automação só seleciona conteúdos da SUA pasta
 --    (sc.folder_id IS NOT DISTINCT FROM a.folder_id)
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE VIEW public.vw_story_pending_publications AS
+DROP VIEW IF EXISTS public.vw_story_pending_publications;
+CREATE VIEW public.vw_story_pending_publications AS
 WITH active AS (
   SELECT
     a.*,
@@ -147,6 +152,16 @@ FROM ranked
 WHERE rn = 1;
 
 -- ---------------------------------------------------------------------
--- 5. vw_story_automation_health permanece válida (conta automações habilitadas,
---    agora possivelmente várias por empresa) — nada a alterar.
+-- 5. Recriar vw_story_automation_health (foi removida no passo 3 por depender
+--    da fila). Definição idêntica à original — conta automações habilitadas,
+--    agora possivelmente várias por empresa (uma por pasta).
 -- ---------------------------------------------------------------------
+CREATE OR REPLACE VIEW public.vw_story_automation_health AS
+SELECT
+  (SELECT COUNT(*) FROM public.story_automations WHERE enabled = TRUE) AS active_automations,
+  (SELECT COUNT(*) FROM public.story_publication_history
+     WHERE status = 'published' AND published_at >= date_trunc('day', NOW())) AS published_today,
+  (SELECT COUNT(*) FROM public.story_publication_history
+     WHERE status = 'failed' AND created_at >= date_trunc('day', NOW())) AS failed_today,
+  (SELECT COUNT(*) FROM public.vw_story_automation_queue
+     WHERE next_execution <= NOW() + INTERVAL '24 hours') AS upcoming_24h;

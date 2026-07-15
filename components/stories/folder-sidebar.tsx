@@ -37,14 +37,16 @@ import {
   Pencil,
   Trash2,
   Loader2,
+  CalendarClock,
 } from "lucide-react"
 import { toast } from "sonner"
-import type { StoryFolder } from "@/lib/types/stories"
+import type { StoryFolder, StoryAutomation } from "@/lib/types/stories"
 
 export type FolderFilter = "all" | "none" | string
 
 interface FolderSidebarProps {
   folders: StoryFolder[]
+  automations: StoryAutomation[]
   active: FolderFilter
   onSelect: (filter: FolderFilter) => void
   totalCount: number
@@ -52,10 +54,12 @@ interface FolderSidebarProps {
   onCreate: (name: string) => Promise<unknown>
   onRename: (id: string, name: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onSchedule: (folder: StoryFolder) => void
 }
 
 export function FolderSidebar({
   folders,
+  automations,
   active,
   onSelect,
   totalCount,
@@ -63,7 +67,13 @@ export function FolderSidebar({
   onCreate,
   onRename,
   onDelete,
+  onSchedule,
 }: FolderSidebarProps) {
+  // Mapa folderId -> automação, para exibir o indicador e o rótulo da ação.
+  const automationByFolder = new Map<string, StoryAutomation>()
+  for (const a of automations) {
+    if (a.folder_id) automationByFolder.set(a.folder_id, a)
+  }
   const [creating, setCreating] = useState(false)
   const [renaming, setRenaming] = useState<StoryFolder | null>(null)
   const [deleting, setDeleting] = useState<StoryFolder | null>(null)
@@ -105,44 +115,65 @@ export function FolderSidebar({
               <div className="my-1 border-t border-border" />
             )}
 
-            {folders.map((folder) => (
-              <FolderItem
-                key={folder.id}
-                icon={<Folder className="h-4 w-4" />}
-                label={folder.name}
-                count={folder.content_count ?? 0}
-                active={active === folder.id}
-                onClick={() => onSelect(folder.id)}
-                actions={
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label={`Ações da pasta ${folder.name}`}
-                      >
-                        <MoreVertical className="h-3.5 w-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setRenaming(folder)}>
-                        <Pencil className="h-4 w-4" />
-                        Renomear
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleting(folder)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Excluir
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                }
-              />
-            ))}
+            {folders.map((folder) => {
+              const automation = automationByFolder.get(folder.id)
+              const scheduled = Boolean(automation)
+              const activeSchedule = Boolean(automation?.enabled)
+              return (
+                <FolderItem
+                  key={folder.id}
+                  icon={<Folder className="h-4 w-4" />}
+                  label={folder.name}
+                  count={folder.content_count ?? 0}
+                  active={active === folder.id}
+                  onClick={() => onSelect(folder.id)}
+                  indicator={
+                    scheduled ? (
+                      <CalendarClock
+                        className={`h-3.5 w-3.5 shrink-0 ${
+                          activeSchedule ? "text-primary" : "text-muted-foreground"
+                        }`}
+                        aria-label={
+                          activeSchedule ? "Pasta programada e ativa" : "Pasta programada e pausada"
+                        }
+                      />
+                    ) : null
+                  }
+                  actions={
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Ações da pasta ${folder.name}`}
+                        >
+                          <MoreVertical className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onSchedule(folder)}>
+                          <CalendarClock className="h-4 w-4" />
+                          {scheduled ? "Editar programação" : "Programar"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setRenaming(folder)}>
+                          <Pencil className="h-4 w-4" />
+                          Renomear
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleting(folder)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  }
+                />
+              )
+            })}
           </nav>
         </ScrollArea>
       </aside>
@@ -212,6 +243,7 @@ function FolderItem({
   active,
   onClick,
   actions,
+  indicator,
 }: {
   icon: React.ReactNode
   label: string
@@ -219,6 +251,7 @@ function FolderItem({
   active: boolean
   onClick: () => void
   actions?: React.ReactNode
+  indicator?: React.ReactNode
 }) {
   return (
     <div
@@ -239,6 +272,7 @@ function FolderItem({
     >
       <span className={active ? "text-primary" : "text-muted-foreground"}>{icon}</span>
       <span className="line-clamp-1 flex-1">{label}</span>
+      {indicator}
       {actions}
       <span
         className={`shrink-0 rounded-full px-1.5 text-xs ${

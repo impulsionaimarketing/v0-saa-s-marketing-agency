@@ -64,8 +64,11 @@ export function ContentCard({
   onDelete,
 }: ContentCardProps) {
   const title = content.name || content.caption || "Sem nome"
-  const status = content.schedule?.status
-  const nextExecution = content.schedule?.next_execution
+  const inFolder = Boolean(content.folder_id)
+  // Agendamento individual só vale para mídias "Sem pasta". Mídias em pasta
+  // são publicadas pela automação da própria pasta.
+  const status = inFolder ? undefined : content.schedule?.status
+  const nextExecution = inFolder ? null : content.schedule?.next_execution
 
   return (
     <Card
@@ -135,9 +138,11 @@ export function ContentCard({
           <HoverAction label="Editar" onClick={() => onEdit(content)}>
             <Pencil className="h-4 w-4" />
           </HoverAction>
-          <HoverAction label="Programar" onClick={() => onSchedule(content)}>
-            <CalendarClock className="h-4 w-4" />
-          </HoverAction>
+          {!inFolder && (
+            <HoverAction label="Programar" onClick={() => onSchedule(content)}>
+              <CalendarClock className="h-4 w-4" />
+            </HoverAction>
+          )}
           <HoverAction label="Mover" onClick={() => onMove(content)}>
             <FolderInput className="h-4 w-4" />
           </HoverAction>
@@ -160,10 +165,18 @@ export function ContentCard({
           <Badge
             variant="secondary"
             className={`text-[11px] font-medium ${
-              status ? STATUS_TONE[status] : "bg-muted text-muted-foreground"
+              inFolder
+                ? "bg-primary/15 text-primary"
+                : status
+                  ? STATUS_TONE[status]
+                  : "bg-muted text-muted-foreground"
             }`}
           >
-            {status ? SCHEDULE_STATUS_LABELS[status] : "Sem agendamento"}
+            {inFolder
+              ? "Publicação pela pasta"
+              : status
+                ? SCHEDULE_STATUS_LABELS[status]
+                : "Sem agendamento"}
           </Badge>
           {nextExecution && (
             <span className="line-clamp-1 text-[11px] text-muted-foreground">

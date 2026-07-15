@@ -49,16 +49,23 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
-import type {
-  StoryContent,
-  StoryFolder,
-  UpdateStoryContentInput,
-  ScheduleConfigInput,
+import {
+  STORY_PUBLISH_MODE_LABELS,
+  STORY_FREQUENCY_LABELS,
+  type StoryContent,
+  type StoryFolder,
+  type StoryAutomation,
+  type UpdateStoryContentInput,
+  type ScheduleConfigInput,
 } from "@/lib/types/stories"
 import { ContentCard } from "@/components/stories/content-card"
 import { FolderSidebar, type FolderFilter } from "@/components/stories/folder-sidebar"
 import { MoveContentDialog } from "@/components/stories/move-content-dialog"
 import { ScheduleContentDialog } from "@/components/stories/schedule-content-dialog"
+import {
+  ScheduleFolderDialog,
+  type FolderAutomationConfig,
+} from "@/components/stories/schedule-folder-dialog"
 
 type SortOption = "name" | "recent" | "oldest"
 
@@ -70,6 +77,7 @@ interface Company {
 interface ContentsTabProps {
   contents: StoryContent[]
   folders: StoryFolder[]
+  automations: StoryAutomation[]
   loading: boolean
   companies: Company[]
   companyId: string | null
@@ -83,12 +91,15 @@ interface ContentsTabProps {
   onCreateFolder: (name: string) => Promise<unknown>
   onRenameFolder: (id: string, name: string) => Promise<void>
   onDeleteFolder: (id: string, moveTo?: string | null) => Promise<void>
+  onSaveFolderAutomation: (folderId: string, config: FolderAutomationConfig) => Promise<unknown>
+  onRemoveFolderAutomation: (folderId: string) => Promise<unknown>
   onOpenInstagram: () => void
 }
 
 export function ContentsTab({
   contents,
   folders,
+  automations,
   loading,
   companies,
   companyId,
@@ -102,6 +113,8 @@ export function ContentsTab({
   onCreateFolder,
   onRenameFolder,
   onDeleteFolder,
+  onSaveFolderAutomation,
+  onRemoveFolderAutomation,
   onOpenInstagram,
 }: ContentsTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -121,11 +134,28 @@ export function ContentsTab({
   const [deletingMany, setDeletingMany] = useState(false)
   const [moveIds, setMoveIds] = useState<string[] | null>(null)
   const [scheduleIds, setScheduleIds] = useState<string[] | null>(null)
+  const [schedulingFolder, setSchedulingFolder] = useState<StoryFolder | null>(null)
 
   const noFolderCount = useMemo(
     () => contents.filter((c) => !c.folder_id).length,
     [contents],
   )
+
+  // Mapa folderId -> automação, para banner de status e o diálogo.
+  const automationByFolder = useMemo(() => {
+    const map = new Map<string, StoryAutomation>()
+    for (const a of automations) {
+      if (a.folder_id) map.set(a.folder_id, a)
+    }
+    return map
+  }, [automations])
+
+  // Automação da pasta atualmente selecionada (se houver).
+  const currentFolder =
+    activeFolder !== "all" && activeFolder !== "none"
+      ? folders.find((f) => f.id === activeFolder) ?? null
+      : null
+  const currentAutomation = currentFolder ? automationByFolder.get(currentFolder.id) ?? null : null
 
   const filtered = useMemo(() => {
     let list = contents
@@ -151,6 +181,10 @@ export function ContentsTab({
 
   const allSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id))
   const someSelected = selected.size > 0
+
+  // Agendamento individual só é permitido para mídias "Sem pasta".
+  const selectionAllFolderless =
+    someSelected && contents.filter((c) => selected.has(c.id)).every((c) => !c.folder_id)
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -200,6 +234,7 @@ export function ContentsTab({
         {/* Sidebar de pastas */}
         <FolderSidebar
           folders={folders}
+          automations={automations}
           active={activeFolder}
           onSelect={(f) => {
             setActiveFolder(f)
@@ -210,10 +245,59 @@ export function ContentsTab({
           onCreate={onCreateFolder}
           onRename={onRenameFolder}
           onDelete={onDeleteFolder}
+          onSchedule={(folder) => setSchedulingFolder(folder)}
         />
 
         {/* Conteúdo principal */}
         <div className="min-w-0 flex-1 space-y-4">
+          {/* Banner de status da automação da pasta selecionada */}
+          {currentFolder && (
+            <div
+              className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                currentAutomation?.enabled
+                  ? "border-primary/40 bg-primary/5"
+                  : "border-border bg-card"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                    currentAutomation?.enabled
+                      ? "bg-primary/15 text-primary"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <CalendarClock className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {currentAutomation
+                      ? currentAutomation.enabled
+                        ? "Pasta programada"
+                        : "Programação pausada"
+                      : "Pasta sem programação"}
+                  </p>
+                  <p className="text-xs text-muted-foreground text-pretty">
+                    {currentAutomation
+                      ? `${STORY_FREQUENCY_LABELS[currentAutomation.frequency_type]} às ${(
+                          currentAutomation.execution_time || "08:00"
+                        ).slice(0, 5)} · ${STORY_PUBLISH_MODE_LABELS[currentAutomation.publish_mode]} · até ${currentAutomation.daily_limit}/dia`
+                      : "As mídias desta pasta só serão publicadas após você definir uma programação."}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant={currentAutomation ? "outline" : "default"}
+                size="sm"
+                className="gap-2 sm:shrink-0"
+                onClick={() => setSchedulingFolder(currentFolder)}
+              >
+                <CalendarClock className="h-4 w-4" />
+                {currentAutomation ? "Editar programação" : "Programar pasta"}
+              </Button>
+            </div>
+          )}
+
           {/* Toolbar */}
           <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 xl:flex-row xl:items-center">
             <div className="relative flex-1">
@@ -322,15 +406,17 @@ export function ContentsTab({
                 {selected.size} selecionada(s)
               </span>
               <div className="ml-auto flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1 bg-background"
-                  onClick={() => setScheduleIds([...selected])}
-                >
-                  <CalendarClock className="h-4 w-4" />
-                  Programar
-                </Button>
+                {selectionAllFolderless && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1 bg-background"
+                    onClick={() => setScheduleIds([...selected])}
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                    Programar
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -421,7 +507,7 @@ export function ContentsTab({
         }}
       />
 
-      {/* Programar */}
+      {/* Programar mídias individuais (somente "Sem pasta") */}
       <ScheduleContentDialog
         open={!!scheduleIds}
         count={scheduleIds?.length ?? 0}
@@ -431,6 +517,16 @@ export function ContentsTab({
           await onSchedule(scheduleIds, config)
           clearSelection()
         }}
+      />
+
+      {/* Programar pasta (automação por pasta) */}
+      <ScheduleFolderDialog
+        open={!!schedulingFolder}
+        folder={schedulingFolder}
+        automation={schedulingFolder ? automationByFolder.get(schedulingFolder.id) ?? null : null}
+        onClose={() => setSchedulingFolder(null)}
+        onSave={onSaveFolderAutomation}
+        onRemove={onRemoveFolderAutomation}
       />
 
       {/* Excluir individual */}

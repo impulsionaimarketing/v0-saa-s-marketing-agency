@@ -107,6 +107,7 @@ export interface CreateStoryScheduleInput extends ScheduleConfigInput {
 export interface StoryAutomation {
   id: string
   company_id: string
+  folder_id: string | null
   enabled: boolean
   publish_mode: StoryPublishMode
   frequency_type: StoryFrequencyType
@@ -119,6 +120,8 @@ export interface StoryAutomation {
   last_content_id: string | null
   created_at: string
   updated_at: string
+  // agregado via join (somente leitura)
+  folder_name?: string | null
 }
 
 export interface StoryPublicationHistory {
@@ -171,6 +174,7 @@ export interface UpdateStoryContentInput {
 
 export interface UpsertStoryAutomationInput {
   company_id: string
+  folder_id: string | null
   enabled?: boolean
   publish_mode?: StoryPublishMode
   frequency_type?: StoryFrequencyType
@@ -238,6 +242,7 @@ export const SCHEDULE_STATUS_LABELS: Record<ScheduleStatus, string> = {
 export interface StoryPendingPublication {
   automation_id: string
   company_id: string
+  folder_id: string | null
   content_id: string
   content_type: StoryContentType
   content_url: string | null

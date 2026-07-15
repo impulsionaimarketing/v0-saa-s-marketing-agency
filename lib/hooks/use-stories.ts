@@ -7,11 +7,15 @@ import type {
   StorySummary,
   StoryFolder,
   StorySchedule,
+  StoryAutomation,
   UpdateStoryContentInput,
   CreateStoryContentInput,
   ScheduleConfigInput,
+  UpsertStoryAutomationInput,
   InstagramMedia,
 } from "@/lib/types/stories"
+
+export type FolderAutomationConfig = Omit<UpsertStoryAutomationInput, "company_id" | "folder_id">
 
 // Hook central de estado do gerenciador de Stories.
 // Centraliza conteúdos, pastas, agendamentos, histórico e resumo
@@ -21,6 +25,7 @@ export function useStories(companyId: string | null) {
   const [contents, setContents] = useState<StoryContent[]>([])
   const [folders, setFolders] = useState<StoryFolder[]>([])
   const [schedules, setSchedules] = useState<StorySchedule[]>([])
+  const [automations, setAutomations] = useState<StoryAutomation[]>([])
   const [history, setHistory] = useState<StoryPublicationHistory[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,24 +36,28 @@ export function useStories(companyId: string | null) {
       setContents([])
       setFolders([])
       setSchedules([])
+      setAutomations([])
       setHistory([])
       return
     }
     setLoading(true)
     setError(null)
     try {
-      const [summaryRes, contentsRes, foldersRes, schedulesRes, historyRes] = await Promise.all([
-        fetch(`/api/stories/summary?companyId=${companyId}`),
-        fetch(`/api/stories/contents?companyId=${companyId}`),
-        fetch(`/api/stories/folders?companyId=${companyId}`),
-        fetch(`/api/stories/schedules?companyId=${companyId}`),
-        fetch(`/api/stories/history?companyId=${companyId}`),
-      ])
+      const [summaryRes, contentsRes, foldersRes, schedulesRes, automationsRes, historyRes] =
+        await Promise.all([
+          fetch(`/api/stories/summary?companyId=${companyId}`),
+          fetch(`/api/stories/contents?companyId=${companyId}`),
+          fetch(`/api/stories/folders?companyId=${companyId}`),
+          fetch(`/api/stories/schedules?companyId=${companyId}`),
+          fetch(`/api/stories/automation?companyId=${companyId}`),
+          fetch(`/api/stories/history?companyId=${companyId}`),
+        ])
 
       if (summaryRes.ok) setSummary(await summaryRes.json())
       if (contentsRes.ok) setContents(await contentsRes.json())
       if (foldersRes.ok) setFolders(await foldersRes.json())
       if (schedulesRes.ok) setSchedules(await schedulesRes.json())
+      if (automationsRes.ok) setAutomations(await automationsRes.json())
       if (historyRes.ok) setHistory(await historyRes.json())
     } catch (err) {
       console.error("[v0] Error loading stories data:", err)
@@ -85,6 +94,16 @@ export function useStories(companyId: string | null) {
     if (!companyId) return
     const res = await fetch(`/api/stories/schedules?companyId=${companyId}`)
     if (res.ok) setSchedules(await res.json())
+  }, [companyId])
+
+  const refreshAutomations = useCallback(async () => {
+    if (!companyId) return
+    const [automationsRes, summaryRes] = await Promise.all([
+      fetch(`/api/stories/automation?companyId=${companyId}`),
+      fetch(`/api/stories/summary?companyId=${companyId}`),
+    ])
+    if (automationsRes.ok) setAutomations(await automationsRes.json())
+    if (summaryRes.ok) setSummary(await summaryRes.json())
   }, [companyId])
 
   // ---- Conteúdos ----
@@ -235,6 +254,35 @@ export function useStories(companyId: string | null) {
     [refreshFolders, refreshContents],
   )
 
+  // ---- Automação por pasta ----
+
+  const saveFolderAutomation = useCallback(
+    async (folderId: string, config: FolderAutomationConfig) => {
+      if (!companyId) return
+      const res = await fetch(`/api/stories/automation`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_id: companyId, folder_id: folderId, ...config }),
+      })
+      if (!res.ok) throw new Error("Falha ao salvar programação da pasta")
+      await refreshAutomations()
+    },
+    [companyId, refreshAutomations],
+  )
+
+  const removeFolderAutomation = useCallback(
+    async (folderId: string) => {
+      if (!companyId) return
+      const res = await fetch(
+        `/api/stories/automation?companyId=${companyId}&folderId=${folderId}`,
+        { method: "DELETE" },
+      )
+      if (!res.ok) throw new Error("Falha ao remover programação da pasta")
+      await refreshAutomations()
+    },
+    [companyId, refreshAutomations],
+  )
+
   // ---- Agendamentos ----
 
   const createSchedule = useCallback(
@@ -305,6 +353,7 @@ export function useStories(companyId: string | null) {
     contents,
     folders,
     schedules,
+    automations,
     history,
     loading,
     error,
@@ -320,6 +369,9 @@ export function useStories(companyId: string | null) {
     createFolder,
     renameFolder,
     deleteFolder,
+    // automação por pasta
+    saveFolderAutomation,
+    removeFolderAutomation,
     // agendamentos
     createSchedule,
     createSchedulesBatch,

@@ -211,27 +211,58 @@ export async function deleteStoryContents(ids: string[]): Promise<void> {
 // AUTOMAÇÃO
 // =====================================================================
 
-export async function getStoryAutomation(companyId: string): Promise<StoryAutomation | null> {
+// Lista todas as automações da empresa (uma por pasta), com o nome da pasta.
+export async function listStoryAutomations(companyId: string): Promise<StoryAutomation[]> {
   try {
     const supabase = await createSupabaseClient()
     const { data, error } = await supabase
       .from("story_automations")
-      .select("*")
+      .select(`*, story_folders:folder_id ( name )`)
       .eq("company_id", companyId)
+
+    if (error) {
+      console.error("[v0] Error listing story automations:", error)
+      return []
+    }
+
+    return ((data as any[]) || []).map((row) => ({
+      ...row,
+      folder_name: row.story_folders?.name ?? null,
+    })) as StoryAutomation[]
+  } catch (error) {
+    console.error("[v0] Error listing story automations:", error)
+    return []
+  }
+}
+
+// Obtém a automação de uma pasta específica da empresa.
+export async function getStoryAutomation(
+  companyId: string,
+  folderId: string,
+): Promise<StoryAutomation | null> {
+  try {
+    const supabase = await createSupabaseClient()
+    const { data, error } = await supabase
+      .from("story_automations")
+      .select(`*, story_folders:folder_id ( name )`)
+      .eq("company_id", companyId)
+      .eq("folder_id", folderId)
       .maybeSingle()
 
     if (error) {
       console.error("[v0] Error fetching story automation:", error)
       return null
     }
-    return (data as StoryAutomation) || null
+    if (!data) return null
+    const row = data as any
+    return { ...row, folder_name: row.story_folders?.name ?? null } as StoryAutomation
   } catch (error) {
     console.error("[v0] Error fetching story automation:", error)
     return null
   }
 }
 
-// Cria ou atualiza a automação da empresa (uma por empresa)
+// Cria ou atualiza a automação de uma pasta (uma por pasta dentro da empresa).
 export async function upsertStoryAutomation(
   input: UpsertStoryAutomationInput,
 ): Promise<StoryAutomation | null> {
@@ -240,6 +271,7 @@ export async function upsertStoryAutomation(
 
     const payload: Record<string, unknown> = {
       company_id: input.company_id,
+      folder_id: input.folder_id,
       updated_at: new Date().toISOString(),
     }
     if (input.enabled !== undefined) payload.enabled = input.enabled
@@ -252,7 +284,7 @@ export async function upsertStoryAutomation(
 
     const { data, error } = await supabase
       .from("story_automations")
-      .upsert(payload, { onConflict: "company_id" })
+      .upsert(payload, { onConflict: "company_id,folder_id" })
       .select()
       .single()
 
@@ -263,6 +295,25 @@ export async function upsertStoryAutomation(
     return data as StoryAutomation
   } catch (error) {
     console.error("[v0] Error upserting story automation:", error)
+    throw error
+  }
+}
+
+// Exclui a automação de uma pasta (ao desprogramar a pasta).
+export async function deleteStoryAutomation(companyId: string, folderId: string): Promise<void> {
+  try {
+    const supabase = await createSupabaseClient()
+    const { error } = await supabase
+      .from("story_automations")
+      .delete()
+      .eq("company_id", companyId)
+      .eq("folder_id", folderId)
+    if (error) {
+      console.error("[v0] Error deleting story automation:", error)
+      throw new Error(error.message)
+    }
+  } catch (error) {
+    console.error("[v0] Error deleting story automation:", error)
     throw error
   }
 }
@@ -308,8 +359,8 @@ export async function getStorySummary(companyId: string): Promise<StorySummary> 
   try {
     const supabase = await createSupabaseClient()
 
-    const [automation, contents, lastPub, nextPub] = await Promise.all([
-      supabase.from("story_automations").select("enabled, next_execution").eq("company_id", companyId).maybeSingle(),
+    const [automations, contents, lastPub, nextPub] = await Promise.all([
+      supabase.from("story_automations").select("enabled, next_execution").eq("company_id", companyId),
       supabase.from("story_contents").select("id, is_active").eq("company_id", companyId),
       supabase
         .from("story_publication_history")
@@ -330,16 +381,22 @@ export async function getStorySummary(companyId: string): Promise<StorySummary> 
     ])
 
     const allContents = (contents.data as { id: string; is_active: boolean }[]) || []
+    const allAutomations =
+      (automations.data as { enabled: boolean; next_execution: string | null }[]) || []
+
+    // Pega a próxima execução mais próxima entre todas as automações de pastas.
+    const nextFromAutomations = allAutomations
+      .map((a) => a.next_execution)
+      .filter((v): v is string => Boolean(v))
+      .sort()[0]
 
     return {
-      enabled: automation.data?.enabled ?? false,
+      enabled: allAutomations.some((a) => a.enabled),
       total_contents: allContents.length,
       active_contents: allContents.filter((c) => c.is_active).length,
       last_publication: (lastPub.data?.published_at as string) ?? null,
       next_publication:
-        (nextPub.data?.scheduled_for as string) ??
-        (automation.data?.next_execution as string) ??
-        null,
+        (nextPub.data?.scheduled_for as string) ?? nextFromAutomations ?? null,
     }
   } catch (error) {
     console.error("[v0] Error building story summary:", error)
