@@ -230,17 +230,51 @@ export function ContentsTab({
   const clearSelection = () => setSelected(new Set())
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
+    const selectedFiles = Array.from(e.target.files ?? [])
+    if (selectedFiles.length === 0) return
+
+    // Mesma validação da aba Produção: aceita qualquer imagem/vídeo até 5GB.
+    const validFiles = selectedFiles.filter((file) => {
+      const isValidType = file.type.startsWith("image/") || file.type.startsWith("video/")
+      if (!isValidType) {
+        toast.error(`"${file.name}" não é uma imagem ou vídeo`)
+        return false
+      }
+      if (file.size > 5 * 1024 * 1024 * 1024) {
+        toast.error(`"${file.name}" é muito grande (máx. 5GB)`)
+        return false
+      }
+      return true
+    })
+
+    if (validFiles.length === 0) {
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      return
+    }
+
     setUploading(true)
     const folderId = activeFolder !== "all" && activeFolder !== "none" ? activeFolder : null
+    let successCount = 0
+    let errorCount = 0
+
     try {
-      for (const file of Array.from(files)) {
-        await onUpload(file, folderId)
+      for (const file of validFiles) {
+        try {
+          await onUpload(file, folderId)
+          successCount++
+        } catch (error) {
+          console.error("[v0] Stories upload error:", error)
+          errorCount++
+        }
       }
-      toast.success("Conteúdo adicionado com sucesso.")
-    } catch {
-      toast.error("Erro ao adicionar conteúdo.")
+      if (successCount > 0) {
+        toast.success(
+          successCount === 1 ? "Conteúdo adicionado!" : `${successCount} arquivos adicionados!`,
+        )
+      }
+      if (errorCount > 0) {
+        toast.error(`Erro ao enviar ${errorCount} arquivo${errorCount > 1 ? "s" : ""}`)
+      }
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -364,7 +398,7 @@ export function ContentsTab({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".jpg,.jpeg,.png,.mp4,image/jpeg,image/png,video/mp4"
+                accept="image/*,video/*"
                 multiple
                 className="hidden"
                 onChange={handleFileChange}
@@ -450,7 +484,7 @@ export function ContentsTab({
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
                   {search || activeFolder !== "all"
                     ? "Tente ajustar a pesquisa ou os filtros."
-                    : "Faça upload de imagens (jpg, png) ou vídeos (mp4), ou importe posts do Instagram."}
+                    : "Faça upload de imagens ou vídeos, ou importe posts do Instagram."}
                 </p>
               </CardContent>
             </Card>
