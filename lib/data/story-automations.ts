@@ -1,6 +1,5 @@
 "use server"
 
-import { createAdminClient } from "@/lib/supabase/admin"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import type {
   StoryPendingPublication,
@@ -12,8 +11,8 @@ import type {
 // =====================================================================
 // Integração n8n — toda a regra de negócio vive nas views/funções SQL.
 // Estas funções apenas leem as views e chamam a função de confirmação.
-// Usam o cliente admin (service role) porque são acionadas por sistemas
-// externos sem sessão de usuário.
+// Usam exatamente o mesmo createClient() de @/lib/supabase/server que os
+// demais módulos do sistema (Produções, Clientes, Financeiro, etc.).
 // =====================================================================
 
 /**
@@ -21,7 +20,7 @@ import type {
  * Lê a view vw_story_pending_publications já filtrada e ranqueada no banco.
  */
 export async function getPendingPublications(): Promise<StoryPendingItem[]> {
-  const supabase = createAdminClient()
+  const supabase = await createSupabaseClient()
   const { data, error } = await supabase
     .from("vw_story_pending_publications")
     .select("*")
@@ -48,7 +47,7 @@ export async function getPendingPublications(): Promise<StoryPendingItem[]> {
  * histórico, próxima execução e estado da sequência de forma atômica.
  */
 export async function confirmPublication(payload: StoryConfirmPayload) {
-  const supabase = createAdminClient()
+  const supabase = await createSupabaseClient()
   const { data, error } = await supabase.rpc("story_confirm_publication", {
     p_automation_id: payload.automation_id,
     p_content_id: payload.content_id,
@@ -67,7 +66,6 @@ export async function confirmPublication(payload: StoryConfirmPayload) {
 
 /**
  * Métricas de saúde da automação para o dashboard.
- * Usa o cliente com sessão (chamado a partir da UI autenticada).
  */
 export async function getAutomationHealth(): Promise<StoryAutomationHealth> {
   try {
