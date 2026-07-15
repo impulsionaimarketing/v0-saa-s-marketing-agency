@@ -18,6 +18,27 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.story_contents TO anon, authentic
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.story_automations TO anon, authenticated, service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.story_publication_history TO anon, authenticated, service_role;
 
+-- Tabelas do gerenciador estilo Drive (pastas + agendamento por mídia).
+-- Criadas por scripts/create-story-folders-schedules.sql — precisam dos
+-- mesmos GRANTs. Sem isso, o app recebe 42501 "permission denied" ao
+-- CRIAR/SALVAR agendamentos e pastas (a leitura falha silenciosamente e
+-- a tela aparece vazia). Protegido por DO block caso ainda não existam.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'story_folders'
+  ) THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.story_folders TO anon, authenticated, service_role';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'story_schedules'
+  ) THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON public.story_schedules TO anon, authenticated, service_role';
+  END IF;
+END $$;
+
 -- Tabela de estado da integração n8n (pode ainda não existir se o
 -- script de integração não tiver sido rodado — protegido por DO block)
 DO $$
