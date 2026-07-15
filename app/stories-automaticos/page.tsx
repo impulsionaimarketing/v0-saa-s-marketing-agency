@@ -13,13 +13,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Images, History as HistoryIcon } from "lucide-react"
+import { Images, CalendarClock, CalendarDays } from "lucide-react"
 import { useStories } from "@/lib/hooks/use-stories"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { StorySummaryCards } from "@/components/stories/story-summary-cards"
-import { AutomationHealthCard } from "@/components/stories/automation-health-card"
 import { ContentsTab } from "@/components/stories/contents-tab"
-import { HistoryTab } from "@/components/stories/history-tab"
+import { SchedulesTab } from "@/components/stories/schedules-tab"
+import { CalendarTab } from "@/components/stories/calendar-tab"
 import { InstagramImportModal } from "@/components/stories/instagram-import-modal"
 
 interface Company {
@@ -54,11 +53,10 @@ export default function StoriesAutomaticosPage() {
   }, [])
 
   const {
-    summary,
     contents,
     folders,
     automations,
-    history,
+    schedules,
     loading,
     uploadContent,
     importInstagramPosts,
@@ -72,6 +70,9 @@ export default function StoriesAutomaticosPage() {
     deleteFolder,
     saveFolderAutomation,
     removeFolderAutomation,
+    updateSchedule,
+    scheduleAction,
+    deleteSchedule,
   } = useStories(companyId)
 
   return (
@@ -84,7 +85,8 @@ export default function StoriesAutomaticosPage() {
               <div>
                 <h1 className="text-2xl font-bold text-foreground">Stories Automáticos</h1>
                 <p className="mt-1 text-muted-foreground">
-                  Configure conteúdos para publicação automática nos Stories do Instagram.
+                  Organize os conteúdos em pastas e acompanhe as publicações automáticas nos
+                  Stories do Instagram.
                 </p>
               </div>
 
@@ -107,12 +109,6 @@ export default function StoriesAutomaticosPage() {
               </div>
             </div>
 
-            {/* Card Resumo */}
-            <StorySummaryCards summary={summary} loading={loading} />
-
-            {/* Saúde da Automação (visão global) */}
-            <AutomationHealthCard />
-
             {/* Abas */}
             <Tabs defaultValue="contents" className="w-full">
               <TabsList className="bg-muted/50 p-1">
@@ -120,9 +116,13 @@ export default function StoriesAutomaticosPage() {
                   <Images className="h-4 w-4" />
                   <span className="hidden sm:inline">Conteúdos</span>
                 </TabsTrigger>
-                <TabsTrigger value="history" className="gap-2 data-[state=active]:bg-background">
-                  <HistoryIcon className="h-4 w-4" />
-                  <span className="hidden sm:inline">Histórico</span>
+                <TabsTrigger value="schedules" className="gap-2 data-[state=active]:bg-background">
+                  <CalendarClock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Agendamentos</span>
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="gap-2 data-[state=active]:bg-background">
+                  <CalendarDays className="h-4 w-4" />
+                  <span className="hidden sm:inline">Calendário</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -150,8 +150,30 @@ export default function StoriesAutomaticosPage() {
                 />
               </TabsContent>
 
-              <TabsContent value="history" className="mt-6">
-                <HistoryTab history={history} loading={loading} />
+              <TabsContent value="schedules" className="mt-6">
+                <SchedulesTab
+                  schedules={schedules}
+                  loading={loading}
+                  companies={companies}
+                  companyId={companyId}
+                  onCompanyChange={setCompanyId}
+                  onUpdate={updateSchedule}
+                  onAction={scheduleAction}
+                  onDelete={deleteSchedule}
+                />
+              </TabsContent>
+
+              <TabsContent value="calendar" className="mt-6">
+                <CalendarTab
+                  schedules={schedules}
+                  loading={loading}
+                  companies={companies}
+                  companyId={companyId}
+                  onCompanyChange={setCompanyId}
+                  onUpdate={updateSchedule}
+                  onAction={scheduleAction}
+                  onDelete={deleteSchedule}
+                />
               </TabsContent>
             </Tabs>
           </div>

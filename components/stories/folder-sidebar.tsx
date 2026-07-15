@@ -41,6 +41,11 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import type { StoryFolder, StoryAutomation } from "@/lib/types/stories"
+import {
+  getFolderAutomationStatus,
+  FOLDER_STATUS_LABELS,
+  FOLDER_STATUS_DOT,
+} from "@/lib/utils/schedule-display"
 
 export type FolderFilter = "all" | "none" | string
 
@@ -51,6 +56,8 @@ interface FolderSidebarProps {
   onSelect: (filter: FolderFilter) => void
   totalCount: number
   noFolderCount: number
+  /** Mapa folderId -> nº de mídias ativas, usado para derivar o status. */
+  activeCountByFolder: Map<string, number>
   onCreate: (name: string) => Promise<unknown>
   onRename: (id: string, name: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
@@ -64,6 +71,7 @@ export function FolderSidebar({
   onSelect,
   totalCount,
   noFolderCount,
+  activeCountByFolder,
   onCreate,
   onRename,
   onDelete,
@@ -118,7 +126,10 @@ export function FolderSidebar({
             {folders.map((folder) => {
               const automation = automationByFolder.get(folder.id)
               const scheduled = Boolean(automation)
-              const activeSchedule = Boolean(automation?.enabled)
+              const status = getFolderAutomationStatus(
+                automation,
+                activeCountByFolder.get(folder.id) ?? 0,
+              )
               return (
                 <FolderItem
                   key={folder.id}
@@ -128,16 +139,11 @@ export function FolderSidebar({
                   active={active === folder.id}
                   onClick={() => onSelect(folder.id)}
                   indicator={
-                    scheduled ? (
-                      <CalendarClock
-                        className={`h-3.5 w-3.5 shrink-0 ${
-                          activeSchedule ? "text-primary" : "text-muted-foreground"
-                        }`}
-                        aria-label={
-                          activeSchedule ? "Pasta programada e ativa" : "Pasta programada e pausada"
-                        }
-                      />
-                    ) : null
+                    <span
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${FOLDER_STATUS_DOT[status]}`}
+                      title={FOLDER_STATUS_LABELS[status]}
+                      aria-label={`Status: ${FOLDER_STATUS_LABELS[status]}`}
+                    />
                   }
                   actions={
                     <DropdownMenu>

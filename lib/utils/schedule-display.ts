@@ -1,4 +1,4 @@
-import { WEEKDAY_LABELS, type StorySchedule } from "@/lib/types/stories"
+import { WEEKDAY_LABELS, type StorySchedule, type StoryAutomation } from "@/lib/types/stories"
 
 // Status de exibição consolidado para a UI (independente de integração).
 export type ScheduleDisplayStatus = "active" | "paused" | "finished"
@@ -78,4 +78,85 @@ export function formatTimeBR(value: string | null | undefined): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "—"
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+}
+
+// =====================================================================
+// STATUS DA AUTOMAÇÃO POR PASTA (estilo Google Drive)
+// Calculado a partir dos dados já existentes em story_automations.
+// =====================================================================
+
+export type FolderAutomationStatus = "active" | "paused" | "none" | "finished"
+
+export const FOLDER_STATUS_LABELS: Record<FolderAutomationStatus, string> = {
+  active: "Ativa",
+  paused: "Pausada",
+  none: "Sem automação",
+  finished: "Finalizada",
+}
+
+// Classe da bolinha indicadora (verde / amarelo / vermelho / cinza).
+export const FOLDER_STATUS_DOT: Record<FolderAutomationStatus, string> = {
+  active: "bg-emerald-500",
+  paused: "bg-amber-500",
+  none: "bg-red-500",
+  finished: "bg-muted-foreground/50",
+}
+
+export const FOLDER_STATUS_TEXT: Record<FolderAutomationStatus, string> = {
+  active: "text-emerald-600 dark:text-emerald-400",
+  paused: "text-amber-600 dark:text-amber-400",
+  none: "text-red-600 dark:text-red-400",
+  finished: "text-muted-foreground",
+}
+
+// Deriva o status da pasta sem criar novos campos:
+// - sem automação        -> "none"
+// - automação desativada  -> "paused"
+// - automação ativa, mas sem mídias ativas restantes -> "finished"
+// - automação ativa com mídias -> "active"
+export function getFolderAutomationStatus(
+  automation: StoryAutomation | null | undefined,
+  activeContentCount: number,
+): FolderAutomationStatus {
+  if (!automation) return "none"
+  if (!automation.enabled) return "paused"
+  if (activeContentCount === 0) return "finished"
+  return "active"
+}
+
+// Formata a próxima publicação como "Segunda • 08:00".
+export function formatNextPublicationBR(
+  automation: StoryAutomation | null | undefined,
+): string | null {
+  if (!automation) return null
+  if (automation.next_execution) {
+    const date = new Date(automation.next_execution)
+    if (!Number.isNaN(date.getTime())) {
+      const weekday = date.toLocaleDateString("pt-BR", { weekday: "long" })
+      const time = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+      const capitalized = weekday.charAt(0).toUpperCase() + weekday.slice(1)
+      return `${capitalized} • ${time}`
+    }
+  }
+  // Fallback: usa horário configurado quando não há próxima execução calculada.
+  const time = formatTimeBR(automation.execution_time)
+  return time === "—" ? null : time
+}
+
+export function formatAutomationFrequency(automation: StoryAutomation): string {
+  switch (automation.frequency_type) {
+    case "daily":
+      return "Todos os dias"
+    case "interval":
+      return `A cada ${automation.frequency_value || 1} dia(s)`
+    case "weekdays":
+      if (!automation.weekdays || automation.weekdays.length === 0) return "Dias específicos"
+      return automation.weekdays
+        .slice()
+        .sort((a, b) => a - b)
+        .map((d) => WEEKDAY_LABELS[d])
+        .join(", ")
+    default:
+      return "—"
+  }
 }

@@ -51,13 +51,21 @@ import {
 import { toast } from "sonner"
 import {
   STORY_PUBLISH_MODE_LABELS,
-  STORY_FREQUENCY_LABELS,
   type StoryContent,
   type StoryFolder,
   type StoryAutomation,
   type UpdateStoryContentInput,
   type ScheduleConfigInput,
 } from "@/lib/types/stories"
+import {
+  getFolderAutomationStatus,
+  formatNextPublicationBR,
+  formatAutomationFrequency,
+  formatTimeBR,
+  FOLDER_STATUS_LABELS,
+  FOLDER_STATUS_DOT,
+  FOLDER_STATUS_TEXT,
+} from "@/lib/utils/schedule-display"
 import { ContentCard } from "@/components/stories/content-card"
 import { FolderSidebar, type FolderFilter } from "@/components/stories/folder-sidebar"
 import { MoveContentDialog } from "@/components/stories/move-content-dialog"
@@ -140,6 +148,17 @@ export function ContentsTab({
     () => contents.filter((c) => !c.folder_id).length,
     [contents],
   )
+
+  // Nº de mídias ativas por pasta, usado para derivar o status da automação.
+  const activeCountByFolder = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const c of contents) {
+      if (c.folder_id && c.is_active) {
+        map.set(c.folder_id, (map.get(c.folder_id) ?? 0) + 1)
+      }
+    }
+    return map
+  }, [contents])
 
   // Mapa folderId -> automação, para banner de status e o diálogo.
   const automationByFolder = useMemo(() => {
@@ -242,6 +261,7 @@ export function ContentsTab({
           }}
           totalCount={contents.length}
           noFolderCount={noFolderCount}
+          activeCountByFolder={activeCountByFolder}
           onCreate={onCreateFolder}
           onRename={onRenameFolder}
           onDelete={onDeleteFolder}
@@ -250,52 +270,14 @@ export function ContentsTab({
 
         {/* Conteúdo principal */}
         <div className="min-w-0 flex-1 space-y-4">
-          {/* Banner de status da automação da pasta selecionada */}
+          {/* Painel de informações da pasta selecionada */}
           {currentFolder && (
-            <div
-              className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-                currentAutomation?.enabled
-                  ? "border-primary/40 bg-primary/5"
-                  : "border-border bg-card"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                    currentAutomation?.enabled
-                      ? "bg-primary/15 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <CalendarClock className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">
-                    {currentAutomation
-                      ? currentAutomation.enabled
-                        ? "Pasta programada"
-                        : "Programação pausada"
-                      : "Pasta sem programação"}
-                  </p>
-                  <p className="text-xs text-muted-foreground text-pretty">
-                    {currentAutomation
-                      ? `${STORY_FREQUENCY_LABELS[currentAutomation.frequency_type]} às ${(
-                          currentAutomation.execution_time || "08:00"
-                        ).slice(0, 5)} · ${STORY_PUBLISH_MODE_LABELS[currentAutomation.publish_mode]} · até ${currentAutomation.daily_limit}/dia`
-                      : "As mídias desta pasta só serão publicadas após você definir uma programação."}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant={currentAutomation ? "outline" : "default"}
-                size="sm"
-                className="gap-2 sm:shrink-0"
-                onClick={() => setSchedulingFolder(currentFolder)}
-              >
-                <CalendarClock className="h-4 w-4" />
-                {currentAutomation ? "Editar programação" : "Programar pasta"}
-              </Button>
-            </div>
+            <FolderInfoPanel
+              folder={currentFolder}
+              automation={currentAutomation}
+              activeCount={activeCountByFolder.get(currentFolder.id) ?? 0}
+              onSchedule={() => setSchedulingFolder(currentFolder)}
+            />
           )}
 
           {/* Toolbar */}
@@ -592,6 +574,75 @@ export function ContentsTab({
         </AlertDialogContent>
       </AlertDialog>
     </TooltipProvider>
+  )
+}
+
+function FolderInfoPanel({
+  folder,
+  automation,
+  activeCount,
+  onSchedule,
+}: {
+  folder: StoryFolder
+  automation: StoryAutomation | null
+  activeCount: number
+  onSchedule: () => void
+}) {
+  const status = getFolderAutomationStatus(automation, activeCount)
+  const nextPublication = formatNextPublicationBR(automation)
+
+  const stats: { label: string; value: string }[] = [
+    { label: "Mídias", value: String(folder.content_count ?? 0) },
+    {
+      label: "Próxima publicação",
+      value: status === "active" && nextPublication ? nextPublication : "—",
+    },
+    {
+      label: "Frequência",
+      value: automation ? formatAutomationFrequency(automation) : "—",
+    },
+    {
+      label: "Horário",
+      value: automation ? formatTimeBR(automation.execution_time) : "—",
+    },
+    {
+      label: "Publicação",
+      value: automation ? STORY_PUBLISH_MODE_LABELS[automation.publish_mode] : "—",
+    },
+  ]
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${FOLDER_STATUS_DOT[status]}`} />
+            <h2 className="truncate text-base font-semibold text-foreground">{folder.name}</h2>
+          </div>
+          <p className={`mt-0.5 text-xs font-medium ${FOLDER_STATUS_TEXT[status]}`}>
+            {FOLDER_STATUS_LABELS[status]}
+          </p>
+        </div>
+        <Button
+          variant={automation ? "outline" : "default"}
+          size="sm"
+          className="gap-2 sm:shrink-0"
+          onClick={onSchedule}
+        >
+          <CalendarClock className="h-4 w-4" />
+          {automation ? "Editar programação" : "Programar pasta"}
+        </Button>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
+        {stats.map((s) => (
+          <div key={s.label} className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
+            <p className="truncate text-sm font-medium text-foreground">{s.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
