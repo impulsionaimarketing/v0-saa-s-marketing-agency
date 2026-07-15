@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Images, Settings2, History as HistoryIcon } from "lucide-react"
 import { useStories } from "@/lib/hooks/use-stories"
 import { useAuth } from "@/lib/hooks/use-auth"
+import type { StoryAutomation, UpsertStoryAutomationInput } from "@/lib/types/stories"
 import { StorySummaryCards } from "@/components/stories/story-summary-cards"
 import { AutomationHealthCard } from "@/components/stories/automation-health-card"
 import { ContentsTab } from "@/components/stories/contents-tab"
@@ -57,15 +58,51 @@ export default function StoriesAutomaticosPage() {
   const {
     summary,
     contents,
-    automation,
+    folders,
     history,
     loading,
     uploadContent,
     importInstagramPosts,
     updateContent,
     deleteContent,
-    saveAutomation,
+    deleteContents,
+    moveContents,
+    createSchedulesBatch,
+    createFolder,
+    renameFolder,
+    deleteFolder,
   } = useStories(companyId)
+
+  // Automação global (aba "Automação") — conecta ao endpoint existente.
+  const [automation, setAutomation] = useState<StoryAutomation | null>(null)
+
+  useEffect(() => {
+    if (!companyId) {
+      setAutomation(null)
+      return
+    }
+    let active = true
+    fetch(`/api/stories/automation?companyId=${companyId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active) setAutomation(data)
+      })
+      .catch((err) => console.error("[v0] Error loading automation:", err))
+    return () => {
+      active = false
+    }
+  }, [companyId])
+
+  const saveAutomation = async (input: Omit<UpsertStoryAutomationInput, "company_id">) => {
+    if (!companyId) return
+    const res = await fetch(`/api/stories/automation`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company_id: companyId, ...input }),
+    })
+    if (!res.ok) throw new Error("Falha ao salvar automação")
+    setAutomation(await res.json())
+  }
 
   return (
     <ProtectedRoute>
@@ -126,10 +163,20 @@ export default function StoriesAutomaticosPage() {
               <TabsContent value="contents" className="mt-6">
                 <ContentsTab
                   contents={contents}
+                  folders={folders}
                   loading={loading}
+                  companies={companies}
+                  companyId={companyId}
+                  onCompanyChange={setCompanyId}
                   onUpload={uploadContent}
                   onUpdate={updateContent}
                   onDelete={deleteContent}
+                  onDeleteMany={deleteContents}
+                  onMove={moveContents}
+                  onSchedule={createSchedulesBatch}
+                  onCreateFolder={createFolder}
+                  onRenameFolder={renameFolder}
+                  onDeleteFolder={deleteFolder}
                   onOpenInstagram={() => setInstagramOpen(true)}
                 />
               </TabsContent>

@@ -1,10 +1,19 @@
 "use client"
 
-import { useRef, useState } from "react"
-import Image from "next/image"
+import { useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -25,61 +34,156 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { Skeleton } from "@/components/ui/skeleton"
 import {
   Plus,
   Instagram,
-  Video,
-  Image as ImageIcon,
   Upload,
-  Pencil,
-  Trash2,
   Loader2,
+  Search,
+  Building2,
+  Folder,
+  ArrowDownUp,
+  CalendarClock,
+  FolderInput,
+  Trash2,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
-import type { StoryContent, UpdateStoryContentInput } from "@/lib/types/stories"
+import type {
+  StoryContent,
+  StoryFolder,
+  UpdateStoryContentInput,
+  ScheduleConfigInput,
+} from "@/lib/types/stories"
+import { ContentCard } from "@/components/stories/content-card"
+import { FolderSidebar, type FolderFilter } from "@/components/stories/folder-sidebar"
+import { MoveContentDialog } from "@/components/stories/move-content-dialog"
+import { ScheduleContentDialog } from "@/components/stories/schedule-content-dialog"
 
-function formatDate(value: string): string {
-  try {
-    return new Date(value).toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    })
-  } catch {
-    return ""
-  }
+type SortOption = "name" | "recent" | "oldest"
+
+interface Company {
+  id: string
+  name: string
 }
 
 interface ContentsTabProps {
   contents: StoryContent[]
+  folders: StoryFolder[]
   loading: boolean
-  onUpload: (file: File) => Promise<void>
+  companies: Company[]
+  companyId: string | null
+  onCompanyChange: (id: string) => void
+  onUpload: (file: File, folderId?: string | null) => Promise<void>
   onUpdate: (id: string, input: UpdateStoryContentInput) => Promise<void>
   onDelete: (id: string) => Promise<void>
+  onDeleteMany: (ids: string[]) => Promise<void>
+  onMove: (ids: string[], folderId: string | null) => Promise<void>
+  onSchedule: (contentIds: string[], config: ScheduleConfigInput) => Promise<void>
+  onCreateFolder: (name: string) => Promise<unknown>
+  onRenameFolder: (id: string, name: string) => Promise<void>
+  onDeleteFolder: (id: string, moveTo?: string | null) => Promise<void>
   onOpenInstagram: () => void
 }
 
 export function ContentsTab({
   contents,
+  folders,
   loading,
+  companies,
+  companyId,
+  onCompanyChange,
   onUpload,
   onUpdate,
   onDelete,
+  onDeleteMany,
+  onMove,
+  onSchedule,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
   onOpenInstagram,
 }: ContentsTabProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+
+  // filtros / navegação
+  const [activeFolder, setActiveFolder] = useState<FolderFilter>("all")
+  const [search, setSearch] = useState("")
+  const [sort, setSort] = useState<SortOption>("recent")
+
+  // seleção
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  // dialogs
   const [editing, setEditing] = useState<StoryContent | null>(null)
-  const [deleting, setDeleting] = useState<StoryContent | null>(null)
+  const [deletingOne, setDeletingOne] = useState<StoryContent | null>(null)
+  const [deletingMany, setDeletingMany] = useState(false)
+  const [moveIds, setMoveIds] = useState<string[] | null>(null)
+  const [scheduleIds, setScheduleIds] = useState<string[] | null>(null)
+
+  const noFolderCount = useMemo(
+    () => contents.filter((c) => !c.folder_id).length,
+    [contents],
+  )
+
+  const filtered = useMemo(() => {
+    let list = contents
+    if (activeFolder === "none") list = list.filter((c) => !c.folder_id)
+    else if (activeFolder !== "all") list = list.filter((c) => c.folder_id === activeFolder)
+
+    const q = search.trim().toLowerCase()
+    if (q) {
+      list = list.filter((c) =>
+        [c.name, c.caption, c.folder_name].some((v) => v?.toLowerCase().includes(q)),
+      )
+    }
+
+    const sorted = [...list]
+    sorted.sort((a, b) => {
+      if (sort === "name") return (a.name || "").localeCompare(b.name || "")
+      const da = new Date(a.created_at).getTime()
+      const db = new Date(b.created_at).getTime()
+      return sort === "recent" ? db - da : da - db
+    })
+    return sorted
+  }, [contents, activeFolder, search, sort])
+
+  const allSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id))
+  const someSelected = selected.size > 0
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    setSelected((prev) => {
+      if (filtered.every((c) => prev.has(c.id))) {
+        const next = new Set(prev)
+        filtered.forEach((c) => next.delete(c.id))
+        return next
+      }
+      const next = new Set(prev)
+      filtered.forEach((c) => next.add(c.id))
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelected(new Set())
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
     setUploading(true)
+    const folderId = activeFolder !== "all" && activeFolder !== "none" ? activeFolder : null
     try {
       for (const file of Array.from(files)) {
-        await onUpload(file)
+        await onUpload(file, folderId)
       }
       toast.success("Conteúdo adicionado com sucesso.")
     } catch {
@@ -91,163 +195,251 @@ export function ContentsTab({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          {contents.length} conteúdo(s) cadastrado(s)
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" className="gap-2" onClick={onOpenInstagram}>
-            <Instagram className="h-4 w-4" />
-            Importar do Instagram
-          </Button>
-          <Button
-            className="gap-2"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Adicionar Conteúdo
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".jpg,.jpeg,.png,.mp4,image/jpeg,image/png,video/mp4"
-            multiple
-            className="hidden"
-            onChange={handleFileChange}
-          />
+    <TooltipProvider delayDuration={300}>
+      <div className="flex flex-col gap-4 lg:flex-row">
+        {/* Sidebar de pastas */}
+        <FolderSidebar
+          folders={folders}
+          active={activeFolder}
+          onSelect={(f) => {
+            setActiveFolder(f)
+            clearSelection()
+          }}
+          totalCount={contents.length}
+          noFolderCount={noFolderCount}
+          onCreate={onCreateFolder}
+          onRename={onRenameFolder}
+          onDelete={onDeleteFolder}
+        />
+
+        {/* Conteúdo principal */}
+        <div className="min-w-0 flex-1 space-y-4">
+          {/* Toolbar */}
+          <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 xl:flex-row xl:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Pesquisar mídias..."
+                className="pl-9"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Filtro por empresa */}
+              <Select value={companyId ?? undefined} onValueChange={onCompanyChange}>
+                <SelectTrigger className="w-full gap-2 sm:w-44">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Filtro por pasta */}
+              <Select
+                value={activeFolder}
+                onValueChange={(v) => {
+                  setActiveFolder(v as FolderFilter)
+                  clearSelection()
+                }}
+              >
+                <SelectTrigger className="w-full gap-2 sm:w-40">
+                  <Folder className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Pasta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as pastas</SelectItem>
+                  <SelectItem value="none">Sem pasta</SelectItem>
+                  {folders.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Ordenação */}
+              <Select value={sort} onValueChange={(v) => setSort(v as SortOption)}>
+                <SelectTrigger className="w-full gap-2 sm:w-40">
+                  <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Nome</SelectItem>
+                  <SelectItem value="recent">Mais recentes</SelectItem>
+                  <SelectItem value="oldest">Mais antigas</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button variant="outline" className="gap-2" onClick={onOpenInstagram}>
+                <Instagram className="h-4 w-4" />
+                <span className="hidden sm:inline">Instagram</span>
+              </Button>
+
+              <Button
+                className="gap-2"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Adicionar Conteúdo
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".jpg,.jpeg,.png,.mp4,image/jpeg,image/png,video/mp4"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </div>
+          </div>
+
+          {/* Barra de seleção */}
+          {someSelected && (
+            <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 p-3 shadow-sm">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={clearSelection}
+                aria-label="Limpar seleção"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-medium text-foreground">
+                {selected.size} selecionada(s)
+              </span>
+              <div className="ml-auto flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 bg-background"
+                  onClick={() => setScheduleIds([...selected])}
+                >
+                  <CalendarClock className="h-4 w-4" />
+                  Programar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 bg-background"
+                  onClick={() => setMoveIds([...selected])}
+                >
+                  <FolderInput className="h-4 w-4" />
+                  Mover
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 bg-background text-destructive hover:text-destructive"
+                  onClick={() => setDeletingMany(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Excluir
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Selecionar todas */}
+          {!loading && filtered.length > 0 && (
+            <label className="flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
+              Selecionar todas ({filtered.length})
+            </label>
+          )}
+
+          {/* Grid */}
+          {loading ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+              {[...Array(8)].map((_, i) => (
+                <Skeleton key={i} className="aspect-[4/5] rounded-xl" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <Card className="border-dashed bg-card">
+              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                  <Upload className="h-7 w-7 text-muted-foreground" />
+                </div>
+                <h3 className="text-base font-medium text-foreground">
+                  {search || activeFolder !== "all"
+                    ? "Nenhuma mídia encontrada"
+                    : "Nenhum conteúdo ainda"}
+                </h3>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  {search || activeFolder !== "all"
+                    ? "Tente ajustar a pesquisa ou os filtros."
+                    : "Faça upload de imagens (jpg, png) ou vídeos (mp4), ou importe posts do Instagram."}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+              {filtered.map((content) => (
+                <ContentCard
+                  key={content.id}
+                  content={content}
+                  selected={selected.has(content.id)}
+                  onToggleSelect={toggleSelect}
+                  onEdit={setEditing}
+                  onSchedule={(c) => setScheduleIds([c.id])}
+                  onMove={(c) => setMoveIds([c.id])}
+                  onDelete={setDeletingOne}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Grid */}
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="aspect-[4/5] rounded-xl" />
-          ))}
-        </div>
-      ) : contents.length === 0 ? (
-        <Card className="border-dashed bg-card">
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-              <Upload className="h-7 w-7 text-muted-foreground" />
-            </div>
-            <h3 className="text-base font-medium text-foreground">Nenhum conteúdo ainda</h3>
-            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-              Faça upload de imagens (jpg, png) ou vídeos (mp4), ou importe posts do Instagram.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {contents.map((content) => (
-            <Card
-              key={content.id}
-              className={`group overflow-hidden bg-card transition-opacity ${
-                content.is_active ? "" : "opacity-60"
-              }`}
-            >
-              <div className="relative aspect-[4/5] bg-muted">
-                {content.thumbnail_url || content.file_url ? (
-                  <Image
-                    src={content.thumbnail_url || content.file_url || "/placeholder.svg"}
-                    alt={content.caption || "Conteúdo do story"}
-                    fill
-                    className="object-cover"
-                    crossOrigin="anonymous"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                )}
+      {/* Editar */}
+      <EditContentDialog content={editing} onClose={() => setEditing(null)} onSave={onUpdate} />
 
-                {/* Badges */}
-                <div className="absolute left-2 top-2 flex gap-1">
-                  <Badge variant="secondary" className="gap-1 bg-background/85">
-                    {content.type === "video" ? (
-                      <Video className="h-3 w-3" />
-                    ) : (
-                      <ImageIcon className="h-3 w-3" />
-                    )}
-                    {content.type === "video" ? "Vídeo" : "Imagem"}
-                  </Badge>
-                </div>
-                <div className="absolute right-2 top-2">
-                  <Badge variant="secondary" className="gap-1 bg-background/85">
-                    {content.source === "instagram" ? (
-                      <>
-                        <Instagram className="h-3 w-3" /> Instagram
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="h-3 w-3" /> Upload
-                      </>
-                    )}
-                  </Badge>
-                </div>
-
-                {!content.is_active && (
-                  <div className="absolute inset-x-0 bottom-0 bg-background/85 py-1 text-center text-xs font-medium text-muted-foreground">
-                    Inativo
-                  </div>
-                )}
-              </div>
-
-              <CardContent className="space-y-2 p-3">
-                <p className="line-clamp-1 text-xs text-muted-foreground">
-                  {formatDate(content.created_at)}
-                </p>
-                {content.caption && (
-                  <p className="line-clamp-2 text-sm text-foreground">{content.caption}</p>
-                )}
-                <div className="flex gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 flex-1 gap-1 text-xs"
-                    onClick={() => setEditing(content)}
-                  >
-                    <Pencil className="h-3 w-3" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1 text-xs text-destructive hover:text-destructive"
-                    onClick={() => setDeleting(content)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Edit dialog */}
-      <EditContentDialog
-        content={editing}
-        onClose={() => setEditing(null)}
-        onSave={onUpdate}
+      {/* Mover */}
+      <MoveContentDialog
+        open={!!moveIds}
+        count={moveIds?.length ?? 0}
+        folders={folders}
+        onClose={() => setMoveIds(null)}
+        onMove={async (folderId) => {
+          if (!moveIds) return
+          await onMove(moveIds, folderId)
+          clearSelection()
+        }}
       />
 
-      {/* Delete confirmation */}
-      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+      {/* Programar */}
+      <ScheduleContentDialog
+        open={!!scheduleIds}
+        count={scheduleIds?.length ?? 0}
+        onClose={() => setScheduleIds(null)}
+        onSchedule={async (config) => {
+          if (!scheduleIds) return
+          await onSchedule(scheduleIds, config)
+          clearSelection()
+        }}
+      />
+
+      {/* Excluir individual */}
+      <AlertDialog open={!!deletingOne} onOpenChange={(o) => !o && setDeletingOne(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir conteúdo?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O conteúdo será removido permanentemente da lista de
-              stories.
+              Esta ação não pode ser desfeita. O conteúdo será removido permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -255,14 +447,14 @@ export function ContentsTab({
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={async () => {
-                if (!deleting) return
+                if (!deletingOne) return
                 try {
-                  await onDelete(deleting.id)
+                  await onDelete(deletingOne.id)
                   toast.success("Conteúdo excluído.")
                 } catch {
                   toast.error("Erro ao excluir conteúdo.")
                 } finally {
-                  setDeleting(null)
+                  setDeletingOne(null)
                 }
               }}
             >
@@ -271,7 +463,39 @@ export function ContentsTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+
+      {/* Excluir em lote */}
+      <AlertDialog open={deletingMany} onOpenChange={setDeletingMany}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {selected.size} mídia(s)?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. As mídias selecionadas serão removidas
+              permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                try {
+                  await onDeleteMany([...selected])
+                  toast.success("Mídias excluídas.")
+                  clearSelection()
+                } catch {
+                  toast.error("Erro ao excluir mídias.")
+                } finally {
+                  setDeletingMany(false)
+                }
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </TooltipProvider>
   )
 }
 
@@ -284,18 +508,16 @@ function EditContentDialog({
   onClose: () => void
   onSave: (id: string, input: UpdateStoryContentInput) => Promise<void>
 }) {
+  const [name, setName] = useState("")
   const [caption, setCaption] = useState("")
   const [isActive, setIsActive] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) onClose()
-  }
-
   return (
-    <Dialog open={!!content} onOpenChange={handleOpenChange}>
+    <Dialog open={!!content} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
         onOpenAutoFocus={() => {
+          setName(content?.name || "")
           setCaption(content?.caption || "")
           setIsActive(content?.is_active ?? true)
         }}
@@ -304,6 +526,15 @@ function EditContentDialog({
           <DialogTitle>Editar conteúdo</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="content-name">Nome</Label>
+            <Input
+              id="content-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Nome da mídia"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="caption">Legenda</Label>
             <Textarea
@@ -335,7 +566,7 @@ function EditContentDialog({
               if (!content) return
               setSaving(true)
               try {
-                await onSave(content.id, { caption, is_active: isActive })
+                await onSave(content.id, { name, caption, is_active: isActive })
                 toast.success("Conteúdo atualizado.")
                 onClose()
               } catch {
