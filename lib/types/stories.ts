@@ -15,12 +15,93 @@ export interface StoryContent {
   file_url: string | null
   thumbnail_url: string | null
   caption: string | null
+  name: string | null
+  folder_id: string | null
   instagram_media_id: string | null
   instagram_permalink: string | null
   is_active: boolean
   created_by: string | null
   created_at: string
   updated_at: string
+  // dados agregados via join (somente leitura)
+  folder_name?: string | null
+  schedule?: StorySchedule | null
+}
+
+// =====================================================================
+// PASTAS (organização estilo Google Drive)
+// =====================================================================
+
+export interface StoryFolder {
+  id: string
+  company_id: string
+  name: string
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // agregado via join (somente leitura)
+  content_count?: number
+}
+
+export interface CreateStoryFolderInput {
+  company_id: string
+  name: string
+  created_by?: string | null
+}
+
+// =====================================================================
+// AGENDAMENTO POR MÍDIA
+// =====================================================================
+
+export type ScheduleFrequencyType = "daily" | "interval" | "weekdays"
+export type ScheduleExecutionMode = "sequential" | "random"
+export type ScheduleStatus = "scheduled" | "paused" | "published" | "failed"
+
+export interface StorySchedule {
+  id: string
+  company_id: string
+  content_id: string
+  frequency_type: ScheduleFrequencyType
+  interval_days: number
+  weekdays: number[]
+  execution_time: string
+  start_date: string
+  end_date: string | null
+  total_weeks: number | null
+  execution_mode: ScheduleExecutionMode
+  next_execution: string | null
+  last_execution: string | null
+  status: ScheduleStatus
+  enabled: boolean
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  // dados agregados via join (somente leitura)
+  content_type?: StoryContentType
+  content_thumbnail_url?: string | null
+  content_file_url?: string | null
+  content_name?: string | null
+  folder_id?: string | null
+  folder_name?: string | null
+  company_name?: string | null
+}
+
+// Configuração aplicada a uma ou várias mídias
+export interface ScheduleConfigInput {
+  frequency_type: ScheduleFrequencyType
+  interval_days?: number
+  weekdays?: number[]
+  execution_time: string
+  start_date: string
+  total_weeks?: number | null
+  end_date?: string | null
+  execution_mode: ScheduleExecutionMode
+}
+
+export interface CreateStoryScheduleInput extends ScheduleConfigInput {
+  company_id: string
+  content_id: string
+  created_by?: string | null
 }
 
 export interface StoryAutomation {
@@ -73,6 +154,8 @@ export interface CreateStoryContentInput {
   file_url?: string | null
   thumbnail_url?: string | null
   caption?: string | null
+  name?: string | null
+  folder_id?: string | null
   instagram_media_id?: string | null
   instagram_permalink?: string | null
   created_by?: string | null
@@ -81,6 +164,8 @@ export interface CreateStoryContentInput {
 export interface UpdateStoryContentInput {
   type?: StoryContentType
   caption?: string | null
+  name?: string | null
+  folder_id?: string | null
   is_active?: boolean
 }
 
@@ -125,6 +210,25 @@ export const STORY_STATUS_LABELS: Record<StoryPublicationStatus, string> = {
 }
 
 export const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
+
+// Labels do agendamento por mídia
+export const SCHEDULE_FREQUENCY_LABELS: Record<ScheduleFrequencyType, string> = {
+  daily: "Todos os dias",
+  interval: "A cada X dias",
+  weekdays: "Dias específicos",
+}
+
+export const SCHEDULE_MODE_LABELS: Record<ScheduleExecutionMode, string> = {
+  sequential: "Sequencial",
+  random: "Aleatória",
+}
+
+export const SCHEDULE_STATUS_LABELS: Record<ScheduleStatus, string> = {
+  scheduled: "Agendado",
+  paused: "Pausado",
+  published: "Publicado",
+  failed: "Falhou",
+}
 
 // =====================================================================
 // Integração n8n

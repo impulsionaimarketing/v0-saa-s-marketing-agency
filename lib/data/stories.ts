@@ -20,7 +20,7 @@ export async function getStoryContents(companyId: string): Promise<StoryContent[
     const supabase = await createSupabaseClient()
     const { data, error } = await supabase
       .from("story_contents")
-      .select("*")
+      .select(`*, story_folders:folder_id ( name )`)
       .eq("company_id", companyId)
       .order("created_at", { ascending: false })
 
@@ -28,7 +28,28 @@ export async function getStoryContents(companyId: string): Promise<StoryContent[
       console.error("[v0] Error fetching story contents:", error)
       return []
     }
-    return (data as StoryContent[]) || []
+
+    const rows = (data as any[]) || []
+    if (rows.length === 0) return []
+
+    // Busca os agendamentos ativos das mídias e faz o merge
+    const contentIds = rows.map((r) => r.id)
+    const { data: schedules } = await supabase
+      .from("story_schedules")
+      .select("*")
+      .in("content_id", contentIds)
+      .in("status", ["scheduled", "paused"])
+
+    const scheduleMap = new Map<string, any>()
+    for (const s of (schedules as any[]) || []) {
+      scheduleMap.set(s.content_id, s)
+    }
+
+    return rows.map((row) => ({
+      ...row,
+      folder_name: row.story_folders?.name ?? null,
+      schedule: scheduleMap.get(row.id) ?? null,
+    })) as StoryContent[]
   } catch (error) {
     console.error("[v0] Error fetching story contents:", error)
     return []
@@ -49,6 +70,8 @@ export async function createStoryContent(
         file_url: input.file_url ?? null,
         thumbnail_url: input.thumbnail_url ?? null,
         caption: input.caption ?? null,
+        name: input.name ?? null,
+        folder_id: input.folder_id ?? null,
         instagram_media_id: input.instagram_media_id ?? null,
         instagram_permalink: input.instagram_permalink ?? null,
         created_by: input.created_by ?? null,
@@ -84,6 +107,8 @@ export async function createStoryContentsBulk(
           file_url: input.file_url ?? null,
           thumbnail_url: input.thumbnail_url ?? null,
           caption: input.caption ?? null,
+          name: input.name ?? null,
+          folder_id: input.folder_id ?? null,
           instagram_media_id: input.instagram_media_id ?? null,
           instagram_permalink: input.instagram_permalink ?? null,
           created_by: input.created_by ?? null,
@@ -111,6 +136,8 @@ export async function updateStoryContent(
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (input.type !== undefined) updateData.type = input.type
     if (input.caption !== undefined) updateData.caption = input.caption
+    if (input.name !== undefined) updateData.name = input.name
+    if (input.folder_id !== undefined) updateData.folder_id = input.folder_id
     if (input.is_active !== undefined) updateData.is_active = input.is_active
 
     const { data, error } = await supabase
@@ -141,6 +168,41 @@ export async function deleteStoryContent(id: string): Promise<void> {
     }
   } catch (error) {
     console.error("[v0] Error deleting story content:", error)
+    throw error
+  }
+}
+
+// Move várias mídias para uma pasta (folderId = null => "Sem pasta")
+export async function moveStoryContents(ids: string[], folderId: string | null): Promise<void> {
+  if (ids.length === 0) return
+  try {
+    const supabase = await createSupabaseClient()
+    const { error } = await supabase
+      .from("story_contents")
+      .update({ folder_id: folderId, updated_at: new Date().toISOString() })
+      .in("id", ids)
+    if (error) {
+      console.error("[v0] Error moving story contents:", error)
+      throw new Error(error.message)
+    }
+  } catch (error) {
+    console.error("[v0] Error moving story contents:", error)
+    throw error
+  }
+}
+
+// Exclui várias mídias de uma vez (agendamentos caem via ON DELETE CASCADE)
+export async function deleteStoryContents(ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  try {
+    const supabase = await createSupabaseClient()
+    const { error } = await supabase.from("story_contents").delete().in("id", ids)
+    if (error) {
+      console.error("[v0] Error deleting story contents:", error)
+      throw new Error(error.message)
+    }
+  } catch (error) {
+    console.error("[v0] Error deleting story contents:", error)
     throw error
   }
 }
