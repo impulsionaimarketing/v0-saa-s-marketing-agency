@@ -13,13 +13,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Images, Settings2, History as HistoryIcon } from "lucide-react"
+import { Images, Settings2, History as HistoryIcon, CalendarClock, CalendarDays } from "lucide-react"
 import { useStories } from "@/lib/hooks/use-stories"
 import { useAuth } from "@/lib/hooks/use-auth"
 import type { StoryAutomation, UpsertStoryAutomationInput } from "@/lib/types/stories"
 import { StorySummaryCards } from "@/components/stories/story-summary-cards"
 import { AutomationHealthCard } from "@/components/stories/automation-health-card"
 import { ContentsTab } from "@/components/stories/contents-tab"
+import { SchedulesTab } from "@/components/stories/schedules-tab"
+import { CalendarTab } from "@/components/stories/calendar-tab"
 import { AutomationTab } from "@/components/stories/automation-tab"
 import { HistoryTab } from "@/components/stories/history-tab"
 import { InstagramImportModal } from "@/components/stories/instagram-import-modal"
@@ -59,6 +61,7 @@ export default function StoriesAutomaticosPage() {
     summary,
     contents,
     folders,
+    schedules,
     history,
     loading,
     uploadContent,
@@ -71,6 +74,9 @@ export default function StoriesAutomaticosPage() {
     createFolder,
     renameFolder,
     deleteFolder,
+    updateSchedule,
+    scheduleAction,
+    deleteSchedule,
   } = useStories(companyId)
 
   // Automação global (aba "Automação") — conecta ao endpoint existente.
@@ -150,6 +156,14 @@ export default function StoriesAutomaticosPage() {
                   <Images className="h-4 w-4" />
                   <span className="hidden sm:inline">Conteúdos</span>
                 </TabsTrigger>
+                <TabsTrigger value="schedules" className="gap-2 data-[state=active]:bg-background">
+                  <CalendarClock className="h-4 w-4" />
+                  <span className="hidden sm:inline">Agendamentos</span>
+                </TabsTrigger>
+                <TabsTrigger value="calendar" className="gap-2 data-[state=active]:bg-background">
+                  <CalendarDays className="h-4 w-4" />
+                  <span className="hidden sm:inline">Calendário</span>
+                </TabsTrigger>
                 <TabsTrigger value="automation" className="gap-2 data-[state=active]:bg-background">
                   <Settings2 className="h-4 w-4" />
                   <span className="hidden sm:inline">Automação</span>
@@ -178,6 +192,28 @@ export default function StoriesAutomaticosPage() {
                   onRenameFolder={renameFolder}
                   onDeleteFolder={deleteFolder}
                   onOpenInstagram={() => setInstagramOpen(true)}
+                />
+              </TabsContent>
+
+              <TabsContent value="schedules" className="mt-6">
+                <SchedulesTab
+                  schedules={schedules}
+                  folders={folders}
+                  companies={companies}
+                  loading={loading}
+                  onUpdate={updateSchedule}
+                  onAction={scheduleAction}
+                  onDelete={deleteSchedule}
+                />
+              </TabsContent>
+
+              <TabsContent value="calendar" className="mt-6">
+                <CalendarTab
+                  schedules={schedules}
+                  loading={loading}
+                  onUpdate={updateSchedule}
+                  onAction={scheduleAction}
+                  onDelete={deleteSchedule}
                 />
               </TabsContent>
 
