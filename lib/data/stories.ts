@@ -274,6 +274,8 @@ export async function upsertStoryAutomation(
       folder_id: input.folder_id,
       updated_at: new Date().toISOString(),
     }
+    if (input.instagram_account_id !== undefined)
+      payload.instagram_account_id = input.instagram_account_id || null
     if (input.enabled !== undefined) payload.enabled = input.enabled
     if (input.publish_mode !== undefined) payload.publish_mode = input.publish_mode
     if (input.frequency_type !== undefined) payload.frequency_type = input.frequency_type

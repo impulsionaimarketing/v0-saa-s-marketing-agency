@@ -66,6 +66,7 @@ import {
   FOLDER_STATUS_DOT,
   FOLDER_STATUS_TEXT,
 } from "@/lib/utils/schedule-display"
+import type { InstagramAccount } from "@/lib/data/clients"
 import { ContentCard } from "@/components/stories/content-card"
 import { FolderSidebar, type FolderFilter } from "@/components/stories/folder-sidebar"
 import { MoveContentDialog } from "@/components/stories/move-content-dialog"
@@ -80,6 +81,7 @@ type SortOption = "name" | "recent" | "oldest"
 interface Company {
   id: string
   name: string
+  instagram_accounts?: InstagramAccount[] | null
 }
 
 interface ContentsTabProps {
@@ -148,6 +150,12 @@ export function ContentsTab({
     () => contents.filter((c) => !c.folder_id).length,
     [contents],
   )
+
+  // Contas de Instagram do cliente selecionado (para escolher na programação).
+  const currentInstagramAccounts = useMemo<InstagramAccount[]>(() => {
+    const company = companies.find((c) => c.id === companyId)
+    return company?.instagram_accounts ?? []
+  }, [companies, companyId])
 
   // Nº de mídias ativas por pasta, usado para derivar o status da automação.
   const activeCountByFolder = useMemo(() => {
@@ -540,6 +548,7 @@ export function ContentsTab({
         open={!!schedulingFolder}
         folder={schedulingFolder}
         automation={schedulingFolder ? automationByFolder.get(schedulingFolder.id) ?? null : null}
+        instagramAccounts={currentInstagramAccounts}
         onClose={() => setSchedulingFolder(null)}
         onSave={onSaveFolderAutomation}
         onRemove={onRemoveFolderAutomation}

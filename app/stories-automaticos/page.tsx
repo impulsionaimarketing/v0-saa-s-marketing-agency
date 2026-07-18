@@ -20,10 +20,12 @@ import { ContentsTab } from "@/components/stories/contents-tab"
 import { SchedulesTab } from "@/components/stories/schedules-tab"
 import { CalendarTab } from "@/components/stories/calendar-tab"
 import { InstagramImportModal } from "@/components/stories/instagram-import-modal"
+import type { InstagramAccount } from "@/lib/data/clients"
 
 interface Company {
   id: string
   name: string
+  instagram_accounts?: InstagramAccount[] | null
 }
 
 export default function StoriesAutomaticosPage() {
@@ -40,7 +42,11 @@ export default function StoriesAutomaticosPage() {
         if (res.ok) {
           const data = await res.json()
           const list: Company[] = Array.isArray(data)
-            ? data.map((c: any) => ({ id: c.id, name: c.name }))
+            ? data.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                instagram_accounts: Array.isArray(c.instagram_accounts) ? c.instagram_accounts : [],
+              }))
             : []
           setCompanies(list)
           if (list.length > 0) setCompanyId((prev) => prev ?? list[0].id)

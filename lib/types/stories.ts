@@ -108,6 +108,7 @@ export interface StoryAutomation {
   id: string
   company_id: string
   folder_id: string | null
+  instagram_account_id: string | null
   enabled: boolean
   publish_mode: StoryPublishMode
   frequency_type: StoryFrequencyType
@@ -175,6 +176,7 @@ export interface UpdateStoryContentInput {
 export interface UpsertStoryAutomationInput {
   company_id: string
   folder_id: string | null
+  instagram_account_id?: string | null
   enabled?: boolean
   publish_mode?: StoryPublishMode
   frequency_type?: StoryFrequencyType

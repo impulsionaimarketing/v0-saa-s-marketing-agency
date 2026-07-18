@@ -31,12 +31,14 @@ import {
   type StoryFrequencyType,
   type UpsertStoryAutomationInput,
 } from "@/lib/types/stories"
+import type { InstagramAccount } from "@/lib/data/clients"
 
 export type FolderAutomationConfig = Omit<UpsertStoryAutomationInput, "company_id" | "folder_id">
 
 interface ScheduleFolderDialogProps {
   folder: StoryFolder | null
   automation: StoryAutomation | null
+  instagramAccounts: InstagramAccount[]
   open: boolean
   onClose: () => void
   onSave: (folderId: string, config: FolderAutomationConfig) => Promise<unknown>
@@ -46,12 +48,14 @@ interface ScheduleFolderDialogProps {
 export function ScheduleFolderDialog({
   folder,
   automation,
+  instagramAccounts,
   open,
   onClose,
   onSave,
   onRemove,
 }: ScheduleFolderDialogProps) {
   const [enabled, setEnabled] = useState(true)
+  const [instagramAccountId, setInstagramAccountId] = useState<string>("")
   const [publishMode, setPublishMode] = useState<StoryPublishMode>("random")
   const [frequencyType, setFrequencyType] = useState<StoryFrequencyType>("daily")
   const [frequencyValue, setFrequencyValue] = useState(1)
@@ -61,11 +65,17 @@ export function ScheduleFolderDialog({
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
 
+  // Apenas contas com ID podem receber publicações (o n8n precisa do account_id).
+  const validInstagramAccounts = instagramAccounts.filter((acc) => acc.account_id)
+
   // Sincroniza os campos com a automação da pasta sempre que o diálogo abre.
   useEffect(() => {
     if (!open) return
     if (automation) {
       setEnabled(automation.enabled)
+      setInstagramAccountId(
+        automation.instagram_account_id ?? validInstagramAccounts[0]?.account_id ?? "",
+      )
       setPublishMode(automation.publish_mode)
       setFrequencyType(automation.frequency_type)
       setFrequencyValue(automation.frequency_value || 1)
@@ -75,6 +85,7 @@ export function ScheduleFolderDialog({
     } else {
       // Nova programação: valores padrão sensatos.
       setEnabled(true)
+      setInstagramAccountId(validInstagramAccounts[0]?.account_id ?? "")
       setPublishMode("random")
       setFrequencyType("daily")
       setFrequencyValue(1)
@@ -90,6 +101,7 @@ export function ScheduleFolderDialog({
     try {
       await onSave(folder.id, {
         enabled,
+        instagram_account_id: instagramAccountId || null,
         publish_mode: publishMode,
         frequency_type: frequencyType,
         frequency_value: frequencyValue,
@@ -142,6 +154,35 @@ export function ScheduleFolderDialog({
               </p>
             </div>
             <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+
+          {/* Conta do Instagram */}
+          <div className="space-y-2">
+            <Label>Conta do Instagram</Label>
+            {validInstagramAccounts.length > 0 ? (
+              <>
+                <Select value={instagramAccountId} onValueChange={setInstagramAccountId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione a conta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {validInstagramAccounts.map((acc) => (
+                      <SelectItem key={acc.account_id} value={acc.account_id}>
+                        {acc.username || acc.account_id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Conta em que os stories desta pasta serão publicados.
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Nenhuma conta de Instagram com ID cadastrada para este cliente. Adicione uma conta
+                (com ID) na aba Clientes para poder publicar.
+              </p>
+            )}
           </div>
 
           {/* Tipo de publicação */}
