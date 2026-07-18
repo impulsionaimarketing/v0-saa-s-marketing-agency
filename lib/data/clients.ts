@@ -33,6 +33,8 @@ export interface Client {
   ad_account_id: string | null
   business_manager_id: string | null
   google_ads_id: string | null
+  instagram_username: string | null
+  instagram_account_id: string | null
   status: "Ativo" | "Inativo"
   created_at: string
   updated_at: string
@@ -141,6 +143,8 @@ export async function createClientRecord(data: Partial<Client>): Promise<Client 
         ad_account_id: data.ad_account_id || null,
         business_manager_id: data.business_manager_id || null,
         google_ads_id: data.google_ads_id || null,
+        instagram_username: data.instagram_username || null,
+        instagram_account_id: data.instagram_account_id || null,
         status: "Ativo",
       })
       .select()
@@ -170,7 +174,8 @@ export async function updateClient(id: string, data: Partial<Client>): Promise<C
       'name', 'type', 'campaign_type', 'plan',
       'monthly_value', 'contract_status', 'month_status', 
       'whatsapp_group_name', 'whatsapp_group_id', 'ad_account_name', 
-      'ad_account_id', 'business_manager_id', 'google_ads_id', 'status',
+      'ad_account_id', 'business_manager_id', 'google_ads_id', 
+      'instagram_username', 'instagram_account_id', 'status',
     ]
 
     for (const field of fields) {
