@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Loader2, Building2, MessageSquare, TrendingUp, Trash2, Smartphone, Instagram } from 'lucide-react'
-import { createClientRecord, updateClient, type Client, type WhatsAppInstance } from '@/lib/data/clients'
+import { createClientRecord, updateClient, type Client, type WhatsAppInstance, type InstagramAccount } from '@/lib/data/clients'
 
 interface ClientFormDialogProps {
   client?: Client | null
@@ -39,11 +39,20 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
   const [instances, setInstances] = useState<WhatsAppInstance[]>(
     client?.whatsapp_instances || []
   )
+  const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccount[]>(
+    client?.instagram_accounts || []
+  )
+  const [newInstagram, setNewInstagram] = useState<InstagramAccount>({
+    username: '',
+    account_id: '',
+  })
 
   // Sync form data and instances whenever the dialog opens
   useEffect(() => {
     if (open) {
       setInstances(client?.whatsapp_instances || [])
+      setInstagramAccounts(client?.instagram_accounts || [])
+      setNewInstagram({ username: '', account_id: '' })
       setFormData({
         name: client?.name || '',
         type: client?.type || 'Serviço',
@@ -63,8 +72,6 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
         ad_account_id: client?.ad_account_id || '',
         business_manager_id: client?.business_manager_id || '',
         google_ads_id: client?.google_ads_id || '',
-        instagram_username: client?.instagram_username || '',
-        instagram_account_id: client?.instagram_account_id || '',
       })
     }
   }, [open, client])
@@ -96,8 +103,6 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
     ad_account_id: client?.ad_account_id || '',
     business_manager_id: client?.business_manager_id || '',
     google_ads_id: client?.google_ads_id || '',
-    instagram_username: client?.instagram_username || '',
-    instagram_account_id: client?.instagram_account_id || '',
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -125,8 +130,7 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
           ad_account_id: formData.ad_account_id || null,
           business_manager_id: formData.business_manager_id || null,
           google_ads_id: formData.google_ads_id || null,
-          instagram_username: formData.instagram_username || null,
-          instagram_account_id: formData.instagram_account_id || null,
+          instagram_accounts: instagramAccounts,
         }
 
         if (client) {
@@ -154,9 +158,9 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
             ad_account_id: '',
             business_manager_id: '',
             google_ads_id: '',
-            instagram_username: '',
-            instagram_account_id: '',
           })
+          setInstagramAccounts([])
+          setNewInstagram({ username: '', account_id: '' })
         }
       } catch (error) {
         console.error('[v0] Error saving client:', error)
@@ -609,16 +613,42 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
                   Instagram
                 </h4>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Configure a conta do Instagram deste cliente.
+                  Adicione uma ou mais contas do Instagram deste cliente.
                 </p>
+
+                {instagramAccounts.length > 0 && (
+                  <div className="grid gap-2 mb-4">
+                    {instagramAccounts.map((account, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between gap-3 rounded-md border border-border bg-secondary p-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{account.username || '(sem username)'}</p>
+                          <p className="text-xs text-muted-foreground truncate">ID: {account.account_id || '—'}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 text-destructive hover:text-destructive"
+                          onClick={() => setInstagramAccounts(prev => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Remover conta</span>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="instagram_username">Username</Label>
                     <Input
                       id="instagram_username"
-                      value={formData.instagram_username}
-                      onChange={(e) => setFormData(prev => ({ ...prev, instagram_username: e.target.value }))}
+                      value={newInstagram.username}
+                      onChange={(e) => setNewInstagram(prev => ({ ...prev, username: e.target.value }))}
                       placeholder="@usuario"
                       className="bg-secondary border-border"
                     />
@@ -628,13 +658,28 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
                     <Label htmlFor="instagram_account_id">ID da Conta</Label>
                     <Input
                       id="instagram_account_id"
-                      value={formData.instagram_account_id}
-                      onChange={(e) => setFormData(prev => ({ ...prev, instagram_account_id: e.target.value }))}
+                      value={newInstagram.account_id}
+                      onChange={(e) => setNewInstagram(prev => ({ ...prev, account_id: e.target.value }))}
                       placeholder="ID da conta do Instagram"
                       className="bg-secondary border-border"
                     />
                   </div>
                 </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 gap-2"
+                  onClick={() => {
+                    if (!newInstagram.username && !newInstagram.account_id) return
+                    setInstagramAccounts(prev => [...prev, newInstagram])
+                    setNewInstagram({ username: '', account_id: '' })
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Adicionar conta
+                </Button>
               </div>
 
               <div className="rounded-lg border border-border bg-secondary/30 p-4">
