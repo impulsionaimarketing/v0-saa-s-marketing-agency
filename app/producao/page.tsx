@@ -217,6 +217,28 @@ export default function ProducaoPage() {
     }
   }
 
+  const handleCopyClientLink = async () => {
+    if (filterClient === 'all') return
+    const base =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : '')
+    const url = `${base}/aprovacao/cliente/${filterClient}`
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success('Link do cliente copiado! Ele reúne todos os conteúdos deste cliente.')
+    } catch {
+      toast.error('Não foi possível copiar o link.')
+    }
+  }
+
+  const handleOpenClientLink = () => {
+    if (filterClient === 'all') return
+    const base =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (typeof window !== 'undefined' ? window.location.origin : '')
+    window.open(`${base}/aprovacao/cliente/${filterClient}`, '_blank', 'noopener,noreferrer')
+  }
+
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) return
     setIsDeleting(true)

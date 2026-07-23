@@ -152,6 +152,120 @@ export async function getProductionByToken(token: string): Promise<PublicProduct
   })
 }
 
+// ─── Portal do cliente (link único por client_id) ─────────────────────────────
+export type ClientApprovalComment = {
+  comment: string
+  author_name: string
+  created_at: string
+}
+
+export type ClientPortalProduction = PublicProduction & {
+  post_date_raw: string | null
+  adjustments: ClientApprovalComment[]
+}
+
+export type ClientPortalData = {
+  clientId: string
+  clientName: string
+  productions: ClientPortalProduction[]
+}
+
+// Busca todas as produções de um cliente (link público baseado no id da tabela
+// clients). Usa a anon key, igual ao fluxo por token.
+export async function getClientPortalData(clientId: string): Promise<ClientPortalData | null> {
+  const { createClient } = await import('@supabase/supabase-js')
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+
+  const { data: client, error: clientError } = await supabase
+    .from('clients')
+    .select('id, name')
+    .eq('id', clientId)
+    .maybeSingle()
+
+  if (clientError || !client) return null
+
+  // Só interessam ao cliente os conteúdos que passaram/estão no fluxo de aprovação.
+  const RELEVANT_STATUSES = ['Aprovação do Cliente', 'Solicitou Ajuste', 'Aprovado']
+
+  const { data: productions, error: prodError } = await supabase
+    .from('productions')
+    .select(`
+      id,
+      title,
+      caption,
+      status,
+      type,
+      cover_url,
+      post_date,
+      created_at,
+      clients(name),
+      production_files(id, filename, url, file_type, uploaded_at),
+      production_comments(comment, author_name, is_client, created_at)
+    `)
+    .eq('client_id', clientId)
+    .in('status', RELEVANT_STATUSES)
+    .order('created_at', { ascending: false })
+
+  if (prodError) {
+    console.error('[v0] Erro ao buscar produções do cliente:', prodError)
+    return { clientId: client.id as string, clientName: (client.name as string) || '', productions: [] }
+  }
+
+  const mapped: ClientPortalProduction[] = (productions || []).map((p: any) => {
+    const files: PublicProductionFile[] = Array.isArray(p.production_files)
+      ? [...p.production_files]
+          .sort((a, b) => {
+            const pa = a.position ?? new Date(a.uploaded_at ?? 0).getTime()
+            const pb = b.position ?? new Date(b.uploaded_at ?? 0).getTime()
+            return pa - pb
+          })
+          .map((f) => ({ url: f.url, filename: f.filename, file_type: f.file_type }))
+      : []
+
+    const adjustments: ClientApprovalComment[] = Array.isArray(p.production_comments)
+      ? p.production_comments
+          .filter((c: any) => c.is_client && c.comment?.trim())
+          .sort(
+            (a: any, b: any) =>
+              new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
+          )
+          .map((c: any) => ({
+            comment: c.comment as string,
+            author_name: (c.author_name as string) || 'Cliente',
+            created_at: (c.created_at as string) || '',
+          }))
+      : []
+
+    return {
+      id: p.id,
+      title: p.title || 'Conteúdo sem título',
+      client_name: p.clients?.name || client.name || '',
+      responsible_name: '',
+      post_date: p.post_date
+        ? new Date(p.post_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+        : 'A definir',
+      post_date_raw: p.post_date || null,
+      caption: p.caption || '',
+      status: p.status || '',
+      type: p.type || '',
+      cover_url: p.cover_url || null,
+      video_url: files[0]?.url || null,
+      files,
+      adjustments,
+    }
+  })
+
+  return {
+    clientId: client.id as string,
+    clientName: (client.name as string) || '',
+    productions: mapped,
+  }
+}
+
 // ─── Salvar resposta do cliente (aprovação por elemento) ──────────────────────
 export type ApprovalElement = 'capa' | 'midia' | 'legenda'
 
