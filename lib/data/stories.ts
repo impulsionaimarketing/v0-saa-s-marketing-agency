@@ -283,37 +283,98 @@ export async function getStoryAutomation(
   }
 }
 
+// Detecta erro de "coluna não existe" (migração ainda não aplicada no banco).
+function isMissingColumnError(error: any, column: string): boolean {
+  if (!error) return false
+  // 42703 = undefined_column | PGRST204 = coluna ausente no schema cache do PostgREST
+  const code = String(error.code ?? "")
+  const message = String(error.message ?? "").toLowerCase()
+  return (
+    code === "42703" ||
+    code === "PGRST204" ||
+    message.includes(column.toLowerCase())
+  )
+}
+
 // Cria ou atualiza a automação de uma pasta (uma por pasta dentro da empresa).
+// Faz busca -> update/insert explícito (sem depender de índice único / ON CONFLICT)
+// e cai para um fallback sem `instagram_account_id` caso essa coluna ainda não
+// exista no banco (migração evolve-story-automation-instagram-account.sql).
 export async function upsertStoryAutomation(
   input: UpsertStoryAutomationInput,
 ): Promise<StoryAutomation | null> {
   try {
     const supabase = await createSupabaseClient()
 
-    const payload: Record<string, unknown> = {
-      company_id: input.company_id,
-      folder_id: input.folder_id,
-      updated_at: new Date().toISOString(),
+    const buildPayload = (includeInstagram: boolean): Record<string, unknown> => {
+      const payload: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      }
+      if (includeInstagram && input.instagram_account_id !== undefined)
+        payload.instagram_account_id = input.instagram_account_id || null
+      if (input.enabled !== undefined) payload.enabled = input.enabled
+      if (input.publish_mode !== undefined) payload.publish_mode = input.publish_mode
+      if (input.frequency_type !== undefined) payload.frequency_type = input.frequency_type
+      if (input.frequency_value !== undefined) payload.frequency_value = input.frequency_value
+      if (input.weekdays !== undefined) payload.weekdays = input.weekdays
+      if (input.execution_time !== undefined) payload.execution_time = input.execution_time
+      if (input.daily_limit !== undefined) payload.daily_limit = input.daily_limit
+      return payload
     }
-    if (input.instagram_account_id !== undefined)
-      payload.instagram_account_id = input.instagram_account_id || null
-    if (input.enabled !== undefined) payload.enabled = input.enabled
-    if (input.publish_mode !== undefined) payload.publish_mode = input.publish_mode
-    if (input.frequency_type !== undefined) payload.frequency_type = input.frequency_type
-    if (input.frequency_value !== undefined) payload.frequency_value = input.frequency_value
-    if (input.weekdays !== undefined) payload.weekdays = input.weekdays
-    if (input.execution_time !== undefined) payload.execution_time = input.execution_time
-    if (input.daily_limit !== undefined) payload.daily_limit = input.daily_limit
 
-    const { data, error } = await supabase
+    // 1. Já existe automação para esta pasta?
+    const { data: existing, error: findError } = await supabase
       .from("story_automations")
-      .upsert(payload, { onConflict: "company_id,folder_id" })
-      .select()
-      .single()
+      .select("id")
+      .eq("company_id", input.company_id)
+      .eq("folder_id", input.folder_id)
+      .maybeSingle()
+
+    if (findError) {
+      console.error("[v0] Error checking existing story automation:", findError)
+      throw new Error(findError.message)
+    }
+
+    const runWrite = async (includeInstagram: boolean) => {
+      if (existing?.id) {
+        // UPDATE
+        return supabase
+          .from("story_automations")
+          .update(buildPayload(includeInstagram))
+          .eq("id", existing.id)
+          .select()
+          .single()
+      }
+      // INSERT
+      return supabase
+        .from("story_automations")
+        .insert({
+          company_id: input.company_id,
+          folder_id: input.folder_id,
+          ...buildPayload(includeInstagram),
+        })
+        .select()
+        .single()
+    }
+
+    let { data, error } = await runWrite(true)
+
+    // Fallback: coluna instagram_account_id ainda não existe no banco.
+    if (error && isMissingColumnError(error, "instagram_account_id")) {
+      console.error(
+        "[v0] Coluna instagram_account_id ausente em story_automations; salvando sem ela. Rode scripts/evolve-story-automation-instagram-account.sql para habilitar a escolha de conta.",
+      )
+      ;({ data, error } = await runWrite(false))
+    }
 
     if (error) {
       console.error("[v0] Error upserting story automation:", error)
       throw new Error(error.message)
+    }
+    if (!data) {
+      throw new Error(
+        "A automação não foi salva (nenhuma linha retornada). Verifique as permissões (RLS/GRANT) da tabela story_automations.",
+      )
     }
     return data as StoryAutomation
   } catch (error) {
