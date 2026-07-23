@@ -191,6 +191,10 @@ export async function getClientPortalData(clientId: string): Promise<ClientPorta
   // Só interessam ao cliente os conteúdos que passaram/estão no fluxo de aprovação.
   const RELEVANT_STATUSES = ['Aprovação do Cliente', 'Solicitou Ajuste', 'Aprovado']
 
+  // IMPORTANTE: não embutir production_comments/production_approvals aqui.
+  // Essas tabelas têm RLS sem política de SELECT para anon, então o embed do
+  // PostgREST falha a query inteira. Buscamos só o que anon pode ler (mesmo
+  // conjunto do fluxo por token) e trazemos os comentários pela RPC abaixo.
   const { data: productions, error: prodError } = await supabase
     .from('productions')
     .select(`
@@ -203,8 +207,7 @@ export async function getClientPortalData(clientId: string): Promise<ClientPorta
       post_date,
       created_at,
       clients(name),
-      production_files(id, filename, url, file_type, uploaded_at),
-      production_comments(comment, author_name, is_client, created_at)
+      production_files(id, filename, url, file_type, uploaded_at)
     `)
     .eq('client_id', clientId)
     .in('status', RELEVANT_STATUSES)
@@ -213,6 +216,28 @@ export async function getClientPortalData(clientId: string): Promise<ClientPorta
   if (prodError) {
     console.error('[v0] Erro ao buscar produções do cliente:', prodError)
     return { clientId: client.id as string, clientName: (client.name as string) || '', productions: [] }
+  }
+
+  // Comentários/ajustes do cliente via RPC SECURITY DEFINER (ignora RLS),
+  // mesmo padrão usado em /api/productions/feedback.
+  const commentsByProduction = new Map<string, ClientApprovalComment[]>()
+  const { data: feedbackRows, error: feedbackError } = await supabase.rpc('get_production_feedback')
+  if (feedbackError) {
+    console.error('[v0] Erro ao buscar feedback do cliente (RPC):', feedbackError)
+  } else if (Array.isArray(feedbackRows)) {
+    for (const r of feedbackRows as any[]) {
+      const text = (r.comment as string)?.trim()
+      if (!r.production_id || !text) continue
+      const list = commentsByProduction.get(r.production_id) ?? []
+      // Deduplica o mesmo texto (gravado em comments e approvals)
+      if (list.some((c) => c.comment.toLowerCase() === text.toLowerCase())) continue
+      list.push({
+        comment: text,
+        author_name: (r.author as string) || 'Cliente',
+        created_at: (r.created_at as string) || '',
+      })
+      commentsByProduction.set(r.production_id, list)
+    }
   }
 
   const mapped: ClientPortalProduction[] = (productions || []).map((p: any) => {
@@ -226,19 +251,9 @@ export async function getClientPortalData(clientId: string): Promise<ClientPorta
           .map((f) => ({ url: f.url, filename: f.filename, file_type: f.file_type }))
       : []
 
-    const adjustments: ClientApprovalComment[] = Array.isArray(p.production_comments)
-      ? p.production_comments
-          .filter((c: any) => c.is_client && c.comment?.trim())
-          .sort(
-            (a: any, b: any) =>
-              new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
-          )
-          .map((c: any) => ({
-            comment: c.comment as string,
-            author_name: (c.author_name as string) || 'Cliente',
-            created_at: (c.created_at as string) || '',
-          }))
-      : []
+    const adjustments: ClientApprovalComment[] = (commentsByProduction.get(p.id) ?? []).sort(
+      (a, b) => new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime(),
+    )
 
     return {
       id: p.id,
