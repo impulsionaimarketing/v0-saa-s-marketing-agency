@@ -213,6 +213,33 @@ export function useStories(companyId: string | null) {
     [refreshContents, refreshFolders],
   )
 
+  // Reordena conteúdos (modo Sequencial). Atualização otimista: a UI já reflete
+  // a nova ordem via estado local do componente; aqui apenas persistimos a
+  // nova `position` de cada mídia e sincronizamos o estado ao final.
+  const reorderContents = useCallback(
+    async (items: { id: string; position: number }[]) => {
+      // Atualiza o estado local imediatamente (sem reload).
+      setContents((prev) => {
+        const posById = new Map(items.map((i) => [i.id, i.position]))
+        return [...prev]
+          .map((c) => (posById.has(c.id) ? { ...c, position: posById.get(c.id)! } : c))
+          .sort((a, b) => a.position - b.position)
+      })
+
+      const res = await fetch(`/api/stories/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(items),
+      })
+      if (!res.ok) {
+        // Reverte para o estado do servidor em caso de falha.
+        await refreshContents()
+        throw new Error("Falha ao reordenar conteúdos")
+      }
+    },
+    [refreshContents],
+  )
+
   // ---- Pastas ----
 
   const createFolder = useCallback(
@@ -365,6 +392,7 @@ export function useStories(companyId: string | null) {
     deleteContent,
     moveContents,
     deleteContents,
+    reorderContents,
     // pastas
     createFolder,
     renameFolder,

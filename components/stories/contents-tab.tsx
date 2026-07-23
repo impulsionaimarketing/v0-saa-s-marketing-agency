@@ -75,8 +75,24 @@ import {
   ScheduleFolderDialog,
   type FolderAutomationConfig,
 } from "@/components/stories/schedule-folder-dialog"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { SortableContentCard } from "@/components/stories/sortable-content-card"
 
-type SortOption = "name" | "recent" | "oldest"
+type SortOption = "manual" | "name" | "recent" | "oldest"
 
 interface Company {
   id: string
@@ -97,6 +113,7 @@ interface ContentsTabProps {
   onDelete: (id: string) => Promise<void>
   onDeleteMany: (ids: string[]) => Promise<void>
   onMove: (ids: string[], folderId: string | null) => Promise<void>
+  onReorder: (items: { id: string; position: number }[]) => Promise<void>
   onSchedule: (contentIds: string[], config: ScheduleConfigInput) => Promise<void>
   onCreateFolder: (name: string) => Promise<unknown>
   onRenameFolder: (id: string, name: string) => Promise<void>
@@ -119,6 +136,7 @@ export function ContentsTab({
   onDelete,
   onDeleteMany,
   onMove,
+  onReorder,
   onSchedule,
   onCreateFolder,
   onRenameFolder,
@@ -133,7 +151,7 @@ export function ContentsTab({
   // filtros / navegação
   const [activeFolder, setActiveFolder] = useState<FolderFilter>("all")
   const [search, setSearch] = useState("")
-  const [sort, setSort] = useState<SortOption>("recent")
+  const [sort, setSort] = useState<SortOption>("manual")
 
   // seleção
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -198,6 +216,12 @@ export function ContentsTab({
 
     const sorted = [...list]
     sorted.sort((a, b) => {
+      // Ordem manual (Drag & Drop): sempre por position ASC. Nunca created_at.
+      if (sort === "manual") {
+        if (a.position !== b.position) return a.position - b.position
+        // desempate estável por created_at (mais antigas primeiro)
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      }
       if (sort === "name") return (a.name || "").localeCompare(b.name || "")
       const da = new Date(a.created_at).getTime()
       const db = new Date(b.created_at).getTime()
@@ -205,6 +229,36 @@ export function ContentsTab({
     })
     return sorted
   }, [contents, activeFolder, search, sort])
+
+  // Drag & Drop só é permitido na "Ordem manual" e sem busca ativa
+  // (com filtro de texto a lista não representa a ordem real de publicação).
+  const canReorder = sort === "manual" && search.trim().length === 0
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = filtered.findIndex((c) => c.id === active.id)
+    const newIndex = filtered.findIndex((c) => c.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    // Nova ordem apenas do subconjunto visível (pasta/filtro atual).
+    const reordered = arrayMove(filtered, oldIndex, newIndex)
+    const items = reordered.map((c, index) => ({ id: c.id, position: index + 1 }))
+
+    try {
+      await onReorder(items)
+      toast.success("Ordem atualizada com sucesso.")
+    } catch (error) {
+      console.error("[v0] Error reordering contents:", error)
+      toast.error("Erro ao atualizar a ordem.")
+    }
+  }
 
   const allSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id))
   const someSelected = selected.size > 0
@@ -380,6 +434,7 @@ export function ContentsTab({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="manual">Ordem manual</SelectItem>
                   <SelectItem value="name">Nome</SelectItem>
                   <SelectItem value="recent">Mais recentes</SelectItem>
                   <SelectItem value="oldest">Mais antigas</SelectItem>
@@ -496,6 +551,29 @@ export function ContentsTab({
                 </p>
               </CardContent>
             </Card>
+          ) : canReorder ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={filtered.map((c) => c.id)} strategy={rectSortingStrategy}>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                  {filtered.map((content) => (
+                    <SortableContentCard
+                      key={content.id}
+                      content={content}
+                      selected={selected.has(content.id)}
+                      onToggleSelect={toggleSelect}
+                      onEdit={setEditing}
+                      onSchedule={(c) => setScheduleIds([c.id])}
+                      onMove={(c) => setMoveIds([c.id])}
+                      onDelete={setDeletingOne}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
               {filtered.map((content) => (

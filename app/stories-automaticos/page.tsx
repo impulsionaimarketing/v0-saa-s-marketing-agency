@@ -90,6 +90,7 @@ export default function StoriesAutomaticosPage() {
     deleteContent,
     deleteContents,
     moveContents,
+    reorderContents,
     createSchedulesBatch,
     createFolder,
     renameFolder,
@@ -166,6 +167,7 @@ export default function StoriesAutomaticosPage() {
                   onDelete={deleteContent}
                   onDeleteMany={deleteContents}
                   onMove={moveContents}
+                  onReorder={reorderContents}
                   onSchedule={createSchedulesBatch}
                   onCreateFolder={createFolder}
                   onRenameFolder={renameFolder}

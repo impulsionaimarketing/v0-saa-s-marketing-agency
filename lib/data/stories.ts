@@ -15,14 +15,41 @@ import type {
 // CONTEÚDOS
 // =====================================================================
 
+// Detecta erro de "coluna não existe" (migração de position ainda não aplicada).
+function isMissingPositionError(error: any): boolean {
+  if (!error) return false
+  const code = String(error.code ?? "")
+  const message = String(error.message ?? "").toLowerCase()
+  return code === "42703" || code === "PGRST204" || message.includes("position")
+}
+
 export async function getStoryContents(companyId: string): Promise<StoryContent[]> {
   try {
     const supabase = await createSupabaseClient()
-    const { data, error } = await supabase
-      .from("story_contents")
-      .select(`*, story_folders:folder_id ( name )`)
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false })
+
+    // A ordem de publicação é sempre definida por position ASC (modo Sequencial).
+    // Usamos created_at apenas como desempate estável.
+    const runQuery = (orderByPosition: boolean) => {
+      let query = supabase
+        .from("story_contents")
+        .select(`*, story_folders:folder_id ( name )`)
+        .eq("company_id", companyId)
+      if (orderByPosition) {
+        query = query.order("position", { ascending: true })
+      }
+      return query.order("created_at", { ascending: false })
+    }
+
+    let { data, error } = await runQuery(true)
+
+    // Fallback: coluna position ainda não existe no banco. Rode
+    // scripts/evolve-story-contents-position.sql para habilitar a ordenação.
+    if (error && isMissingPositionError(error)) {
+      console.error(
+        "[v0] Coluna position ausente em story_contents; ordenando por created_at. Rode scripts/evolve-story-contents-position.sql para habilitar o drag & drop.",
+      )
+      ;({ data, error } = await runQuery(false))
+    }
 
     if (error) {
       console.error("[v0] Error fetching story contents:", error)
@@ -199,6 +226,43 @@ export async function moveStoryContents(ids: string[], folderId: string | null):
     }
   } catch (error) {
     console.error("[v0] Error moving story contents:", error)
+    throw error
+  }
+}
+
+// Reordena a lista de conteúdos atualizando a coluna `position` de cada mídia.
+// Recebe os itens já com a posição final (position ASC define a ordem de
+// publicação no modo Sequencial). Segue o mesmo padrão dos demais services,
+// usando createSupabaseClient().
+export async function reorderStoryContents(
+  items: { id: string; position: number }[],
+): Promise<void> {
+  if (items.length === 0) return
+  try {
+    const supabase = await createSupabaseClient()
+
+    // Aplica todas as atualizações de posição em paralelo.
+    const results = await Promise.all(
+      items.map(({ id, position }) =>
+        supabase
+          .from("story_contents")
+          .update({ position, updated_at: new Date().toISOString() })
+          .eq("id", id),
+      ),
+    )
+
+    const firstError = results.find((r) => r.error)?.error
+    if (firstError) {
+      if (isMissingPositionError(firstError)) {
+        throw new Error(
+          "A coluna position não existe em story_contents. Rode scripts/evolve-story-contents-position.sql para habilitar a reordenação.",
+        )
+      }
+      console.error("[v0] Error reordering story contents:", firstError)
+      throw new Error(firstError.message)
+    }
+  } catch (error) {
+    console.error("[v0] Error reordering story contents:", error)
     throw error
   }
 }

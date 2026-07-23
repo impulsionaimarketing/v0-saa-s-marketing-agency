@@ -20,12 +20,20 @@ export interface StoryContent {
   instagram_media_id: string | null
   instagram_permalink: string | null
   is_active: boolean
+  // Ordem de publicação (modo Sequencial). Ordenar sempre por position ASC.
+  position: number
   created_by: string | null
   created_at: string
   updated_at: string
   // dados agregados via join (somente leitura)
   folder_name?: string | null
   schedule?: StorySchedule | null
+}
+
+// Item usado para reordenar a lista de conteúdos (drag & drop)
+export interface ReorderStoryContentInput {
+  id: string
+  position: number
 }
 
 // =====================================================================

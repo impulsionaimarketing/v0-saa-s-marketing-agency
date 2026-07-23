@@ -20,6 +20,7 @@ import {
   FolderInput,
   Trash2,
   Folder,
+  GripVertical,
 } from "lucide-react"
 import { SCHEDULE_STATUS_LABELS, type StoryContent } from "@/lib/types/stories"
 
@@ -52,6 +53,10 @@ interface ContentCardProps {
   onSchedule: (content: StoryContent) => void
   onMove: (content: StoryContent) => void
   onDelete: (content: StoryContent) => void
+  // Drag & Drop (opcional). Quando `sortable` é true, exibe o handle de arrastar.
+  sortable?: boolean
+  isDragging?: boolean
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
 }
 
 export function ContentCard({
@@ -62,6 +67,9 @@ export function ContentCard({
   onSchedule,
   onMove,
   onDelete,
+  sortable = false,
+  isDragging = false,
+  dragHandleProps,
 }: ContentCardProps) {
   const title = content.name || content.caption || "Sem nome"
   const inFolder = Boolean(content.folder_id)
@@ -74,7 +82,9 @@ export function ContentCard({
     <Card
       className={`group relative overflow-hidden bg-card transition-all ${
         selected ? "ring-2 ring-primary" : "hover:shadow-md"
-      } ${content.is_active ? "" : "opacity-60"}`}
+      } ${content.is_active ? "" : "opacity-60"} ${
+        isDragging ? "opacity-50 shadow-lg ring-2 ring-primary" : ""
+      }`}
     >
       {/* Thumbnail */}
       <div className="relative aspect-[4/5] bg-muted">
@@ -154,9 +164,21 @@ export function ContentCard({
 
       {/* Metadados */}
       <div className="space-y-2 p-3">
-        <p className="line-clamp-1 text-sm font-medium text-foreground" title={title}>
-          {title}
-        </p>
+        <div className="flex items-center gap-1.5">
+          {sortable && (
+            <button
+              type="button"
+              {...dragHandleProps}
+              className="shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:cursor-grabbing"
+              aria-label={`Arrastar para reordenar ${title}`}
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
+          <p className="line-clamp-1 text-sm font-medium text-foreground" title={title}>
+            {title}
+          </p>
+        </div>
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <Folder className="h-3 w-3 shrink-0" />
           <span className="line-clamp-1">{content.folder_name || "Sem pasta"}</span>
