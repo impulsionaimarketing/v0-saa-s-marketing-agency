@@ -38,6 +38,7 @@ import {
   Loader2,
   MessageSquare,
   Trash2,
+  ExternalLink,
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ModuleAccessWrapper } from '@/components/auth/module-access-wrapper'
@@ -482,6 +483,27 @@ export default function ProducaoPage() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+
+              {filterClient !== 'all' && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="gap-2 bg-background border-border"
+                    onClick={handleCopyClientLink}
+                  >
+                    <LinkIcon className="h-4 w-4" />
+                    Link do cliente
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleOpenClientLink}
+                    aria-label="Abrir portal do cliente em nova aba"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* View Mode Tabs */}
