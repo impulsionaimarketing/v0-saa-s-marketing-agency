@@ -28,6 +28,26 @@ interface Company {
   instagram_accounts?: InstagramAccount[] | null
 }
 
+// A coluna instagram_accounts pode chegar como array (jsonb) ou como string JSON (text).
+// Normaliza para sempre retornar uma lista de contas válidas.
+function parseInstagramAccounts(raw: unknown): InstagramAccount[] {
+  let value = raw
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value)
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((acc): acc is InstagramAccount => !!acc && typeof acc === "object")
+    .map((acc: any) => ({
+      username: acc.username ?? "",
+      account_id: acc.account_id ?? "",
+    }))
+}
+
 export default function StoriesAutomaticosPage() {
   const { user } = useAuth()
   const [companies, setCompanies] = useState<Company[]>([])
@@ -45,7 +65,7 @@ export default function StoriesAutomaticosPage() {
             ? data.map((c: any) => ({
                 id: c.id,
                 name: c.name,
-                instagram_accounts: Array.isArray(c.instagram_accounts) ? c.instagram_accounts : [],
+                instagram_accounts: parseInstagramAccounts(c.instagram_accounts),
               }))
             : []
           setCompanies(list)
