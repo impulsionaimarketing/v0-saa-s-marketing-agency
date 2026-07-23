@@ -10,7 +10,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { MediaCarousel } from '@/components/productions/media-carousel'
 import { cn } from '@/lib/utils'
 import {
-  submitApprovalResponse,
   type ApprovalElement,
   type ClientPortalData,
   type ClientPortalProduction,
@@ -138,7 +137,12 @@ export function ClientPortal({ data }: { data: ClientPortalData }) {
               />
             ) : (
               pending.map((p) => (
-                <ApprovalCard key={p.id} production={p} onDone={handleApproved} />
+                <ApprovalCard
+                  key={p.id}
+                  production={p}
+                  clientId={data.clientId}
+                  onDone={handleApproved}
+                />
               ))
             )}
           </TabsContent>
@@ -177,9 +181,11 @@ export function ClientPortal({ data }: { data: ClientPortalData }) {
 // ─── Card de aprovação (interativo, por elemento) ─────────────────────────────
 function ApprovalCard({
   production,
+  clientId,
   onDone,
 }: {
   production: ClientPortalProduction
+  clientId: string
   onDone: (productionId: string, allApproved: boolean) => void
 }) {
   const elements = getElements(production)
@@ -214,16 +220,21 @@ function ApprovalCard({
 
     setIsSubmitting(true)
     try {
-      await submitApprovalResponse({
-        token: '',
-        productionId: production.id,
-        clientName: clientName.trim() || undefined,
-        elements: elements.map((el) => ({
-          element: el,
-          decision: states[el].decision!,
-          comment: states[el].comment.trim() || undefined,
-        })),
+      const res = await fetch('/api/approval/client-respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId,
+          productionId: production.id,
+          clientName: clientName.trim() || undefined,
+          elements: elements.map((el) => ({
+            element: el,
+            decision: states[el].decision!,
+            comment: states[el].comment.trim() || undefined,
+          })),
+        }),
       })
+      if (!res.ok) throw new Error('Falha ao enviar resposta')
       const allApproved = elements.every((el) => states[el].decision === 'aprovado')
       toast.success(allApproved ? 'Conteúdo aprovado!' : 'Ajustes enviados para a equipe!')
       onDone(production.id, allApproved)
