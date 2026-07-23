@@ -24,6 +24,10 @@ interface MediaCarouselProps {
   className?: string
   /** object-fit for the media. Defaults to contain. */
   fit?: 'contain' | 'cover'
+  /** Notifica o slide ativo (índice) sempre que muda. */
+  onActiveIndexChange?: (index: number) => void
+  /** Overlay renderizado sobre o slide correspondente (ex.: status de decisão). */
+  renderSlideOverlay?: (index: number) => React.ReactNode
 }
 
 export function MediaCarousel({
@@ -32,6 +36,8 @@ export function MediaCarousel({
   aspectClassName = 'aspect-square',
   className,
   fit = 'contain',
+  onActiveIndexChange,
+  renderSlideOverlay,
 }: MediaCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -47,13 +53,17 @@ export function MediaCarousel({
     const container = scrollRef.current
     if (!container) return
     const index = Math.round(container.scrollLeft / container.clientWidth)
-    setActiveIndex(index)
-  }, [])
+    setActiveIndex((prev) => {
+      if (prev !== index) onActiveIndexChange?.(index)
+      return index
+    })
+  }, [onActiveIndexChange])
 
   useEffect(() => {
     // Reseta ao trocar de conjunto de itens
     setActiveIndex(0)
-  }, [items])
+    onActiveIndexChange?.(0)
+  }, [items, onActiveIndexChange])
 
   if (items.length === 0) {
     return (
