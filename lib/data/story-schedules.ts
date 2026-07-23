@@ -218,10 +218,19 @@ export async function duplicateStorySchedule(id: string): Promise<StorySchedule 
 export async function deleteStorySchedule(id: string): Promise<void> {
   try {
     const supabase = await createSupabaseClient()
-    const { error } = await supabase.from("story_schedules").delete().eq("id", id)
+    const { data, error } = await supabase
+      .from("story_schedules")
+      .delete()
+      .eq("id", id)
+      .select("id")
     if (error) {
       console.error("[v0] Error deleting story schedule:", error)
       throw new Error(error.message)
+    }
+    if (!data || data.length === 0) {
+      throw new Error(
+        "Nenhuma linha removida ao excluir o agendamento. Verifique as permissões (RLS/GRANT) de DELETE na tabela story_schedules.",
+      )
     }
   } catch (error) {
     console.error("[v0] Error deleting story schedule:", error)

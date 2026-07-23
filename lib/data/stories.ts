@@ -161,10 +161,22 @@ export async function updateStoryContent(
 export async function deleteStoryContent(id: string): Promise<void> {
   try {
     const supabase = await createSupabaseClient()
-    const { error } = await supabase.from("story_contents").delete().eq("id", id)
+    // .select() retorna as linhas realmente removidas. Se vier vazio, o DELETE
+    // não afetou nada (ex.: RLS sem policy de DELETE) — tratamos como erro real
+    // em vez de um "falso sucesso".
+    const { data, error } = await supabase
+      .from("story_contents")
+      .delete()
+      .eq("id", id)
+      .select("id")
     if (error) {
       console.error("[v0] Error deleting story content:", error)
       throw new Error(error.message)
+    }
+    if (!data || data.length === 0) {
+      throw new Error(
+        "Nenhuma linha removida ao excluir a mídia. Verifique as permissões (RLS/GRANT) de DELETE na tabela story_contents.",
+      )
     }
   } catch (error) {
     console.error("[v0] Error deleting story content:", error)
@@ -196,10 +208,19 @@ export async function deleteStoryContents(ids: string[]): Promise<void> {
   if (ids.length === 0) return
   try {
     const supabase = await createSupabaseClient()
-    const { error } = await supabase.from("story_contents").delete().in("id", ids)
+    const { data, error } = await supabase
+      .from("story_contents")
+      .delete()
+      .in("id", ids)
+      .select("id")
     if (error) {
       console.error("[v0] Error deleting story contents:", error)
       throw new Error(error.message)
+    }
+    if (!data || data.length === 0) {
+      throw new Error(
+        "Nenhuma linha removida ao excluir as mídias. Verifique as permissões (RLS/GRANT) de DELETE na tabela story_contents.",
+      )
     }
   } catch (error) {
     console.error("[v0] Error deleting story contents:", error)
@@ -305,14 +326,20 @@ export async function upsertStoryAutomation(
 export async function deleteStoryAutomation(companyId: string, folderId: string): Promise<void> {
   try {
     const supabase = await createSupabaseClient()
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("story_automations")
       .delete()
       .eq("company_id", companyId)
       .eq("folder_id", folderId)
+      .select("id")
     if (error) {
       console.error("[v0] Error deleting story automation:", error)
       throw new Error(error.message)
+    }
+    if (!data || data.length === 0) {
+      throw new Error(
+        "Nenhuma linha removida ao excluir a automação. Verifique as permissões (RLS/GRANT) de DELETE na tabela story_automations.",
+      )
     }
   } catch (error) {
     console.error("[v0] Error deleting story automation:", error)
