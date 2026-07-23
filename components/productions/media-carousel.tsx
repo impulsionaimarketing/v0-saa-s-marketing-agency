@@ -104,6 +104,7 @@ export function MediaCarousel({
                 className={cn('h-full w-full', fitClass)}
               />
             )}
+            {renderSlideOverlay?.(index)}
           </div>
         ))}
       </div>
