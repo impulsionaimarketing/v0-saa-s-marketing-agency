@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown } from 'lucide-react'
+import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown, SlidersHorizontal } from 'lucide-react'
 import { getDemands, updateDemandStatus, deleteDemand, type Demand } from '@/lib/data/demands'
 import { getClients } from '@/lib/data/clients'
 import { getUsers } from '@/lib/data/users'
@@ -328,6 +328,7 @@ export function DemandsKanban() {
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [reorganizeModes, setReorganizeModes] = useState<Record<string, boolean>>({})
   const [reorderDraggedId, setReorderDraggedId] = useState<string | null>(null)
   const [reorderDragOverId, setReorderDragOverId] = useState<string | null>(null)
@@ -425,6 +426,16 @@ export function DemandsKanban() {
 
   const getColumnDemands = (status: DemandStatus) =>
     sortedDemands.filter((d) => d.status === status)
+
+  const activeFilterCount =
+    (filters.searchQuery ? 1 : 0) +
+    (filters.clientFilter !== 'all' ? 1 : 0) +
+    ((filters.areaFilter as string[]).length > 0 ? 1 : 0) +
+    (filters.responsibleFilter !== 'all' ? 1 : 0) +
+    (filters.statusFilter !== 'all' ? 1 : 0) +
+    (filters.sortOption !== 'none' ? 1 : 0) +
+    (filters.dateFrom ? 1 : 0) +
+    (filters.dateTo ? 1 : 0)
 
   const handleDragStart = (e: React.DragEvent, demand: Demand) => {
     setDraggedItem(demand)
@@ -543,7 +554,27 @@ export function DemandsKanban() {
         onClose={() => setDetailOpen(false)}
       />
 
+      {/* Toggle filtros + nova demanda */}
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-secondary px-3 h-9 text-sm hover:bg-secondary/80 transition-colors"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          <span>{filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}</span>
+          {activeFilterCount > 0 && (
+            <Badge variant="secondary" className="text-xs px-1.5">
+              {activeFilterCount}
+            </Badge>
+          )}
+          <ChevronDown className={cn('h-4 w-4 transition-transform', filtersOpen && 'rotate-180')} />
+        </button>
+        <DemandFormDialog onSuccess={loadData} />
+      </div>
+
       {/* Filters */}
+      {filtersOpen && (
       <Card className="bg-card border-border">
         <CardContent className="p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -677,16 +708,14 @@ export function DemandsKanban() {
                   Limpar filtros
                 </button>
               )}
-              <div className="col-span-2 sm:col-span-1">
-                <DemandFormDialog onSuccess={loadData} />
-              </div>
             </div>
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Kanban board */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-4 overflow-x-auto pb-4 items-start">
         {columns.map((column) => {
           const columnDemands = getColumnDemands(column.id)
           const overdueCount = columnDemands.filter(d => isOverdue(d.deadline, d.status)).length
@@ -723,7 +752,7 @@ export function DemandsKanban() {
               </div>
 
               <div
-                className="space-y-2 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide rounded-lg bg-secondary/30 p-2"
+                className="space-y-2 min-h-[160px] rounded-lg bg-secondary/30 p-2"
                 onDragOver={isReorganizing ? undefined : handleDragOver}
                 onDrop={isReorganizing ? undefined : (e) => handleDrop(e, column.id)}
               >
