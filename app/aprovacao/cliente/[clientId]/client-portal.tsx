@@ -39,12 +39,21 @@ const ELEMENT_META: Record<ApprovalElement, { label: string; icon: typeof ImageI
   legenda: { label: 'Legenda', icon: Type },
 }
 
-function getElements(p: ClientPortalProduction): ApprovalElement[] {
-  const els: ApprovalElement[] = []
-  if (p.type === 'Vídeo' && p.cover_url) els.push('capa')
-  els.push('midia')
-  if (p.caption?.trim()) els.push('legenda')
-  return els
+// Cada item representa uma decisão independente. Para carrosséis (mais de um
+// arquivo), a mídia é dividida em um item por slide (midia_0, midia_1, ...),
+// permitindo aprovar ou solicitar ajuste individualmente em cada publicação.
+type DecisionItem = { key: string; label: string }
+
+function getDecisionItems(p: ClientPortalProduction): DecisionItem[] {
+  const items: DecisionItem[] = []
+  if (p.type === 'Vídeo' && p.cover_url) items.push({ key: 'capa', label: 'Capa' })
+  if (p.files.length > 1) {
+    p.files.forEach((_, i) => items.push({ key: `midia_${i}`, label: `Mídia - Slide ${i + 1}` }))
+  } else {
+    items.push({ key: 'midia', label: 'Mídia' })
+  }
+  if (p.caption?.trim()) items.push({ key: 'legenda', label: 'Legenda' })
+  return items
 }
 
 export function ClientPortal({ data }: { data: ClientPortalData }) {
@@ -188,31 +197,39 @@ function ApprovalCard({
   clientId: string
   onDone: (productionId: string, allApproved: boolean) => void
 }) {
-  const elements = getElements(production)
+  const items = getDecisionItems(production)
+  const isCarousel = production.files.length > 1
+  const hasCapa = production.type === 'Vídeo' && !!production.cover_url
+  const hasLegenda = !!production.caption?.trim()
+
   const [states, setStates] = useState<Record<string, ElementState>>(() =>
-    Object.fromEntries(elements.map((el) => [el, { decision: null, comment: '' }])),
+    Object.fromEntries(items.map((it) => [it.key, { decision: null, comment: '' }])),
   )
+  const [activeSlide, setActiveSlide] = useState(0)
   const [clientName, setClientName] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const allDecided = elements.every((el) => states[el]?.decision)
+  const allDecided = items.every((it) => states[it.key]?.decision)
+  const decidedMediaCount = isCarousel
+    ? production.files.filter((_, i) => states[`midia_${i}`]?.decision).length
+    : 0
 
-  const select = (el: ApprovalElement, value: Decision) =>
+  const select = (key: string, value: Decision) =>
     setStates((prev) => ({
       ...prev,
-      [el]: { ...prev[el], decision: prev[el]?.decision === value ? null : value },
+      [key]: { ...prev[key], decision: prev[key]?.decision === value ? null : value },
     }))
 
-  const comment = (el: ApprovalElement, value: string) =>
-    setStates((prev) => ({ ...prev, [el]: { ...prev[el], comment: value } }))
+  const comment = (key: string, value: string) =>
+    setStates((prev) => ({ ...prev, [key]: { ...prev[key], comment: value } }))
 
   const handleSubmit = async () => {
     if (!allDecided) {
       toast.error('Tome uma decisão para cada item antes de enviar.')
       return
     }
-    for (const el of elements) {
-      if (states[el].decision === 'reprovado' && !states[el].comment.trim()) {
+    for (const it of items) {
+      if (states[it.key].decision === 'reprovado' && !states[it.key].comment.trim()) {
         toast.error('Descreva o ajuste necessário em cada item marcado.')
         return
       }
@@ -227,15 +244,16 @@ function ApprovalCard({
           clientId,
           productionId: production.id,
           clientName: clientName.trim() || undefined,
-          elements: elements.map((el) => ({
-            element: el,
-            decision: states[el].decision!,
-            comment: states[el].comment.trim() || undefined,
+          elements: items.map((it) => ({
+            element: it.key,
+            label: it.label,
+            decision: states[it.key].decision!,
+            comment: states[it.key].comment.trim() || undefined,
           })),
         }),
       })
       if (!res.ok) throw new Error('Falha ao enviar resposta')
-      const allApproved = elements.every((el) => states[el].decision === 'aprovado')
+      const allApproved = items.every((it) => states[it.key].decision === 'aprovado')
       toast.success(allApproved ? 'Conteúdo aprovado!' : 'Ajustes enviados para a equipe!')
       onDone(production.id, allApproved)
     } catch (err) {
@@ -256,7 +274,7 @@ function ApprovalCard({
       </header>
 
       {/* Capa */}
-      {elements.includes('capa') && (
+      {hasCapa && (
         <ElementBlock element="capa">
           <div className="bg-black">
             <div className="relative mx-auto aspect-[9/16] w-full max-w-[280px]">
@@ -279,23 +297,59 @@ function ApprovalCard({
       )}
 
       {/* Mídia */}
-      <ElementBlock element="midia">
-        <MediaCarousel
-          items={production.files}
-          alt={production.title}
-          aspectClassName={production.type === 'Vídeo' ? 'aspect-[9/16]' : 'aspect-square'}
-        />
-        <div className="px-4 py-3">
-          <DecisionControls
-            state={states.midia}
-            onSelect={(v) => select('midia', v)}
-            onComment={(v) => comment('midia', v)}
+      {isCarousel ? (
+        // Carrossel: cada slide tem sua própria decisão (aprovar / solicitar ajuste)
+        <div className="border-t border-border">
+          <div className="flex items-center justify-between px-4 pt-3 pb-1">
+            <div className="flex items-center gap-2">
+              <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Mídia · Carrossel
+              </span>
+            </div>
+            <span className="text-xs font-medium text-muted-foreground">
+              {decidedMediaCount}/{production.files.length} avaliados
+            </span>
+          </div>
+
+          <MediaCarousel
+            items={production.files}
+            alt={production.title}
+            aspectClassName={production.type === 'Vídeo' ? 'aspect-[9/16]' : 'aspect-square'}
+            onActiveIndexChange={setActiveSlide}
+            renderSlideOverlay={(i) => <SlideStatusBadge decision={states[`midia_${i}`]?.decision ?? null} />}
           />
+
+          <div className="px-4 py-3">
+            <p className="mb-2 text-xs font-semibold text-foreground">
+              Slide {activeSlide + 1} de {production.files.length}
+            </p>
+            <DecisionControls
+              state={states[`midia_${activeSlide}`] ?? { decision: null, comment: '' }}
+              onSelect={(v) => select(`midia_${activeSlide}`, v)}
+              onComment={(v) => comment(`midia_${activeSlide}`, v)}
+            />
+          </div>
         </div>
-      </ElementBlock>
+      ) : (
+        <ElementBlock element="midia">
+          <MediaCarousel
+            items={production.files}
+            alt={production.title}
+            aspectClassName={production.type === 'Vídeo' ? 'aspect-[9/16]' : 'aspect-square'}
+          />
+          <div className="px-4 py-3">
+            <DecisionControls
+              state={states.midia}
+              onSelect={(v) => select('midia', v)}
+              onComment={(v) => comment('midia', v)}
+            />
+          </div>
+        </ElementBlock>
+      )}
 
       {/* Legenda */}
-      {elements.includes('legenda') && (
+      {hasLegenda && (
         <ElementBlock element="legenda">
           <div className="px-4 py-3">
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
@@ -472,6 +526,32 @@ function ApprovedCard({ production }: { production: ClientPortalProduction }) {
         </Button>
       </div>
     </article>
+  )
+}
+
+// ─── Badge de status por slide (sobre o carrossel) ────────────────────────────
+function SlideStatusBadge({ decision }: { decision: Decision | null }) {
+  if (decision === 'aprovado') {
+    return (
+      <div className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-success px-2 py-0.5 text-[10px] font-semibold text-background">
+        <Check className="h-3 w-3" />
+        Aprovado
+      </div>
+    )
+  }
+  if (decision === 'reprovado') {
+    return (
+      <div className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-warning px-2 py-0.5 text-[10px] font-semibold text-background">
+        <X className="h-3 w-3" />
+        Ajuste
+      </div>
+    )
+  }
+  return (
+    <div className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground backdrop-blur">
+      <Clock className="h-3 w-3" />
+      Pendente
+    </div>
   )
 }
 

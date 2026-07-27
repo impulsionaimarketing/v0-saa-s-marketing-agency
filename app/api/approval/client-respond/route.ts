@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       .map((el: any) => ({
         production_id: productionId,
         author_name: author,
-        comment: `[${ELEMENT_LABELS[el.element as ApprovalElement] || el.element}] ${el.comment.trim()}`,
+        comment: `[${el.label || ELEMENT_LABELS[el.element as ApprovalElement] || el.element}] ${el.comment.trim()}`,
         is_client: true,
       }))
 
