@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const endpoint = process.env.MINIO_ENDPOINT
 const bucket = process.env.MINIO_BUCKET
@@ -46,6 +47,35 @@ export async function uploadToStorage(
 
   const url = `${endpoint}/${bucket}/${filename}`
   return { url, key: filename }
+}
+
+/**
+ * Generates a presigned PUT URL so the browser can upload a file DIRECTLY to
+ * MinIO, bypassing the serverless request body limit (~4.5MB on Vercel).
+ * Returns the URL the client should PUT to, plus the final public URL and key.
+ */
+export async function getPresignedUploadUrl(
+  contentType: string,
+  originalName?: string | null,
+  prefix?: string,
+  expiresIn = 60 * 10,
+): Promise<{ uploadUrl: string; url: string; key: string }> {
+  const extension = getExtension(originalName)
+  const key = `${prefix ? `${prefix.replace(/\/$/, '')}/` : ''}${crypto.randomUUID()}${extension}`
+
+  const uploadUrl = await getSignedUrl(
+    // cast pontual: pacotes AWS SDK trazem cópias distintas de @smithy/types
+    s3 as unknown as Parameters<typeof getSignedUrl>[0],
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: contentType || 'application/octet-stream',
+    }),
+    { expiresIn },
+  )
+
+  const url = `${endpoint}/${bucket}/${key}`
+  return { uploadUrl, url, key }
 }
 
 /** Deletes an object from the MinIO bucket given its public URL. */
