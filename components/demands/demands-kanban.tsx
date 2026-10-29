@@ -307,7 +307,7 @@ function DemandDetailModal({
 export function DemandsKanban() {
   const { user } = useAuth()
   const [demandItems, setDemandItems] = useState<Demand[]>([])
-  const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+  const [clients, setClients] = useState<{ id: string; name: string; active: boolean }[]>([])
   const [users, setUsers] = useState<{ id: string; name: string }[]>([])
   const [draggedItem, setDraggedItem] = useState<Demand | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
@@ -356,7 +356,7 @@ export function DemandsKanban() {
         getUsers(),
       ])
       setDemandItems(demandsData)
-      setClients(clientsData.map(c => ({ id: c.id, name: c.name })))
+      setClients(clientsData.map(c => ({ id: c.id, name: c.name, active: c.contract_status === 'Ativo' })))
       setUsers(usersData.map(u => ({ id: u.id, name: u.name })))
     } catch (error) {
       console.error('[v0] Error loading data:', error)
@@ -434,7 +434,13 @@ export function DemandsKanban() {
       }))
     }
 
+    // Todos os clientes ativos ganham coluna, mesmo sem demandas
     const byClient = new Map<string, { title: string; demands: Demand[] }>()
+    for (const client of clients) {
+      if (!client.active) continue
+      if (filters.clientFilter !== 'all' && client.id !== filters.clientFilter) continue
+      byClient.set(client.id, { title: client.name, demands: [] })
+    }
     for (const demand of sortedDemands) {
       const key = demand.client_id || 'sem-cliente'
       if (!byClient.has(key)) {
@@ -456,7 +462,7 @@ export function DemandsKanban() {
           ...group.demands.filter((d) => d.status === 'Publicado'),
         ],
       }))
-  }, [sortedDemands, filters.groupBy])
+  }, [sortedDemands, clients, filters.groupBy, filters.clientFilter])
 
   const activeFilterCount =
     (filters.searchQuery ? 1 : 0) +
