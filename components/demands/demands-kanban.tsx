@@ -672,16 +672,6 @@ export function DemandsKanban() {
                 </SelectContent>
               </Select>
 
-              <Select value={filters.groupBy || 'status'} onValueChange={(v) => setFilter('groupBy', v)}>
-                <SelectTrigger className="w-full sm:w-48 bg-secondary border-border text-xs sm:text-sm">
-                  <SelectValue placeholder="Visualizar" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="status">Quadros por status</SelectItem>
-                  <SelectItem value="cliente">Quadros por cliente</SelectItem>
-                </SelectContent>
-              </Select>
-
               <div className="flex items-center gap-1">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">De</label>
                 <Input
@@ -704,7 +694,12 @@ export function DemandsKanban() {
               {(filters.dateFrom || filters.dateTo || filters.clientFilter !== 'all' || (filters.areaFilter as string[]).length > 0 || filters.responsibleFilter !== 'all' || filters.statusFilter !== 'all') && (
                 <button
                   type="button"
-                  onClick={resetFilters}
+                  onClick={() => {
+                    // Mantém a visualização escolhida ao limpar os filtros
+                    const groupBy = filters.groupBy || 'status'
+                    resetFilters()
+                    setFilter('groupBy', groupBy)
+                  }}
                   className="text-xs text-muted-foreground hover:text-foreground underline whitespace-nowrap self-center"
                 >
                   Limpar filtros
@@ -717,6 +712,31 @@ export function DemandsKanban() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Board grouping */}
+      <div className="inline-flex items-center gap-1 rounded-lg bg-secondary p-1">
+        {([
+          { value: 'status', label: 'A Fazer / Feito' },
+          { value: 'cliente', label: 'Por cliente' },
+        ] as const).map((option) => {
+          const active = (filters.groupBy || 'status') === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setFilter('groupBy', option.value)}
+              className={cn(
+                'px-3 py-1.5 text-xs sm:text-sm rounded-md transition-colors',
+                active
+                  ? 'bg-card text-foreground font-medium shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Kanban board */}
       <div className="flex gap-4 overflow-x-auto pb-4">
@@ -924,7 +944,7 @@ export function DemandsKanban() {
 
         {boardColumns.length === 0 && (
           <div className="flex items-center justify-center w-full h-32 text-sm text-muted-foreground">
-            Nenhuma demanda
+            Nenhuma demanda com os filtros atuais
           </div>
         )}
       </div>
