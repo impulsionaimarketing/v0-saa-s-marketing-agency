@@ -313,6 +313,7 @@ export function DemandsKanban() {
     dateTo: '',
     statusFilter: 'all' as 'all' | 'a-fazer' | 'feito' | 'atrasado',
     sortOption: 'none' as 'none' | 'deadline-asc' | 'deadline-desc',
+    groupBy: 'status' as 'status' | 'cliente',
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
@@ -415,8 +416,38 @@ export function DemandsKanban() {
     })
   }, [filteredDemands, filters.sortOption])
 
-  const getColumnDemands = (status: DemandStatus) =>
-    sortedDemands.filter((d) => d.status === status)
+  const boardColumns = useMemo(() => {
+    if (filters.groupBy !== 'cliente') {
+      return columns.map((column) => ({
+        ...column,
+        status: column.id as DemandStatus | undefined,
+        demands: sortedDemands.filter((d) => d.status === column.id),
+      }))
+    }
+
+    const byClient = new Map<string, { title: string; demands: Demand[] }>()
+    for (const demand of sortedDemands) {
+      const key = demand.client_id || 'sem-cliente'
+      if (!byClient.has(key)) {
+        byClient.set(key, { title: demand.client_name || 'Sem cliente', demands: [] })
+      }
+      byClient.get(key)!.demands.push(demand)
+    }
+
+    return [...byClient.entries()]
+      .sort(([, a], [, b]) => a.title.localeCompare(b.title, 'pt-BR'))
+      .map(([id, group]) => ({
+        id,
+        title: group.title,
+        color: 'bg-primary',
+        status: undefined as DemandStatus | undefined,
+        // Pendentes primeiro, feitos no fim da coluna
+        demands: [
+          ...group.demands.filter((d) => d.status !== 'Publicado'),
+          ...group.demands.filter((d) => d.status === 'Publicado'),
+        ],
+      }))
+  }, [sortedDemands, filters.groupBy])
 
   const handleDragStart = (e: React.DragEvent, demand: Demand) => {
     setDraggedItem(demand)
@@ -500,7 +531,7 @@ export function DemandsKanban() {
     if (targetId !== reorderDraggedId) setReorderDragOverId(targetId)
   }
 
-  const handleReorderDrop = (e: React.DragEvent, targetId: string, columnId: DemandStatus) => {
+  const handleReorderDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault()
     e.stopPropagation()
     if (!reorderDraggedId || reorderDraggedId === targetId) return
@@ -641,6 +672,16 @@ export function DemandsKanban() {
                 </SelectContent>
               </Select>
 
+              <Select value={filters.groupBy || 'status'} onValueChange={(v) => setFilter('groupBy', v)}>
+                <SelectTrigger className="w-full sm:w-40 bg-secondary border-border text-xs sm:text-sm">
+                  <SelectValue placeholder="Visualizar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="status">Quadros por status</SelectItem>
+                  <SelectItem value="cliente">Quadros por cliente</SelectItem>
+                </SelectContent>
+              </Select>
+
               <div className="flex items-center gap-1">
                 <label className="text-xs text-muted-foreground whitespace-nowrap">De</label>
                 <Input
@@ -679,8 +720,9 @@ export function DemandsKanban() {
 
       {/* Kanban board */}
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((column) => {
-          const columnDemands = getColumnDemands(column.id)
+        {boardColumns.map((column) => {
+          const columnDemands = column.demands
+          const columnStatus = column.status
           const overdueCount = columnDemands.filter(d => isOverdue(d.deadline, d.status)).length
           const isReorganizing = !!reorganizeModes[column.id]
 
@@ -688,7 +730,7 @@ export function DemandsKanban() {
             <div key={column.id} className="flex-shrink-0 w-72">
               <div className="flex items-center gap-2 mb-3 px-1">
                 <div className={cn('h-3 w-3 rounded-full', column.color)} />
-                <h3 className="font-semibold text-sm">{column.title}</h3>
+                <h3 className="font-semibold text-sm truncate" title={column.title}>{column.title}</h3>
                 <Badge variant="secondary" className="text-xs">
                   {columnDemands.length}
                 </Badge>
@@ -716,8 +758,8 @@ export function DemandsKanban() {
 
               <div
                 className="space-y-2 min-h-[400px] max-h-[calc(100vh-280px)] overflow-y-auto scrollbar-hide rounded-lg bg-secondary/30 p-2"
-                onDragOver={isReorganizing ? undefined : handleDragOver}
-                onDrop={isReorganizing ? undefined : (e) => handleDrop(e, column.id)}
+                onDragOver={isReorganizing || !columnStatus ? undefined : handleDragOver}
+                onDrop={isReorganizing || !columnStatus ? undefined : (e) => handleDrop(e, columnStatus)}
               >
                 {columnDemands.map((demand) => {
                   const overdue = isOverdue(demand.deadline, demand.status)
@@ -733,7 +775,7 @@ export function DemandsKanban() {
                         onDragStart={(e) => handleReorderDragStart(e, demand.id)}
                         onDragEnd={() => { setReorderDraggedId(null); setReorderDragOverId(null) }}
                         onDragOver={(e) => handleReorderDragOver(e, demand.id)}
-                        onDrop={(e) => handleReorderDrop(e, demand.id, column.id)}
+                        onDrop={(e) => handleReorderDrop(e, demand.id)}
                         className={cn(
                           'flex items-center gap-2 bg-card border border-border rounded-md px-3 py-2 cursor-grab active:cursor-grabbing select-none transition-all',
                           reorderDraggedId === demand.id && 'opacity-40',
@@ -879,6 +921,12 @@ export function DemandsKanban() {
             </div>
           )
         })}
+
+        {boardColumns.length === 0 && (
+          <div className="flex items-center justify-center w-full h-32 text-sm text-muted-foreground">
+            Nenhuma demanda
+          </div>
+        )}
       </div>
     </>
   )
