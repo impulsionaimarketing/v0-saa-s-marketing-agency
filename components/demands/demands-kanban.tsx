@@ -325,6 +325,7 @@ export function DemandsKanban() {
     dateTo: '',
     statusFilter: 'all' as 'all' | 'a-fazer' | 'feito' | 'atrasado',
     sortOption: 'none' as 'none' | 'deadline-asc' | 'deadline-desc',
+    groupBy: 'status' as 'status' | 'cliente',
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
@@ -424,8 +425,38 @@ export function DemandsKanban() {
     })
   }, [filteredDemands, filters.sortOption])
 
-  const getColumnDemands = (status: DemandStatus) =>
-    sortedDemands.filter((d) => d.status === status)
+  const boardColumns = useMemo(() => {
+    if (filters.groupBy !== 'cliente') {
+      return columns.map((column) => ({
+        ...column,
+        status: column.id as DemandStatus | undefined,
+        demands: sortedDemands.filter((d) => d.status === column.id),
+      }))
+    }
+
+    const byClient = new Map<string, { title: string; demands: Demand[] }>()
+    for (const demand of sortedDemands) {
+      const key = demand.client_id || 'sem-cliente'
+      if (!byClient.has(key)) {
+        byClient.set(key, { title: demand.client_name || 'Sem cliente', demands: [] })
+      }
+      byClient.get(key)!.demands.push(demand)
+    }
+
+    return [...byClient.entries()]
+      .sort(([, a], [, b]) => a.title.localeCompare(b.title, 'pt-BR'))
+      .map(([id, group]) => ({
+        id,
+        title: group.title,
+        color: 'bg-primary',
+        status: undefined as DemandStatus | undefined,
+        // Pendentes primeiro, feitos no fim da coluna
+        demands: [
+          ...group.demands.filter((d) => d.status !== 'Publicado'),
+          ...group.demands.filter((d) => d.status === 'Publicado'),
+        ],
+      }))
+  }, [sortedDemands, filters.groupBy])
 
   const activeFilterCount =
     (filters.searchQuery ? 1 : 0) +
@@ -519,7 +550,7 @@ export function DemandsKanban() {
     if (targetId !== reorderDraggedId) setReorderDragOverId(targetId)
   }
 
-  const handleReorderDrop = (e: React.DragEvent, targetId: string, columnId: DemandStatus) => {
+  const handleReorderDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault()
     e.stopPropagation()
     if (!reorderDraggedId || reorderDraggedId === targetId) return
@@ -555,7 +586,7 @@ export function DemandsKanban() {
       />
 
       {/* Toggle filtros + nova demanda */}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           onClick={() => setFiltersOpen((v) => !v)}
@@ -570,6 +601,29 @@ export function DemandsKanban() {
           )}
           <ChevronDown className={cn('h-4 w-4 transition-transform', filtersOpen && 'rotate-180')} />
         </button>
+        <div className="inline-flex items-center gap-1 rounded-md border border-border bg-secondary p-1 mr-auto">
+          {([
+            { value: 'status', label: 'A Fazer / Feito' },
+            { value: 'cliente', label: 'Por cliente' },
+          ] as const).map((option) => {
+            const active = (filters.groupBy || 'status') === option.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setFilter('groupBy', option.value)}
+                className={cn(
+                  'px-3 h-7 text-xs sm:text-sm rounded transition-colors whitespace-nowrap',
+                  active
+                    ? 'bg-card text-foreground font-medium shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
         <DemandFormDialog onSuccess={loadData} />
       </div>
 
@@ -702,7 +756,12 @@ export function DemandsKanban() {
               {(filters.dateFrom || filters.dateTo || filters.clientFilter !== 'all' || (filters.areaFilter as string[]).length > 0 || filters.responsibleFilter !== 'all' || filters.statusFilter !== 'all') && (
                 <button
                   type="button"
-                  onClick={resetFilters}
+                  onClick={() => {
+                    // Mantém a visualização escolhida ao limpar os filtros
+                    const groupBy = filters.groupBy || 'status'
+                    resetFilters()
+                    setFilter('groupBy', groupBy)
+                  }}
                   className="text-xs text-muted-foreground hover:text-foreground underline whitespace-nowrap self-center"
                 >
                   Limpar filtros
@@ -716,8 +775,9 @@ export function DemandsKanban() {
 
       {/* Kanban board */}
       <div className="flex gap-4 overflow-x-auto pb-4 items-start">
-        {columns.map((column) => {
-          const columnDemands = getColumnDemands(column.id)
+        {boardColumns.map((column) => {
+          const columnDemands = column.demands
+          const columnStatus = column.status
           const overdueCount = columnDemands.filter(d => isOverdue(d.deadline, d.status)).length
           const isReorganizing = !!reorganizeModes[column.id]
 
@@ -725,7 +785,7 @@ export function DemandsKanban() {
             <div key={column.id} className="flex-shrink-0 w-72">
               <div className="flex items-center gap-2 mb-3 px-1">
                 <div className={cn('h-3 w-3 rounded-full', column.color)} />
-                <h3 className="font-semibold text-sm">{column.title}</h3>
+                <h3 className="font-semibold text-sm truncate" title={column.title}>{column.title}</h3>
                 <Badge variant="secondary" className="text-xs">
                   {columnDemands.length}
                 </Badge>
@@ -753,8 +813,8 @@ export function DemandsKanban() {
 
               <div
                 className="space-y-2 min-h-[160px] rounded-lg bg-secondary/30 p-2"
-                onDragOver={isReorganizing ? undefined : handleDragOver}
-                onDrop={isReorganizing ? undefined : (e) => handleDrop(e, column.id)}
+                onDragOver={isReorganizing || !columnStatus ? undefined : handleDragOver}
+                onDrop={isReorganizing || !columnStatus ? undefined : (e) => handleDrop(e, columnStatus)}
               >
                 {columnDemands.map((demand) => {
                   const overdue = isOverdue(demand.deadline, demand.status)
@@ -770,7 +830,7 @@ export function DemandsKanban() {
                         onDragStart={(e) => handleReorderDragStart(e, demand.id)}
                         onDragEnd={() => { setReorderDraggedId(null); setReorderDragOverId(null) }}
                         onDragOver={(e) => handleReorderDragOver(e, demand.id)}
-                        onDrop={(e) => handleReorderDrop(e, demand.id, column.id)}
+                        onDrop={(e) => handleReorderDrop(e, demand.id)}
                         className={cn(
                           'flex items-center gap-2 bg-card border border-border rounded-md px-3 py-2 cursor-grab active:cursor-grabbing select-none transition-all',
                           reorderDraggedId === demand.id && 'opacity-40',
@@ -916,6 +976,12 @@ export function DemandsKanban() {
             </div>
           )
         })}
+
+        {boardColumns.length === 0 && (
+          <div className="flex items-center justify-center w-full h-32 text-sm text-muted-foreground">
+            Nenhuma demanda com os filtros atuais
+          </div>
+        )}
       </div>
     </>
   )
