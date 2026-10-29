@@ -570,7 +570,7 @@ export function DemandsKanban() {
       <Card className="bg-card border-border">
         <CardContent className="p-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-            <div className="relative flex-1">
+            <div className="relative flex-1 lg:min-w-[260px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
@@ -673,7 +673,7 @@ export function DemandsKanban() {
               </Select>
 
               <Select value={filters.groupBy || 'status'} onValueChange={(v) => setFilter('groupBy', v)}>
-                <SelectTrigger className="w-full sm:w-40 bg-secondary border-border text-xs sm:text-sm">
+                <SelectTrigger className="w-full sm:w-48 bg-secondary border-border text-xs sm:text-sm">
                   <SelectValue placeholder="Visualizar" />
                 </SelectTrigger>
                 <SelectContent>
