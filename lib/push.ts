@@ -13,15 +13,18 @@ export interface PushPayload {
 
 let configured = false
 
+// Remove aspas e espaços que costumam vir junto ao colar a variável na Vercel
+const clean = (value?: string) => (value || '').trim().replace(/^["']+|["']+$/g, '').trim()
+
 function configure(): boolean {
-  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-  const privateKey = process.env.VAPID_PRIVATE_KEY
+  const publicKey = clean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
+  const privateKey = clean(process.env.VAPID_PRIVATE_KEY)
   if (!publicKey || !privateKey) {
     console.warn('[push] Chaves VAPID não configuradas; notificações desativadas.')
     return false
   }
   if (!configured) {
-    setVapidDetails(process.env.VAPID_SUBJECT || 'https://impulsionaimarketing.com.br', publicKey, privateKey)
+    setVapidDetails(clean(process.env.VAPID_SUBJECT) || 'https://impulsionaimarketing.com.br', publicKey, privateKey)
     configured = true
   }
   return true

@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+// Remove aspas e espaços que costumam vir junto ao colar a variável na Vercel
+function cleanKey(value: string) {
+  return value.trim().replace(/^["']+|["']+$/g, '').trim()
+}
+
 function urlBase64ToUint8Array(base64: string) {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4)
   const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'))
@@ -48,8 +53,11 @@ export function usePush() {
     setBusy(true)
     setError(null)
     try {
-      const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      const publicKey = cleanKey(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '')
       if (!publicKey) throw new Error('Notificações ainda não configuradas no servidor.')
+      if (!/^[A-Za-z0-9_-]+$/.test(publicKey)) {
+        throw new Error('A chave pública de notificações está com formato inválido na Vercel (confira se não há aspas ou espaços).')
+      }
       const permission = await Notification.requestPermission()
       if (permission !== 'granted') throw new Error('Permissão negada. Ative as notificações nos ajustes do aparelho.')
 
