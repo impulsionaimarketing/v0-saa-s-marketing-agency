@@ -1,4 +1,4 @@
-import webpush from 'web-push'
+import { setVapidDetails, sendNotification } from 'web-push'
 import { createClient } from '@/lib/supabase/server'
 
 // Envio de notificações push (Web Push / VAPID). Módulo só de servidor:
@@ -21,7 +21,7 @@ function configure(): boolean {
     return false
   }
   if (!configured) {
-    webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'https://impulsionaimarketing.com.br', publicKey, privateKey)
+    setVapidDetails(process.env.VAPID_SUBJECT || 'https://impulsionaimarketing.com.br', publicKey, privateKey)
     configured = true
   }
   return true
@@ -42,7 +42,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
     await Promise.all(
       subs.map(async (s: { id: string; endpoint: string; p256dh: string; auth: string }) => {
         try {
-          await webpush.sendNotification(
+          await sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             JSON.stringify(payload),
           )
