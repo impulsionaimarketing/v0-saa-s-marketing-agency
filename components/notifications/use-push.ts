@@ -107,7 +107,9 @@ export function usePush() {
     setError(null)
     const res = await fetch('/api/push/test', { method: 'POST' })
     const data = await res.json().catch(() => ({}))
-    if (!data.success) setError('Não foi possível enviar o teste. Ative as notificações neste aparelho primeiro.')
+    if (!data.success) {
+      setError(`Não foi possível enviar o teste: ${(data.errors && data.errors[0]) || 'ative as notificações neste aparelho primeiro.'}`)
+    }
   }, [])
 
   return { status, busy, error, enable, disable, sendTest }

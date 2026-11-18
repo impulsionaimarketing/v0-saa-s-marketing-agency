@@ -30,18 +30,35 @@ function configure(): boolean {
   return true
 }
 
-// Envia para todos os aparelhos do usuário; remove os que expiraram
-export async function sendPushToUser(userId: string, payload: PushPayload): Promise<number> {
+export interface PushResult {
+  sent: number
+  total: number
+  errors: string[]
+}
+
+// Envia para todos os aparelhos do usuário e devolve o detalhe (usado pelo botão "Enviar teste")
+export async function sendPushToUserDetailed(userId: string, payload: PushPayload): Promise<PushResult> {
+  const result: PushResult = { sent: 0, total: 0, errors: [] }
   try {
-    if (!configure()) return 0
+    if (!configure()) {
+      result.errors.push('Chaves de notificação (VAPID) ausentes ou inválidas no servidor.')
+      return result
+    }
     const supabase = await createClient()
     const { data: subs, error } = await supabase
       .from('push_subscriptions')
       .select('id, endpoint, p256dh, auth')
       .eq('user_id', userId)
-    if (error || !subs || subs.length === 0) return 0
+    if (error) {
+      result.errors.push('Erro ao ler os aparelhos registrados: ' + error.message)
+      return result
+    }
+    result.total = subs?.length ?? 0
+    if (!subs || subs.length === 0) {
+      result.errors.push('Nenhum aparelho registrado para o seu usuário.')
+      return result
+    }
 
-    let sent = 0
     await Promise.all(
       subs.map(async (s: { id: string; endpoint: string; p256dh: string; auth: string }) => {
         try {
@@ -49,22 +66,29 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
             JSON.stringify(payload),
           )
-          sent++
+          result.sent++
         } catch (e: any) {
           // 404/410: o aparelho cancelou ou desinstalou o app
           if (e?.statusCode === 404 || e?.statusCode === 410) {
             await supabase.from('push_subscriptions').delete().eq('id', s.id)
+            result.errors.push('Aparelho expirado (removido). Ative as notificações de novo.')
           } else {
-            console.error('[push] Erro ao enviar:', e?.statusCode, e?.body || e?.message)
+            const detail = `HTTP ${e?.statusCode ?? '?'} ${String(e?.body || e?.message || '').slice(0, 200)}`
+            console.error('[push] Erro ao enviar:', detail)
+            result.errors.push(detail)
           }
         }
       }),
     )
-    return sent
-  } catch (error) {
+  } catch (error: any) {
     console.error('[push] Erro geral:', error)
-    return 0
+    result.errors.push(String(error?.message || error))
   }
+  return result
+}
+
+export async function sendPushToUser(userId: string, payload: PushPayload): Promise<number> {
+  return (await sendPushToUserDetailed(userId, payload)).sent
 }
 
 // Aviso de tarefa atribuída a um colaborador
