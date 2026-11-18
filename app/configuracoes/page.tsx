@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { User, Bell, Shield, Palette, Save, Lock } from 'lucide-react'
 import { useAuth } from '@/lib/hooks/use-auth'
+import { NotificationSettings } from '@/components/notifications/notification-settings'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import type { UserRole } from '@/lib/mock-data'
@@ -130,6 +131,8 @@ export default function ConfiguracoesPage() {
             </Card>
 
             {/* Permissions Demo */}
+            <NotificationSettings />
+
             <Card className="bg-card border-border">
               <CardHeader>
                 <div className="flex items-center gap-2">

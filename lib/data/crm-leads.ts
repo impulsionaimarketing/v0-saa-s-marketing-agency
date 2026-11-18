@@ -1,7 +1,7 @@
 "use server"
 
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
-import type { CRMLead, CRMStatus, CRMCard } from "@/lib/data/crm-config"
+import type { CRMLead, CRMStatus, CRMCard, ClientService } from "@/lib/data/crm-config"
 import { CONTRACT_STATUS_TO_CRM, CRM_TO_CONTRACT_STATUS } from "@/lib/data/crm-config"
 
 export async function getCRMLeads(filters?: {
@@ -154,6 +154,20 @@ function clientToCRMCard(client: any): CRMCard {
     ? client.whatsapp_instances.find((i: any) => i?.is_primary) ?? client.whatsapp_instances[0]
     : null
 
+  const services: ClientService[] = (Array.isArray(client.services) ? client.services : [])
+    .filter((s: any) => s && s.name)
+    .map((s: any) => ({
+      name: String(s.name),
+      kind: s.kind === "especifico" ? "especifico" : "recorrente",
+      value: Number(s.value) || 0,
+    }))
+  const specificValue = services.filter((s) => s.kind === "especifico").reduce((a, s) => a + s.value, 0)
+  // Sem serviços detalhados, o valor mensal do cadastro conta como recorrente
+  const recurringValue =
+    services.length > 0
+      ? services.filter((s) => s.kind === "recorrente").reduce((a, s) => a + s.value, 0)
+      : Number(client.monthly_value) || 0
+
   return {
     id: client.id,
     name: client.name,
@@ -163,12 +177,15 @@ function clientToCRMCard(client: any): CRMCard {
     source: "Cliente",
     notes: null,
     proposal_value: 0,
-    services: [],
+    services: services.map((s) => s.name),
     status: CONTRACT_STATUS_TO_CRM[client.contract_status] ?? "contrato_ativo",
     created_at: client.created_at,
     updated_at: client.updated_at,
     entity: "client",
-    value: Number(client.monthly_value) || 0,
+    value: recurringValue + specificValue,
+    clientServices: services,
+    recurringValue,
+    specificValue,
   }
 }
 
@@ -182,13 +199,15 @@ export async function getCRMCards(): Promise<CRMCard[]> {
       return []
     }
 
-    const [leadsResult, clientsResult] = await Promise.all([
+    const clientCols = "id, name, contract_status, monthly_value, whatsapp_instances, created_at, updated_at"
+    const [leadsResult, clientsWithServices] = await Promise.all([
       supabase.from("crm_leads").select("*").order("created_at", { ascending: false }),
-      supabase
-        .from("clients")
-        .select("id, name, contract_status, monthly_value, whatsapp_instances, created_at, updated_at")
-        .order("name"),
+      supabase.from("clients").select(`${clientCols}, services`).order("name"),
     ])
+    // Se a coluna `services` ainda não existe no banco, volta ao select antigo
+    const clientsResult = clientsWithServices.error
+      ? await supabase.from("clients").select(clientCols).order("name")
+      : clientsWithServices
 
     if (leadsResult.error) {
       console.error("[v0] Error fetching CRM leads:", leadsResult.error)

@@ -1,3 +1,5 @@
+import { statusAfterClientDecision } from '@/lib/constants'
+import { ensureStageTask } from '@/lib/data/production-flow'
 import { type NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
@@ -34,11 +36,17 @@ export async function POST(req: NextRequest) {
       }
 
       // Atualiza status
-      const newStatus = decision === 'aprovado' ? 'Aprovado' : 'Solicitou Ajuste'
+      const { data: current } = await supabase
+        .from('productions')
+        .select('status')
+        .eq('id', productionId)
+        .maybeSingle()
+      const newStatus = statusAfterClientDecision(current?.status, decision === 'aprovado')
       await supabase
         .from('productions')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq('id', productionId)
+      await ensureStageTask(productionId, newStatus)
     }
 
     return NextResponse.json({ success: true })

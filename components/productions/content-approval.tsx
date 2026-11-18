@@ -101,6 +101,7 @@ const INITIAL_MESSAGES: ChatMessage[] = [
 
 const STATUS_OPTIONS = [
   { label: 'Enviar para Aprovação', value: 'Aprovação do Cliente', tone: 'primary' },
+  { label: 'Enviar Ideia para Aprovação', value: 'Aprovação da Ideia', tone: 'primary' },
   { label: 'Aprovado', value: 'Aprovado', tone: 'success' },
   { label: 'Solicitou Ajuste', value: 'Solicitou Ajuste', tone: 'warning' },
   { label: 'Programado', value: 'Programado', tone: 'info' },
@@ -109,6 +110,7 @@ const STATUS_OPTIONS = [
 
 const STATUS_STYLES: Record<string, string> = {
   'Aprovação do Cliente': 'bg-warning/15 text-warning border-warning/30',
+  'Aprovação da Ideia': 'bg-warning/15 text-warning border-warning/30',
   Aprovado: 'bg-success/15 text-success border-success/30',
   'Solicitou Ajuste': 'bg-destructive/15 text-destructive border-destructive/30',
   Programado: 'bg-chart-2/15 text-chart-2 border-chart-2/30',

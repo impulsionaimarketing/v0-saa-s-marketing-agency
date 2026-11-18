@@ -376,7 +376,7 @@ function InlineCell({ col, client, onSave }: InlineCellProps) {
 export function ClientsTable() {
   const [clients, setClients] = useState<Client[]>([])
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('Ativo')
   const [isPending, startTransition] = useTransition()
   const [isLoading, setIsLoading] = useState(true)
 

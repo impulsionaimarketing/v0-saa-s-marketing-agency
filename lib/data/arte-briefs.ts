@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { sendContentToProduction } from '@/lib/data/production-flow'
 
 export interface ArteBrief {
   id: string
@@ -209,56 +210,7 @@ export async function deleteAllArteBriefsByClient(clientId: string): Promise<voi
   }
 }
 
+// Mantém o nome por compatibilidade: agora envia o briefing para a Produção (não cria demanda)
 export async function convertArteBriefToDemand(briefId: string, clientId: string): Promise<string | null> {
-  try {
-    const supabase = await createClient()
-    
-    const { data: brief, error: briefError } = await supabase
-      .from('arte_briefs')
-      .select('*')
-      .eq('id', briefId)
-      .single()
-
-    if (briefError || !brief) {
-      throw new Error('Brief not found')
-    }
-
-    const { data: demandId, error: demandError } = await supabase.rpc('insert_demand', {
-      p_name: brief.name,
-      p_description: brief.description || '',
-      p_client_id: clientId,
-      p_area: 'Arte',
-      p_responsible_id: brief.responsible_id,
-      p_deadline: brief.deadline,
-      p_status: 'A Fazer',
-      p_priority: 'medium',
-    })
-
-    if (demandError) {
-      console.error('[v0] Error creating demand:', demandError)
-      throw new Error(demandError.message)
-    }
-
-    if (!demandId) {
-      throw new Error('No demand ID returned')
-    }
-
-    const { error: updateError } = await supabase
-      .from('arte_briefs')
-      .update({
-        is_converted_to_demand: true,
-        demand_id: demandId,
-      })
-      .eq('id', briefId)
-
-    if (updateError) {
-      console.error('[v0] Error updating brief:', updateError)
-      throw new Error(updateError.message)
-    }
-
-    return demandId
-  } catch (error) {
-    console.error('[v0] Error converting brief to demand:', error)
-    throw error
-  }
+  return sendContentToProduction('arte', briefId, clientId)
 }

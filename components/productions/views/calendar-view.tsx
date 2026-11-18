@@ -47,6 +47,9 @@ const MONTHS = [
 const STATUS_COLORS: Record<string, string> = {
   'Planejamento': 'bg-amber-500',
   'Produção': 'bg-violet-500',
+  'Aprovação da Ideia': 'bg-yellow-500',
+  'Captação': 'bg-orange-500',
+  'Edição': 'bg-purple-500',
   'Aprovação do Cliente': 'bg-blue-500',
   'Solicitou Ajuste': 'bg-orange-500',
   'Aprovado': 'bg-emerald-500',

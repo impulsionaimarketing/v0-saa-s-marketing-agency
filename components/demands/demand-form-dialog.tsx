@@ -295,7 +295,7 @@ export function DemandFormDialog({ demand, onSuccess, trigger }: DemandFormDialo
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="A Fazer">A Fazer</SelectItem>
-                    <SelectItem value="Em Produção">Em Produção</SelectItem>
+                    <SelectItem value="Em Produção">Fazendo</SelectItem>
                     <SelectItem value="Em Revisão">Em Revisão</SelectItem>
                     <SelectItem value="Aprovado">Aprovado</SelectItem>
                     <SelectItem value="Publicado">Publicado</SelectItem>

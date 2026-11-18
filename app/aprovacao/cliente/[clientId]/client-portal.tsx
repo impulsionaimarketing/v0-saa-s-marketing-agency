@@ -1,5 +1,6 @@
 'use client'
 
+import { statusAfterClientDecision } from '@/lib/constants'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +62,7 @@ export function ClientPortal({ data }: { data: ClientPortalData }) {
   const [productions, setProductions] = useState<ClientPortalProduction[]>(data.productions)
 
   const pending = useMemo(
-    () => productions.filter((p) => p.status === 'Aprovação do Cliente'),
+    () => productions.filter((p) => p.status === 'Aprovação do Cliente' || p.status === 'Aprovação da Ideia'),
     [productions],
   )
   const adjusting = useMemo(
@@ -69,7 +70,7 @@ export function ClientPortal({ data }: { data: ClientPortalData }) {
     [productions],
   )
   const approved = useMemo(
-    () => productions.filter((p) => p.status === 'Aprovado'),
+    () => productions.filter((p) => ['Aprovado', 'Captação', 'Programado'].includes(p.status)),
     [productions],
   )
 
@@ -79,7 +80,7 @@ export function ClientPortal({ data }: { data: ClientPortalData }) {
     setProductions((prev) =>
       prev.map((p) =>
         p.id === productionId
-          ? { ...p, status: allApproved ? 'Aprovado' : 'Solicitou Ajuste' }
+          ? { ...p, status: statusAfterClientDecision(p.status, allApproved) }
           : p,
       ),
     )

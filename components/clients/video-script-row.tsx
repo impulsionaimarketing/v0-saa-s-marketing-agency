@@ -190,7 +190,7 @@ export function VideoScriptRow({
         {video.is_converted_to_demand && (
           <Badge variant="secondary" className="shrink-0">
             <Check className="h-3 w-3 mr-1" />
-            Demanda
+            Na Produção
           </Badge>
         )}
 
@@ -308,7 +308,7 @@ export function VideoScriptRow({
                 disabled={isPending}
               >
                 <Check className="h-4 w-4 mr-2" />
-                Converter em Demanda
+                Enviar para Produção
               </Button>
             )}
             

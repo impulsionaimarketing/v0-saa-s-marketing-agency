@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { sendWebhookNotification } from '@/lib/webhooks/send-notification'
+import { ensureStageTask } from '@/lib/data/production-flow'
 
 // Helper function to fetch production files
 async function getProductionFilesForWebhook(productionId: string) {
@@ -256,19 +257,7 @@ export async function updateProduction(
       throw new Error(error.message)
     }
 
-    // If this production is linked to a demand, sync the changes
-    if (currentProduction?.demand_id) {
-      console.log('[v0] Syncing production changes to linked demand:', currentProduction.demand_id)
-      await supabase
-        .from('demands')
-        .update({
-          responsible_id: data.responsible_id,
-          status: mapProductionStatusToDemandStatus(data.status),
-          deadline: data.post_date,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentProduction.demand_id)
-    }
+    if (data.status) await ensureStageTask(id, data.status)
 
     // Get associated files and send webhook notification
     const files = await getProductionFilesForWebhook(id)
@@ -281,17 +270,6 @@ export async function updateProduction(
   }
 }
 
-// Helper function to map production status to demand status
-function mapProductionStatusToDemandStatus(productionStatus?: string): string {
-  const statusMap: Record<string, string> = {
-    'Planejamento': 'A Fazer',
-    'Produção': 'Em Produção',
-    'Revisão': 'Em Revisão',
-    'Aprovado': 'Aprovado',
-    'Publicado': 'Publicado'
-  }
-  return productionStatus ? (statusMap[productionStatus] || 'A Fazer') : 'A Fazer'
-}
 
 export async function updateProductionStatus(
   id: string,
@@ -309,6 +287,8 @@ export async function updateProductionStatus(
       console.error('[v0] Error updating production status:', error)
       throw new Error(error.message)
     }
+
+    await ensureStageTask(id, status)
 
     // Get associated files and send webhook notification
     const files = await getProductionFilesForWebhook(id)

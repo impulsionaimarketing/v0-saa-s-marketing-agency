@@ -11,6 +11,7 @@ interface StatusButtonsProps {
 
 const STATUS_BUTTONS = [
   { status: 'Planejamento', emoji: '🟡', color: 'bg-yellow-500 hover:bg-yellow-600' },
+  { status: 'Aprovação da Ideia', emoji: '🟡', color: 'bg-yellow-500 hover:bg-yellow-600' },
   { status: 'Aprovação do Cliente', emoji: '🔵', color: 'bg-blue-500 hover:bg-blue-600' },
   { status: 'Captação', emoji: '🟠', color: 'bg-orange-500 hover:bg-orange-600' },
   { status: 'Edição', emoji: '🟣', color: 'bg-purple-500 hover:bg-purple-600' },

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { sendContentToProduction } from '@/lib/data/production-flow'
 
 export interface VideoScript {
   id: string
@@ -204,56 +205,7 @@ export async function deleteAllVideoScriptsByClient(clientId: string): Promise<v
   }
 }
 
+// Mantém o nome por compatibilidade: agora envia o roteiro para a Produção (não cria demanda)
 export async function convertVideoScriptToDemand(scriptId: string, clientId: string): Promise<string | null> {
-  try {
-    const supabase = await createClient()
-    
-    const { data: script, error: scriptError } = await supabase
-      .from('video_scripts')
-      .select('*')
-      .eq('id', scriptId)
-      .single()
-
-    if (scriptError || !script) {
-      throw new Error('Script not found')
-    }
-
-    const { data: demandId, error: demandError } = await supabase.rpc('insert_demand', {
-      p_name: script.name,
-      p_description: script.script_text || '',
-      p_client_id: clientId,
-      p_area: 'Vídeo',
-      p_responsible_id: script.responsible_id,
-      p_deadline: script.deadline,
-      p_status: 'A Fazer',
-      p_priority: 'medium',
-    })
-
-    if (demandError) {
-      console.error('[v0] Error creating demand:', demandError)
-      throw new Error(demandError.message)
-    }
-
-    if (!demandId) {
-      throw new Error('No demand ID returned')
-    }
-
-    const { error: updateError } = await supabase
-      .from('video_scripts')
-      .update({
-        is_converted_to_demand: true,
-        demand_id: demandId,
-      })
-      .eq('id', scriptId)
-
-    if (updateError) {
-      console.error('[v0] Error updating script:', updateError)
-      throw new Error(updateError.message)
-    }
-
-    return demandId
-  } catch (error) {
-    console.error('[v0] Error converting script to demand:', error)
-    throw error
-  }
+  return sendContentToProduction('video', scriptId, clientId)
 }

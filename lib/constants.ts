@@ -1,18 +1,37 @@
-// Production statuses for the pipeline
+// Etapas de um conteúdo na Produção (relação com o cliente)
 export const PRODUCTION_STATUSES = [
   'Planejamento',
-  'Aprovação do Cliente',
+  'Aprovação da Ideia',
   'Captação',
   'Edição',
-  'Revisão',
-  'Legenda',
+  'Aprovação do Cliente',
+  'Solicitou Ajuste',
   'Programado',
   'Publicado',
-  'Em Tráfego',
-  'Finalizado',
 ] as const
 
 export type ProductionStatus = (typeof PRODUCTION_STATUSES)[number]
+
+// Rótulos de exibição (o valor gravado no banco continua sendo a chave)
+export const PRODUCTION_STATUS_LABEL: Record<string, string> = {
+  'Solicitou Ajuste': 'Ajustes',
+}
+
+// Status antigos → etapa equivalente (usado na migração e como fallback visual)
+export const LEGACY_PRODUCTION_STATUS: Record<string, ProductionStatus> = {
+  'Produção': 'Captação',
+  'Revisão': 'Edição',
+  'Legenda': 'Edição',
+  'Aprovado': 'Programado',
+  'Em Tráfego': 'Publicado',
+  'Finalizado': 'Publicado',
+}
+
+// Resultado da decisão do cliente no link de aprovação
+export function statusAfterClientDecision(current: string | null | undefined, approved: boolean): ProductionStatus {
+  if (!approved) return 'Solicitou Ajuste'
+  return current === 'Aprovação da Ideia' ? 'Captação' : 'Programado'
+}
 
 // Demand statuses for the kanban
 export const DEMAND_STATUSES = [

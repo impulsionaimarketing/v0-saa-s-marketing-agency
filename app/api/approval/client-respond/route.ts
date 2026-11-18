@@ -1,4 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
+import { statusAfterClientDecision } from '@/lib/constants'
+import { ensureStageTask } from '@/lib/data/production-flow'
 
 type ApprovalElement = 'capa' | 'midia' | 'legenda'
 
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
     // Verifica que a produção realmente pertence a este cliente (segurança do link público).
     const { data: prod, error: prodError } = await supabase
       .from('productions')
-      .select('id, client_id')
+      .select('id, client_id, status')
       .eq('id', productionId)
       .eq('client_id', clientId)
       .maybeSingle()
@@ -73,12 +75,14 @@ export async function POST(req: NextRequest) {
 
     // Status geral: Aprovado só se TODOS os elementos foram aprovados
     const allApproved = elements.every((el: any) => el.decision === 'aprovado')
-    const newStatus = allApproved ? 'Aprovado' : 'Solicitou Ajuste'
+    const newStatus = statusAfterClientDecision(prod.status, allApproved)
 
     await supabase
       .from('productions')
       .update({ status: newStatus, updated_at: new Date().toISOString() })
       .eq('id', productionId)
+
+    await ensureStageTask(productionId, newStatus)
 
     return NextResponse.json({ success: true, allApproved })
   } catch (error) {

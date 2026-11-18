@@ -16,6 +16,7 @@ interface ActionButtonsProps {
 
 const STATUS_ACTION_LABELS: Record<string, string> = {
   'Planejamento': '🟡 Planejamento',
+  'Aprovação da Ideia': '🟡 Aprovação da Ideia',
   'Aprovação do Cliente': '🔵 Aprovação Cliente',
   'Captação': '🟠 Captação',
   'Edição': '🟣 Edição',

@@ -40,10 +40,11 @@ interface KanbanViewProps {
 
 const KANBAN_COLUMNS = [
   { id: 'Planejamento', label: 'Planejamento', color: 'bg-amber-500' },
-  { id: 'Produção', label: 'Produção', color: 'bg-violet-500' },
+  { id: 'Aprovação da Ideia', label: 'Aprov. da Ideia', color: 'bg-yellow-500' },
+  { id: 'Captação', label: 'Captação', color: 'bg-orange-500' },
+  { id: 'Edição', label: 'Edição', color: 'bg-purple-500' },
   { id: 'Aprovação do Cliente', label: 'Aprovação', color: 'bg-blue-500' },
-  { id: 'Solicitou Ajuste', label: 'Ajustes', color: 'bg-orange-500' },
-  { id: 'Aprovado', label: 'Aprovado', color: 'bg-emerald-500' },
+  { id: 'Solicitou Ajuste', label: 'Ajustes', color: 'bg-red-500' },
   { id: 'Programado', label: 'Programado', color: 'bg-slate-500' },
   { id: 'Publicado', label: 'Publicado', color: 'bg-green-500' },
 ]

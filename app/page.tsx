@@ -8,10 +8,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 function StatsCardsSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       {[...Array(4)].map((_, i) => (
         <Card key={i} className="bg-card border-border">
-          <CardContent className="p-6">
+          <CardContent className="p-3 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
                 <Skeleton className="h-4 w-24 mb-2" />

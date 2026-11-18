@@ -2,285 +2,241 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-export interface ClientMetrics {
-  client_id: string
-  client_name: string
+// Tráfego pago (Meta Ads + Google Ads) lido da tabela ads_insights_daily,
+// alimentada pelo fluxo "Tráfego pago - sincronizar" do n8n.
+// O nome do arquivo é antigo; as funções continuam as mesmas para a página.
+
+export type AdsPlatform = 'meta' | 'google'
+export type PlatformFilter = AdsPlatform | 'all'
+
+interface BaseMetrics {
   total_spend: number
   total_impressions: number
   total_clicks: number
   total_reach: number
+  total_results: number
+  total_conversion_value: number
+  result_type: string | null
   ctr: number
   cpc: number
   cpm: number
+  cost_per_result: number
 }
 
-export interface CampaignMetrics {
+export interface ClientMetrics extends BaseMetrics {
+  client_id: string
+  client_name: string
+}
+
+export interface CampaignMetrics extends BaseMetrics {
   campaign_id: string
   campaign_name: string
   campaign_objective: string
   campaign_status: string
-  total_spend: number
-  total_impressions: number
-  total_clicks: number
-  total_reach: number
-  ctr: number
-  cpc: number
-  cpm: number
+  platform: AdsPlatform
 }
 
-export interface AdsetMetrics {
+export interface AdsetMetrics extends BaseMetrics {
   adset_id: string
   adset_name: string
-  total_spend: number
-  total_impressions: number
-  total_clicks: number
-  total_reach: number
-  ctr: number
-  cpc: number
-  cpm: number
 }
 
-export interface AdMetrics {
+export interface AdMetrics extends BaseMetrics {
   ad_id: string
   ad_name: string
-  total_spend: number
-  total_impressions: number
-  total_clicks: number
-  total_reach: number
-  ctr: number
-  cpc: number
-  cpm: number
 }
 
-// Get aggregated metrics by client
-export async function getClientMetrics(startDate: string, endDate: string): Promise<ClientMetrics[]> {
-  try {
-    const supabase = await createClient()
+export interface AdsSyncInfo {
+  lastOkAt: string | null
+  errors: { platform: string; client_name: string | null; error: string | null }[]
+}
 
-    const { data, error } = await supabase
-      .from('meta_ads_insights_full')
-      .select('client_id, client_name, spend, impressions, clicks, reach')
-      .gte('report_date', startDate)
-      .lte('report_date', endDate)
+const COLUMNS =
+  'platform, client_id, client_name, report_date, campaign_id, campaign_name, campaign_objective, campaign_status, ' +
+  'adset_id, adset_name, ad_id, ad_name, spend, impressions, clicks, reach, results, result_type, conversion_value'
 
+// O Supabase devolve no máximo 1000 linhas por consulta: lê em páginas
+async function fetchAll(
+  build: (query: any) => any,
+): Promise<any[]> {
+  const supabase = await createClient()
+  const pageSize = 1000
+  const all: any[] = []
+  for (let from = 0; ; from += pageSize) {
+    const query = build(supabase.from('ads_insights_daily').select(COLUMNS)).range(from, from + pageSize - 1)
+    const { data, error } = await query
     if (error) {
-      console.error('[v0] Error fetching client metrics:', error)
-      throw new Error('Erro ao buscar métricas de clientes')
+      console.error('[v0] Error fetching ads insights:', error)
+      throw new Error('Erro ao buscar dados de anúncios')
     }
+    all.push(...(data || []))
+    if (!data || data.length < pageSize) break
+  }
+  return all
+}
 
-    // Aggregate by client
-    const clientMap = new Map<string, ClientMetrics>()
-
-    data?.forEach((row: any) => {
-      const clientId = row.client_id
-      if (!clientMap.has(clientId)) {
-        clientMap.set(clientId, {
-          client_id: clientId,
-          client_name: row.client_name || clientId,
-          total_spend: 0,
-          total_impressions: 0,
-          total_clicks: 0,
-          total_reach: 0,
-          ctr: 0,
-          cpc: 0,
-          cpm: 0,
-        })
-      }
-
-      const client = clientMap.get(clientId)!
-      client.total_spend += Number(row.spend) || 0
-      client.total_impressions += Number(row.impressions) || 0
-      client.total_clicks += Number(row.clicks) || 0
-      client.total_reach += Number(row.reach) || 0
-    })
-
-    // Calculate derived metrics
-    const clients = Array.from(clientMap.values()).map((client) => ({
-      ...client,
-      ctr: client.total_impressions > 0 ? (client.total_clicks / client.total_impressions) * 100 : 0,
-      cpc: client.total_clicks > 0 ? client.total_spend / client.total_clicks : 0,
-      cpm: client.total_impressions > 0 ? (client.total_spend / client.total_impressions) * 1000 : 0,
-    }))
-
-    return clients.sort((a, b) => b.total_spend - a.total_spend)
-  } catch (error) {
-    console.error('[v0] Error in getClientMetrics:', error)
-    throw error
+function emptyMetrics(): BaseMetrics {
+  return {
+    total_spend: 0, total_impressions: 0, total_clicks: 0, total_reach: 0,
+    total_results: 0, total_conversion_value: 0, result_type: null,
+    ctr: 0, cpc: 0, cpm: 0, cost_per_result: 0,
   }
 }
 
-// Get aggregated metrics by campaign for a specific client
-export async function getCampaignMetrics(clientId: string, startDate: string, endDate: string): Promise<CampaignMetrics[]> {
-  try {
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
-      .from('meta_ads_insights_full')
-      .select('campaign_id, campaign_name, campaign_objective, campaign_status, spend, impressions, clicks, reach')
-      .eq('client_id', clientId)
-      .gte('report_date', startDate)
-      .lte('report_date', endDate)
-
-    if (error) {
-      console.error('[v0] Error fetching campaign metrics:', error)
-      throw new Error('Erro ao buscar métricas de campanhas')
-    }
-
-    // Aggregate by campaign
-    const campaignMap = new Map<string, CampaignMetrics>()
-
-    data?.forEach((row: any) => {
-      const campaignId = row.campaign_id
-      if (!campaignMap.has(campaignId)) {
-        campaignMap.set(campaignId, {
-          campaign_id: campaignId,
-          campaign_name: row.campaign_name || campaignId,
-          campaign_objective: row.campaign_objective || 'N/A',
-          campaign_status: row.campaign_status || 'UNKNOWN',
-          total_spend: 0,
-          total_impressions: 0,
-          total_clicks: 0,
-          total_reach: 0,
-          ctr: 0,
-          cpc: 0,
-          cpm: 0,
-        })
-      }
-
-      const campaign = campaignMap.get(campaignId)!
-      campaign.total_spend += Number(row.spend) || 0
-      campaign.total_impressions += Number(row.impressions) || 0
-      campaign.total_clicks += Number(row.clicks) || 0
-      campaign.total_reach += Number(row.reach) || 0
-    })
-
-    // Calculate derived metrics
-    const campaigns = Array.from(campaignMap.values()).map((campaign) => ({
-      ...campaign,
-      ctr: campaign.total_impressions > 0 ? (campaign.total_clicks / campaign.total_impressions) * 100 : 0,
-      cpc: campaign.total_clicks > 0 ? campaign.total_spend / campaign.total_clicks : 0,
-      cpm: campaign.total_impressions > 0 ? (campaign.total_spend / campaign.total_impressions) * 1000 : 0,
-    }))
-
-    return campaigns.sort((a, b) => b.total_spend - a.total_spend)
-  } catch (error) {
-    console.error('[v0] Error in getCampaignMetrics:', error)
-    throw error
+function accumulate(m: BaseMetrics, row: any) {
+  m.total_spend += Number(row.spend) || 0
+  m.total_impressions += Number(row.impressions) || 0
+  m.total_clicks += Number(row.clicks) || 0
+  m.total_reach += Number(row.reach) || 0
+  m.total_results += Number(row.results) || 0
+  m.total_conversion_value += Number(row.conversion_value) || 0
+  // Tipo de resultado: o primeiro que aparecer (mistura de tipos fica como "resultados")
+  if (row.result_type) {
+    if (!m.result_type) m.result_type = row.result_type
+    else if (m.result_type !== row.result_type) m.result_type = 'resultados'
   }
 }
 
-// Get aggregated metrics by adset for a specific campaign
-export async function getAdsetMetrics(campaignId: string, startDate: string, endDate: string): Promise<AdsetMetrics[]> {
-  try {
-    const supabase = await createClient()
-
-    const { data, error } = await supabase
-      .from('meta_ads_insights_full')
-      .select('adset_id, adset_name, spend, impressions, clicks, reach')
-      .eq('campaign_id', campaignId)
-      .gte('report_date', startDate)
-      .lte('report_date', endDate)
-
-    if (error) {
-      console.error('[v0] Error fetching adset metrics:', error)
-      throw new Error('Erro ao buscar métricas de conjuntos')
-    }
-
-    // Aggregate by adset
-    const adsetMap = new Map<string, AdsetMetrics>()
-
-    data?.forEach((row: any) => {
-      const adsetId = row.adset_id
-      if (!adsetMap.has(adsetId)) {
-        adsetMap.set(adsetId, {
-          adset_id: adsetId,
-          adset_name: row.adset_name || adsetId,
-          total_spend: 0,
-          total_impressions: 0,
-          total_clicks: 0,
-          total_reach: 0,
-          ctr: 0,
-          cpc: 0,
-          cpm: 0,
-        })
-      }
-
-      const adset = adsetMap.get(adsetId)!
-      adset.total_spend += Number(row.spend) || 0
-      adset.total_impressions += Number(row.impressions) || 0
-      adset.total_clicks += Number(row.clicks) || 0
-      adset.total_reach += Number(row.reach) || 0
-    })
-
-    // Calculate derived metrics
-    const adsets = Array.from(adsetMap.values()).map((adset) => ({
-      ...adset,
-      ctr: adset.total_impressions > 0 ? (adset.total_clicks / adset.total_impressions) * 100 : 0,
-      cpc: adset.total_clicks > 0 ? adset.total_spend / adset.total_clicks : 0,
-      cpm: adset.total_impressions > 0 ? (adset.total_spend / adset.total_impressions) * 1000 : 0,
-    }))
-
-    return adsets.sort((a, b) => b.total_spend - a.total_spend)
-  } catch (error) {
-    console.error('[v0] Error in getAdsetMetrics:', error)
-    throw error
+function finish<T extends BaseMetrics>(m: T): T {
+  return {
+    ...m,
+    ctr: m.total_impressions > 0 ? (m.total_clicks / m.total_impressions) * 100 : 0,
+    cpc: m.total_clicks > 0 ? m.total_spend / m.total_clicks : 0,
+    cpm: m.total_impressions > 0 ? (m.total_spend / m.total_impressions) * 1000 : 0,
+    cost_per_result: m.total_results > 0 ? m.total_spend / m.total_results : 0,
   }
 }
 
-// Get aggregated metrics by ad for a specific adset
-export async function getAdMetrics(adsetId: string, startDate: string, endDate: string): Promise<AdMetrics[]> {
+function withPlatform(query: any, platform?: PlatformFilter) {
+  return platform && platform !== 'all' ? query.eq('platform', platform) : query
+}
+
+export async function getClientMetrics(
+  startDate: string,
+  endDate: string,
+  platform?: PlatformFilter,
+): Promise<ClientMetrics[]> {
+  const rows = await fetchAll((q) =>
+    withPlatform(q.gte('report_date', startDate).lte('report_date', endDate), platform),
+  )
+
+  const map = new Map<string, ClientMetrics>()
+  for (const row of rows) {
+    // Histórico antigo sem cliente correspondente não entra na visão por cliente
+    if (!row.client_id) continue
+    const id = row.client_id
+    if (!map.has(id)) map.set(id, { client_id: id, client_name: row.client_name || id, ...emptyMetrics() })
+    accumulate(map.get(id)!, row)
+  }
+  return Array.from(map.values()).map(finish).sort((a, b) => b.total_spend - a.total_spend)
+}
+
+export async function getCampaignMetrics(
+  clientId: string,
+  startDate: string,
+  endDate: string,
+  platform?: PlatformFilter,
+): Promise<CampaignMetrics[]> {
+  const rows = await fetchAll((q) =>
+    withPlatform(q.eq('client_id', clientId).gte('report_date', startDate).lte('report_date', endDate), platform),
+  )
+
+  const map = new Map<string, CampaignMetrics & { _lastDate: string }>()
+  for (const row of rows) {
+    const key = `${row.platform}:${row.campaign_id}`
+    if (!map.has(key)) {
+      map.set(key, {
+        campaign_id: row.campaign_id,
+        campaign_name: row.campaign_name || row.campaign_id,
+        campaign_objective: row.campaign_objective || '',
+        campaign_status: row.campaign_status || '',
+        platform: row.platform,
+        _lastDate: row.report_date,
+        ...emptyMetrics(),
+      })
+    }
+    const c = map.get(key)!
+    accumulate(c, row)
+    // Status e objetivo vêm da linha mais recente
+    if (row.report_date >= c._lastDate) {
+      c._lastDate = row.report_date
+      if (row.campaign_status) c.campaign_status = row.campaign_status
+      if (row.campaign_objective) c.campaign_objective = row.campaign_objective
+    }
+  }
+  return Array.from(map.values())
+    .map(({ _lastDate, ...c }) => finish(c))
+    .sort((a, b) => b.total_spend - a.total_spend)
+}
+
+export async function getAdsetMetrics(
+  campaignId: string,
+  startDate: string,
+  endDate: string,
+  platform?: PlatformFilter,
+): Promise<AdsetMetrics[]> {
+  const rows = await fetchAll((q) =>
+    withPlatform(q.eq('campaign_id', campaignId).gte('report_date', startDate).lte('report_date', endDate), platform),
+  )
+
+  const map = new Map<string, AdsetMetrics>()
+  for (const row of rows) {
+    const id = row.adset_id ?? ''
+    if (!map.has(id)) {
+      map.set(id, { adset_id: id, adset_name: row.adset_name || row.campaign_name || 'Sem grupo', ...emptyMetrics() })
+    }
+    accumulate(map.get(id)!, row)
+  }
+  return Array.from(map.values()).map(finish).sort((a, b) => b.total_spend - a.total_spend)
+}
+
+export async function getAdMetrics(
+  adsetId: string,
+  startDate: string,
+  endDate: string,
+  platform?: PlatformFilter,
+  campaignId?: string,
+): Promise<AdMetrics[]> {
+  const rows = await fetchAll((q) => {
+    let query = q.eq('adset_id', adsetId).gte('report_date', startDate).lte('report_date', endDate)
+    if (campaignId) query = query.eq('campaign_id', campaignId)
+    return withPlatform(query, platform)
+  })
+
+  const map = new Map<string, AdMetrics>()
+  for (const row of rows) {
+    const id = row.ad_id
+    if (!map.has(id)) map.set(id, { ad_id: id, ad_name: row.ad_name || id, ...emptyMetrics() })
+    accumulate(map.get(id)!, row)
+  }
+  return Array.from(map.values()).map(finish).sort((a, b) => b.total_spend - a.total_spend)
+}
+
+// Última atualização bem-sucedida e erros recentes (para a aba mostrar o estado)
+export async function getAdsSyncInfo(): Promise<AdsSyncInfo> {
   try {
     const supabase = await createClient()
-
     const { data, error } = await supabase
-      .from('meta_ads_insights_full')
-      .select('ad_id, ad_name, spend, impressions, clicks, reach')
-      .eq('adset_id', adsetId)
-      .gte('report_date', startDate)
-      .lte('report_date', endDate)
+      .from('ads_sync_runs')
+      .select('started_at, platform, client_name, status, error')
+      .order('started_at', { ascending: false })
+      .limit(40)
+    if (error || !data) return { lastOkAt: null, errors: [] }
 
-    if (error) {
-      console.error('[v0] Error fetching ad metrics:', error)
-      throw new Error('Erro ao buscar métricas de anúncios')
+    const lastOk = data.find((r: any) => r.status === 'ok')
+    // Só vale o resultado mais recente de cada cliente × plataforma: um erro antigo
+    // já corrigido por uma execução posterior não deve alarmar.
+    const seen = new Set<string>()
+    const errors: AdsSyncInfo['errors'] = []
+    for (const r of data as any[]) {
+      const key = `${r.platform}|${r.client_name}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      if (r.status === 'erro') errors.push({ platform: r.platform, client_name: r.client_name, error: r.error })
     }
-
-    // Aggregate by ad
-    const adMap = new Map<string, AdMetrics>()
-
-    data?.forEach((row: any) => {
-      const adId = row.ad_id
-      if (!adMap.has(adId)) {
-        adMap.set(adId, {
-          ad_id: adId,
-          ad_name: row.ad_name || adId,
-          total_spend: 0,
-          total_impressions: 0,
-          total_clicks: 0,
-          total_reach: 0,
-          ctr: 0,
-          cpc: 0,
-          cpm: 0,
-        })
-      }
-
-      const ad = adMap.get(adId)!
-      ad.total_spend += Number(row.spend) || 0
-      ad.total_impressions += Number(row.impressions) || 0
-      ad.total_clicks += Number(row.clicks) || 0
-      ad.total_reach += Number(row.reach) || 0
-    })
-
-    // Calculate derived metrics
-    const ads = Array.from(adMap.values()).map((ad) => ({
-      ...ad,
-      ctr: ad.total_impressions > 0 ? (ad.total_clicks / ad.total_impressions) * 100 : 0,
-      cpc: ad.total_clicks > 0 ? ad.total_spend / ad.total_clicks : 0,
-      cpm: ad.total_impressions > 0 ? (ad.total_spend / ad.total_impressions) * 1000 : 0,
-    }))
-
-    return ads.sort((a, b) => b.total_spend - a.total_spend)
+    return { lastOkAt: lastOk?.started_at ?? null, errors }
   } catch (error) {
-    console.error('[v0] Error in getAdMetrics:', error)
-    throw error
+    console.error('[v0] Error fetching ads sync info:', error)
+    return { lastOkAt: null, errors: [] }
   }
 }

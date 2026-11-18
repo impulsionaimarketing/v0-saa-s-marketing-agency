@@ -25,16 +25,23 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, Loader2, Building2, MessageSquare, TrendingUp, Trash2, Smartphone, Instagram } from 'lucide-react'
+import { CRM_SERVICES, type ClientService } from '@/lib/data/crm-config'
 import { createClientRecord, updateClient, type Client, type WhatsAppInstance, type InstagramAccount } from '@/lib/data/clients'
 
 interface ClientFormDialogProps {
   client?: Client | null
   onSuccess?: () => void
   trigger?: React.ReactNode
+  // Modo controlado (sem botão próprio), usado pelo CRM para editar um cliente
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
-export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialogProps) {
-  const [open, setOpen] = useState(false)
+export function ClientFormDialog({ client, onSuccess, trigger, open: openProp, onOpenChange }: ClientFormDialogProps) {
+  const [openState, setOpenState] = useState(false)
+  const controlled = openProp !== undefined
+  const open = controlled ? openProp : openState
+  const setOpen = (v: boolean) => (controlled ? onOpenChange?.(v) : setOpenState(v))
   const [isPending, startTransition] = useTransition()
   const [instances, setInstances] = useState<WhatsAppInstance[]>(
     client?.whatsapp_instances || []
@@ -42,6 +49,7 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
   const [instagramAccounts, setInstagramAccounts] = useState<InstagramAccount[]>(
     client?.instagram_accounts || []
   )
+  const [services, setServices] = useState<ClientService[]>(client?.services ?? [])
   const [newInstagram, setNewInstagram] = useState<InstagramAccount>({
     username: '',
     account_id: '',
@@ -53,6 +61,7 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
       setInstances(client?.whatsapp_instances || [])
       setInstagramAccounts(client?.instagram_accounts || [])
       setNewInstagram({ username: '', account_id: '' })
+      setServices(client?.services ?? [])
       setFormData({
         name: client?.name || '',
         type: client?.type || 'Serviço',
@@ -131,6 +140,7 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
           business_manager_id: formData.business_manager_id || null,
           google_ads_id: formData.google_ads_id || null,
           instagram_accounts: instagramAccounts,
+          services: services.filter((s) => s.name.trim()),
         }
 
         if (client) {
@@ -170,14 +180,16 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Novo Cliente
-          </Button>
-        )}
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          {trigger || (
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Novo Cliente
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="w-[95vw] sm:max-w-[650px] max-h-[90vh] overflow-y-auto bg-card border-border p-4 sm:p-6">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
@@ -394,10 +406,76 @@ export function ClientFormDialog({ client, onSuccess, trigger }: ClientFormDialo
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Ativo">Ativo</SelectItem>
-                        <SelectItem value="Inativo">Inativo</SelectItem>
                         <SelectItem value="Pausado">Pausado</SelectItem>
+                        <SelectItem value="Perdido">Cancelado</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Serviços contratados</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setServices((prev) => [...prev, { name: CRM_SERVICES[0], kind: 'recorrente', value: 0 }])}
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Serviço
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Recorrente = cobrado todo mês. Específico = trabalho pontual (projeto, site, gravação).
+                    </p>
+                    {services.map((svc, i) => (
+                      <div key={i} className="rounded-lg border border-border bg-secondary/30 p-2 space-y-2">
+                        <div className="flex gap-2">
+                          <Select
+                            value={svc.name}
+                            onValueChange={(v) => setServices((prev) => prev.map((s, j) => (j === i ? { ...s, name: v } : s)))}
+                          >
+                            <SelectTrigger className="bg-background border-input flex-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CRM_SERVICES.map((n) => (
+                                <SelectItem key={n} value={n}>{n}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setServices((prev) => prev.filter((_, j) => j !== i))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Select
+                            value={svc.kind}
+                            onValueChange={(v) => setServices((prev) => prev.map((s, j) => (j === i ? { ...s, kind: v as ClientService['kind'] } : s)))}
+                          >
+                            <SelectTrigger className="bg-background border-input">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="recorrente">Recorrente</SelectItem>
+                              <SelectItem value="especifico">Específico</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Valor (R$)"
+                            value={svc.value || ''}
+                            onChange={(e) => setServices((prev) => prev.map((s, j) => (j === i ? { ...s, value: parseFloat(e.target.value) || 0 } : s)))}
+                            className="bg-background border-input"
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

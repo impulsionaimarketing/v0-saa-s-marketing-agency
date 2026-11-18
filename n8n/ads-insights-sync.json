@@ -1,0 +1,570 @@
+{
+  "name": "Tráfego pago - sincronizar Meta Ads e Google Ads",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "a0085f3d-54f1-490d-8bdd-4902bd9af35d",
+      "name": "Agendamento",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ads/sync",
+        "responseMode": "onReceived",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "bba51306-b1a5-422f-8127-23528cbeb666",
+      "name": "Webhook sincronizar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "841231f8-71cd-4635-8f8f-2f886c8b497d"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "27af35c4-e306-4918-bc65-fe138834fa47",
+              "name": "supabaseUrl",
+              "value": "https://supabase.impulsionaimarketing.com.br",
+              "type": "string"
+            },
+            {
+              "id": "18ba7d21-e83c-4e29-8ef1-27dc749bf058",
+              "name": "supabaseKey",
+              "value": "COLE_AQUI_A_SERVICE_ROLE_KEY_DO_SUPABASE",
+              "type": "string"
+            },
+            {
+              "id": "5ae9cd2c-ab56-4dd8-94a2-d0aa49d88064",
+              "name": "googleLoginCustomerId",
+              "value": "COLE_AQUI_O_ID_DA_MCC_SEM_TRACOS",
+              "type": "string"
+            },
+            {
+              "id": "b141fdcc-edc4-4cd6-894f-a2d353c79ec6",
+              "name": "metaApiVersion",
+              "value": "v21.0",
+              "type": "string"
+            },
+            {
+              "id": "d02105bf-cf39-4e66-a851-1ed174467328",
+              "name": "googleApiVersion",
+              "value": "v22",
+              "type": "string"
+            },
+            {
+              "id": "75ba0681-6990-4c43-90f5-136d8a518c7e",
+              "name": "daysBack",
+              "value": "3",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c1bf7aa7-f94a-4507-9128-cebacb2551a8",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        260,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/clients",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "id,name,campaign_type,ad_account_id,google_ads_id"
+            },
+            {
+              "name": "contract_status",
+              "value": "eq.Ativo"
+            },
+            {
+              "name": "or",
+              "value": "(ad_account_id.not.is.null,google_ads_id.not.is.null)"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').first().json.supabaseKey }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Config').first().json.supabaseKey }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3249a83e-693c-4b3b-b785-3cdc6308f74e",
+      "name": "Buscar clientes ativos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        520,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta uma consulta por cliente × plataforma. Datas: do webhook (se enviadas) ou últimos N dias.\nconst cfg = $('Config').first().json;\nlet body = {};\ntry { body = $('Webhook sincronizar').first().json.body || {}; } catch (e) {}\n\nconst fmt = (d) => d.toISOString().slice(0, 10);\nconst today = new Date();\nconst range = body.date_range || {};\nconst until = body.date_until || range.end || range.until || range.to || fmt(today);\nconst since = body.date_since || range.start || range.since || range.from\n  || fmt(new Date(today.getTime() - (Number(cfg.daysBack) || 3) * 86400000));\nconst onlyClient = body.client_id || null;\nconst onlyPlatform = body.platform || null;\n\nconst out = [];\nfor (const item of $input.all()) {\n  const c = item.json;\n  if (!c || !c.id) continue;\n  if (onlyClient && c.id !== onlyClient) continue;\n  const base = { client_id: c.id, client_name: c.name, campaign_type: c.campaign_type, since, until };\n\n  if (c.ad_account_id && (!onlyPlatform || onlyPlatform === 'meta')) {\n    const digits = String(c.ad_account_id).replace(/\\D/g, '');\n    if (digits) out.push({ json: { ...base, platform: 'meta', account_id: 'act_' + digits } });\n  }\n\n  if (c.google_ads_id && (!onlyPlatform || onlyPlatform === 'google')) {\n    const acc = String(c.google_ads_id).replace(/\\D/g, '');\n    if (acc) {\n      const fields = 'segments.date, campaign.id, campaign.name, campaign.advertising_channel_type, campaign.status, '\n        + 'metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions, metrics.conversions_value';\n      const where = `segments.date BETWEEN '${since}' AND '${until}'`;\n      out.push({ json: { ...base, platform: 'google', kind: 'ads', account_id: acc,\n        gaql: `SELECT ${fields}, ad_group.id, ad_group.name, ad_group_ad.ad.id, ad_group_ad.ad.name FROM ad_group_ad WHERE ${where}` } });\n      // Performance Max não tem anúncios por grupo: vem no nível da campanha\n      out.push({ json: { ...base, platform: 'google', kind: 'pmax', account_id: acc,\n        gaql: `SELECT ${fields} FROM campaign WHERE ${where} AND campaign.advertising_channel_type = 'PERFORMANCE_MAX'` } });\n    }\n  }\n}\nreturn out;"
+      },
+      "id": "16009246-9eb6-4cd7-94d7-1617c4d2d5e4",
+      "name": "Preparar consultas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bf4191c8-c2e9-41bb-9ebd-e8a58dc55970",
+              "leftValue": "={{ $json.platform }}",
+              "rightValue": "meta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d7529e2e-4d19-4c34-8e27-7b0ee159d987",
+      "name": "É Meta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.metaApiVersion }}/{{ $json.account_id }}/insights",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "level",
+              "value": "ad"
+            },
+            {
+              "name": "time_increment",
+              "value": "1"
+            },
+            {
+              "name": "time_range",
+              "value": "={{ JSON.stringify({ since: $json.since, until: $json.until }) }}"
+            },
+            {
+              "name": "fields",
+              "value": "campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,objective,impressions,reach,clicks,inline_link_clicks,spend,frequency,actions,action_values"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.paging && $response.body.paging.next ? $response.body.paging.next : '' }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !($response.body.paging && $response.body.paging.next) }}",
+              "limitPagesFetched": true,
+              "maxRequests": 50
+            }
+          }
+        }
+      },
+      "id": "8442cd3f-6bc4-4887-b256-73aef91eb427",
+      "name": "Meta Ads insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        0
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ctx = $('Preparar consultas').item.json;\nconst j = $json;\nconst log = { platform: 'meta', client_id: ctx.client_id, client_name: ctx.client_name,\n  account_id: ctx.account_id, date_from: ctx.since, date_to: ctx.until };\n\nif (j.error) {\n  const msg = typeof j.error === 'string' ? j.error : JSON.stringify(j.error);\n  return { json: { ...log, status: 'erro', error: msg.slice(0, 500), rows: [] } };\n}\n\n// Resultado depende do tipo de campanha cadastrado no cliente\nconst type = ctx.campaign_type;\nconst pick = (arr, names) => {\n  for (const n of names) {\n    const f = (arr || []).find((a) => a.action_type === n);\n    if (f) return Number(f.value) || 0;\n  }\n  return 0;\n};\nconst MSG = ['onsite_conversion.messaging_conversation_started_7d'];\nconst BUY = ['omni_purchase', 'purchase', 'offsite_conversion.fb_pixel_purchase'];\n\nconst rows = (j.data || []).map((r) => {\n  const actions = r.actions || [];\n  const values = r.action_values || [];\n  let results = 0, result_type = 'alcance', value = 0;\n  if (type === 'Mensagem') { results = pick(actions, MSG); result_type = 'conversas'; }\n  else if (type === 'Venda') { results = pick(actions, BUY); value = pick(values, BUY); result_type = 'compras'; }\n  else { results = Number(r.reach) || 0; }\n  return {\n    platform: 'meta', client_id: ctx.client_id, client_name: ctx.client_name,\n    account_id: ctx.account_id, report_date: r.date_start,\n    campaign_id: r.campaign_id, campaign_name: r.campaign_name, campaign_objective: r.objective || null,\n    campaign_status: null,\n    adset_id: r.adset_id || '', adset_name: r.adset_name || null,\n    ad_id: r.ad_id, ad_name: r.ad_name || null,\n    impressions: Number(r.impressions) || 0, reach: Number(r.reach) || 0,\n    clicks: Number(r.clicks) || 0, link_clicks: Number(r.inline_link_clicks) || 0,\n    spend: Number(r.spend) || 0, frequency: r.frequency ? Number(r.frequency) : null,\n    results, result_type, conversion_value: value,\n    raw: { actions, action_values: values },\n  };\n});\nreturn { json: { ...log, status: 'ok', error: null, rows } };"
+      },
+      "id": "49146548-5126-4ca7-a8f1-27aa841ae3c7",
+      "name": "Normalizar Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://googleads.googleapis.com/{{ $('Config').first().json.googleApiVersion }}/customers/{{ $json.account_id }}/googleAds:searchStream",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleAdsOAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "login-customer-id",
+              "value": "={{ $('Config').first().json.googleLoginCustomerId }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $json.gaql }) }}",
+        "options": {}
+      },
+      "id": "4591ca90-5693-4561-a65d-cf1668a7e12d",
+      "name": "Google Ads consulta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        300
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const ctx = $('Preparar consultas').item.json;\nconst j = $json;\nconst log = { platform: 'google', client_id: ctx.client_id, client_name: ctx.client_name,\n  account_id: ctx.account_id, date_from: ctx.since, date_to: ctx.until };\n\nif (j.error) {\n  const msg = typeof j.error === 'string' ? j.error : JSON.stringify(j.error);\n  return { json: { ...log, status: 'erro', error: msg.slice(0, 500), rows: [] } };\n}\n\nconst rows = (j.results || []).map((r) => {\n  const m = r.metrics || {};\n  const camp = r.campaign || {};\n  const isPmax = ctx.kind === 'pmax';\n  const adId = isPmax ? 'pmax-' + camp.id : String((r.adGroupAd && r.adGroupAd.ad && r.adGroupAd.ad.id) || '');\n  return {\n    platform: 'google', client_id: ctx.client_id, client_name: ctx.client_name,\n    account_id: ctx.account_id, report_date: r.segments.date,\n    campaign_id: String(camp.id), campaign_name: camp.name || null,\n    campaign_objective: camp.advertisingChannelType || null, campaign_status: camp.status || null,\n    adset_id: isPmax ? '' : String((r.adGroup && r.adGroup.id) || ''),\n    adset_name: isPmax ? null : ((r.adGroup && r.adGroup.name) || null),\n    ad_id: adId,\n    ad_name: isPmax ? (camp.name || null) : ((r.adGroupAd && r.adGroupAd.ad && r.adGroupAd.ad.name) || null),\n    impressions: Number(m.impressions) || 0, reach: null,\n    clicks: Number(m.clicks) || 0, link_clicks: null,\n    spend: (Number(m.costMicros) || 0) / 1e6, frequency: null,\n    results: Number(m.conversions) || 0, result_type: 'conversoes',\n    conversion_value: Number(m.conversionsValue) || 0,\n    raw: null,\n  };\n}).filter((r) => r.ad_id);\nreturn { json: { ...log, status: 'ok', error: null, rows } };"
+      },
+      "id": "3be06891-4279-4bec-9972-010c4f73d154",
+      "name": "Normalizar Google",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "a3d706d7-4753-4153-a99c-eafc65be2dfc",
+      "name": "Unir",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1820,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/ads_insights_daily",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "on_conflict",
+              "value": "platform,account_id,report_date,ad_id"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').first().json.supabaseKey }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Config').first().json.supabaseKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows || []) }}",
+        "options": {}
+      },
+      "id": "33cdfdcc-9ae9-47a9-8107-40cf1cbb0f91",
+      "name": "Gravar no Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2080,
+        150
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta os resultados por cliente × plataforma e monta as linhas do log\nconst sent = $('Unir').all();\nconst saved = $input.all();\nconst groups = new Map();\n\nsent.forEach((s, i) => {\n  const d = s.json;\n  const saveError = saved[i] && saved[i].json && saved[i].json.error;\n  const key = d.platform + '|' + d.client_id + '|' + d.account_id;\n  const g = groups.get(key) || { platform: d.platform, client_id: d.client_id, client_name: d.client_name,\n    account_id: d.account_id, date_from: d.date_from, date_to: d.date_to, status: 'ok', rows_count: 0, error: null };\n  if (d.status === 'erro') { g.status = 'erro'; g.error = d.error; }\n  else if (saveError) { g.status = 'erro'; g.error = 'Erro ao gravar: ' + JSON.stringify(saveError).slice(0, 400); }\n  else g.rows_count += (d.rows || []).length;\n  groups.set(key, g);\n});\nreturn [{ json: { runs: Array.from(groups.values()) } }];"
+      },
+      "id": "65271272-b0da-4026-9ea1-5f3a535a3220",
+      "name": "Resumo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2340,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.supabaseUrl }}/rest/v1/ads_sync_runs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Config').first().json.supabaseKey }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Config').first().json.supabaseKey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.runs) }}",
+        "options": {}
+      },
+      "id": "fb226114-4402-472f-ac22-04a479ef3bb1",
+      "name": "Registrar execução",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        150
+      ]
+    }
+  ],
+  "connections": {
+    "Agendamento": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook sincronizar": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Buscar clientes ativos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar clientes ativos": {
+      "main": [
+        [
+          {
+            "node": "Preparar consultas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar consultas": {
+      "main": [
+        [
+          {
+            "node": "É Meta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Meta?": {
+      "main": [
+        [
+          {
+            "node": "Meta Ads insights",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Google Ads consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Ads insights": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Ads consulta": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Meta": {
+      "main": [
+        [
+          {
+            "node": "Unir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Google": {
+      "main": [
+        [
+          {
+            "node": "Unir",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Unir": {
+      "main": [
+        [
+          {
+            "node": "Gravar no Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar no Supabase": {
+      "main": [
+        [
+          {
+            "node": "Resumo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumo": {
+      "main": [
+        [
+          {
+            "node": "Registrar execução",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

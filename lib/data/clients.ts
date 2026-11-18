@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import type { ClientService } from "@/lib/data/crm-config"
 import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
 
 export interface WhatsAppInstance {
@@ -39,6 +40,7 @@ export interface Client {
   business_manager_id: string | null
   google_ads_id: string | null
   instagram_accounts: InstagramAccount[] | null
+  services?: ClientService[] | null
   status: "Ativo" | "Inativo"
   created_at: string
   updated_at: string
@@ -148,6 +150,7 @@ export async function createClientRecord(data: Partial<Client>): Promise<Client 
         business_manager_id: data.business_manager_id || null,
         google_ads_id: data.google_ads_id || null,
         instagram_accounts: data.instagram_accounts || [],
+        ...(data.services && data.services.length > 0 ? { services: data.services } : {}),
         status: "Ativo",
       })
       .select()
@@ -178,7 +181,7 @@ export async function updateClient(id: string, data: Partial<Client>): Promise<C
       'monthly_value', 'contract_status', 'month_status', 
       'whatsapp_group_name', 'whatsapp_group_id', 'ad_account_name', 
       'ad_account_id', 'business_manager_id', 'google_ads_id', 
-      'instagram_accounts', 'status',
+      'instagram_accounts', 'services', 'status',
     ]
 
     for (const field of fields) {

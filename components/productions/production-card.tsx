@@ -22,6 +22,7 @@ interface ProductionCardProps {
 
 const STATUS_COLORS = {
   'Planejamento': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  'Aprovação da Ideia': 'bg-yellow-100 text-yellow-800 border-yellow-200',
   'Aprovação do Cliente': 'bg-blue-100 text-blue-800 border-blue-200',
   'Captação': 'bg-orange-100 text-orange-800 border-orange-200',
   'Edição': 'bg-purple-100 text-purple-800 border-purple-200',
@@ -35,15 +36,13 @@ const STATUS_COLORS = {
 
 const STATUS_ORDER = [
   'Planejamento',
-  'Aprovação do Cliente',
+  'Aprovação da Ideia',
   'Captação',
   'Edição',
-  'Revisão',
-  'Legenda',
+  'Aprovação do Cliente',
+  'Solicitou Ajuste',
   'Programado',
   'Publicado',
-  'Em Tráfego',
-  'Finalizado'
 ]
 
 const PRIORITY_COLORS = {

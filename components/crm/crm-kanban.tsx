@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   Search,
+  X,
   Loader2,
   Pencil,
   Trash2,
@@ -36,6 +37,8 @@ import {
   updateCRMCardStatus,
   deleteCRMLead,
 } from '@/lib/data/crm-leads'
+import { getClientById, type Client } from '@/lib/data/clients'
+import { ClientFormDialog } from '@/components/clients/client-form-dialog'
 import {
   type CRMCard,
   type CRMStatus,
@@ -95,16 +98,16 @@ function LeadDetailModal({
                 )}
               </div>
             </div>
-            {!isClient && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={onEdit}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              {!isClient && (
                 <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </DialogHeader>
 
@@ -158,7 +161,7 @@ function LeadDetailModal({
                 <p className="text-xs text-muted-foreground mb-1">
                   {lead.entity === 'client' ? 'Valor Mensal' : 'Valor da Proposta'}
                 </p>
-                <p className="font-semibold text-primary">{formatCurrencyBRL(lead.value)}</p>
+                <p className="font-semibold text-primary">{formatCurrencyBRL(lead.entity === 'client' ? (lead.recurringValue ?? lead.value) : lead.value)}</p>
               </div>
             )}
             <div>
@@ -179,7 +182,28 @@ function LeadDetailModal({
             </div>
           )}
 
-          {lead.services && lead.services.length > 0 && (
+          {lead.clientServices && lead.clientServices.length > 0 && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Serviços contratados</p>
+              <div className="space-y-1.5">
+                {lead.clientServices.map((svc) => (
+                  <div key={svc.name} className="flex items-center justify-between gap-2 rounded-md bg-secondary/40 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate">
+                      {svc.kind === 'recorrente' ? '↻ ' : ''}{svc.name}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {svc.kind === 'recorrente' ? 'Recorrente' : 'Específico'}
+                      </span>
+                    </span>
+                    <span className="font-semibold text-primary shrink-0">
+                      {formatCurrencyBRL(svc.value)}{svc.kind === 'recorrente' ? '/mês' : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!lead.clientServices?.length && lead.services && lead.services.length > 0 && (
             <div>
               <p className="text-xs text-muted-foreground mb-1">Serviços desejados</p>
               <div className="flex flex-wrap gap-1.5">
@@ -251,11 +275,7 @@ function LeadCard({
               )}
             </div>
           </div>
-          {isClient ? (
-            <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30 shrink-0">
-              Cliente
-            </Badge>
-          ) : (
+          {(
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
@@ -267,13 +287,15 @@ function LeadCard({
                   <Pencil className="h-4 w-4 mr-2" />
                   Editar
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                  className="text-destructive"
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir
-                </DropdownMenuItem>
+                {!isClient && (
+                  <DropdownMenuItem
+                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    className="text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -315,14 +337,25 @@ function LeadCard({
 
         {lead.services && lead.services.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
-            {lead.services.map((service) => (
-              <span
-                key={service}
-                className="text-[10px] bg-primary/10 text-primary border border-primary/30 px-1.5 py-0.5 rounded"
-              >
-                {service}
-              </span>
-            ))}
+            {lead.services.map((service) => {
+              const svc = lead.clientServices?.find((s) => s.name === service)
+              const kind = svc?.kind
+              const svcValue = svc?.value ?? 0
+              return (
+                <span
+                  key={service}
+                  className={cn(
+                    'text-[10px] border px-1.5 py-0.5 rounded',
+                    kind === 'especifico'
+                      ? 'bg-chart-4/10 text-chart-4 border-chart-4/30'
+                      : 'bg-primary/10 text-primary border-primary/30',
+                  )}
+                >
+                  {kind === 'recorrente' ? '↻ ' : ''}{service}
+                  {svcValue ? ` · ${formatCurrencyBRL(svcValue)}${kind === 'recorrente' ? '/mês' : ''}` : kind === 'especifico' ? ' · pontual' : ''}
+                </span>
+              )
+            })}
           </div>
         )}
       </CardContent>
@@ -340,6 +373,7 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
   const [serviceFilter, setServiceFilter] = useState<string>('all')
   
   // Drag state
@@ -353,6 +387,7 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
   
   // Edit modal
   const [editingLead, setEditingLead] = useState<CRMCard | null>(null)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
   
   // Delete dialog
   const [deletingLead, setDeletingLead] = useState<CRMCard | null>(null)
@@ -462,9 +497,14 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
     setDetailOpen(true)
   }
 
-  const handleEdit = (lead: CRMCard) => {
-    setEditingLead(lead)
+  const handleEdit = async (lead: CRMCard) => {
     setDetailOpen(false)
+    if (lead.entity === 'client') {
+      const full = await getClientById(lead.id)
+      if (full) setEditingClient(full)
+      return
+    }
+    setEditingLead(lead)
   }
 
   const handleDeleteConfirm = async () => {
@@ -511,6 +551,17 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
         }}
       />
 
+      {/* Edição de cliente (mesmo formulário da aba Clientes) */}
+      <ClientFormDialog
+        client={editingClient}
+        open={!!editingClient}
+        onOpenChange={(o) => !o && setEditingClient(null)}
+        onSuccess={() => {
+          loadLeads()
+          setEditingClient(null)
+        }}
+      />
+
       {/* Delete Dialog */}
       <DeleteDialog
         open={!!deletingLead}
@@ -520,39 +571,57 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
         description={`Tem certeza que deseja excluir "${deletingLead?.name}"? Esta ação não pode ser desfeita.`}
       />
 
-      {/* Filters */}
-      <Card className="bg-card border-border mb-4">
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full sm:w-auto sm:items-center">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar leads..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 bg-secondary border-border"
-                />
-              </div>
-              <Select value={serviceFilter} onValueChange={setServiceFilter}>
-                <SelectTrigger className="w-full sm:w-56 bg-secondary border-border">
-                  <SelectValue placeholder="Filtrar por serviço" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os serviços</SelectItem>
-                  {CRM_SERVICES.map((service) => (
-                    <SelectItem key={service} value={service}>
-                      {service}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <CRMLeadFormDialog onSuccess={loadLeads} />
+      {/* Filters: tudo em uma linha */}
+      <div className="mb-4 flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className={cn('shrink-0 bg-secondary border-border', searchQuery && !searchOpen && 'border-primary text-primary')}
+          aria-label={searchOpen ? 'Fechar busca' : 'Buscar'}
+          onClick={() => {
+            if (searchOpen) setSearchQuery('')
+            setSearchOpen((v) => !v)
+          }}
+        >
+          {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+        </Button>
+        {searchOpen ? (
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              autoFocus
+              type="search"
+              placeholder="Buscar..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-secondary border-border"
+            />
           </div>
-        </CardContent>
-      </Card>
+        ) : (
+          <Select value={serviceFilter} onValueChange={setServiceFilter}>
+            <SelectTrigger className="flex-1 bg-secondary border-border">
+              <SelectValue placeholder="Filtrar por serviço" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os serviços</SelectItem>
+              {CRM_SERVICES.map((service) => (
+                <SelectItem key={service} value={service}>
+                  {service}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <CRMLeadFormDialog
+          onSuccess={loadLeads}
+          trigger={
+            <Button type="button" size="icon" className="shrink-0 bg-primary text-primary-foreground" aria-label="Adicionar lead">
+              <Plus className="h-5 w-5" />
+            </Button>
+          }
+        />
+      </div>
 
       {/* Kanban Board */}
       <div className="overflow-x-auto pb-4">
@@ -561,6 +630,8 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
             const columnLeads = getColumnLeads(column.id)
             const statusConfig = CRM_STATUS_CONFIG[column.id]
             const columnTotal = columnLeads.reduce((sum, lead) => sum + (lead.value || 0), 0)
+            const recurringTotal = columnLeads.reduce((sum, lead) => sum + (lead.recurringValue || 0), 0)
+            const specificTotal = columnLeads.reduce((sum, lead) => sum + (lead.specificValue || 0), 0)
 
             return (
               <div
@@ -583,6 +654,11 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
                     <span className="text-xs font-semibold text-primary px-0.5">
                       {formatCurrencyBRL(columnTotal)}
                     </span>
+                    {(recurringTotal > 0 || specificTotal > 0) && (
+                      <span className="text-[11px] text-muted-foreground px-0.5">
+                        ↻ {formatCurrencyBRL(recurringTotal)}/mês · pontual {formatCurrencyBRL(specificTotal)}
+                      </span>
+                    )}
                   </div>
                   <CRMLeadFormDialog
                     defaultStatus={column.id}

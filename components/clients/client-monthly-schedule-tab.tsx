@@ -2,8 +2,6 @@
 
 import React from "react"
 import { MonthlyPlanningItem } from '@/lib/data/monthly-plannings' // Import MonthlyPlanningItem
-import { updatePlanningItem, convertItemToDemand, deletePlanningItem } from '@/lib/data/planning-items' // Import updatePlanningItem, convertItemToDemand, deletePlanningItem
-import { handleViewDetails } from '@/lib/data/handle-view-details' // Declare the variable before using it
 
 import { useState, useEffect, useTransition } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +17,8 @@ import {
   deleteMonthlyPlanning,
   type MonthlyPlanning
 } from '@/lib/data/monthly-plannings'
+import { DocumentsSection } from '@/components/documents/documents-section'
+import { sendMonthToProduction } from '@/lib/data/production-flow'
 import { createVideoScript, deleteAllVideoScriptsByClient } from '@/lib/data/video-scripts'
 import { createArteBrief, deleteAllArteBriefsByClient } from '@/lib/data/arte-briefs'
 import { Calendar, Plus, Trash2, Video, ImageIcon, DollarSign, Check, Pencil, Download } from 'lucide-react'
@@ -33,6 +33,7 @@ import { getClientById } from '@/lib/data/clients'
 
 interface ClientMonthlyScheduleTabProps {
   clientId: string
+  showDocuments?: boolean
 }
 
 const MONTHS = [
@@ -40,7 +41,7 @@ const MONTHS = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ]
 
-export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabProps) {
+export function ClientMonthlyScheduleTab({ clientId, showDocuments = true }: ClientMonthlyScheduleTabProps) {
   const [plannings, setPlannings] = useState<MonthlyPlanning[]>([])
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -133,6 +134,21 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
     }
   }
 
+  const sendMonth = async (planning: MonthlyPlanning) => {
+    try {
+      const { videos, artes } = await sendMonthToProduction(clientId, planning.month, planning.year)
+      alert(
+        videos + artes === 0
+          ? 'Nada novo para enviar: tudo deste mês já está na Produção (ou gere os cards antes).'
+          : `Enviado para a Produção: ${videos} vídeo(s) e ${artes} arte(s).`
+      )
+      loadData()
+    } catch (error) {
+      console.error('[v0] Error sending month to production:', error)
+      alert('Erro ao enviar para a Produção')
+    }
+  }
+
   const generateItems = async (planning: MonthlyPlanning) => {
     try {
       // Create video scripts directly with month and year
@@ -163,6 +179,8 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
 
   return (
     <div className="space-y-6">
+      {showDocuments && <DocumentsSection clientId={clientId} clientName={clientName} />}
+
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Cronograma Mensal</h2>
@@ -298,6 +316,13 @@ export function ClientMonthlyScheduleTab({ clientId }: ClientMonthlyScheduleTabP
                   onClick={() => generateItems(planning)}
                 >
                   Gerar Cards
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => sendMonth(planning)}
+                  disabled={isPending}
+                >
+                  Enviar para Produção
                 </Button>
                 <Button
                   size="sm"

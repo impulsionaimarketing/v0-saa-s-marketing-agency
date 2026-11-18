@@ -83,10 +83,11 @@ interface Client {
 
 const STATUS_OPTIONS = [
   'Planejamento',
-  'Produção',
+  'Aprovação da Ideia',
+  'Captação',
+  'Edição',
   'Aprovação do Cliente',
   'Solicitou Ajuste',
-  'Aprovado',
   'Programado',
   'Publicado',
 ]

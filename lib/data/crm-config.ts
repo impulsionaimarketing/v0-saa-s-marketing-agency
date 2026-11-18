@@ -66,11 +66,29 @@ export const CRM_TO_CONTRACT_STATUS: Partial<Record<CRMStatus, "Ativo" | "Pausad
   contrato_cancelado: "Perdido",
 }
 
+// Serviço contratado por um cliente: recorrente (mensal) ou específico (pontual)
+export type ClientServiceKind = "recorrente" | "especifico"
+
+export interface ClientService {
+  name: string
+  kind: ClientServiceKind
+  value: number
+}
+
+export const CLIENT_SERVICE_KIND_LABEL: Record<ClientServiceKind, string> = {
+  recorrente: "Recorrente",
+  especifico: "Específico",
+}
+
 // Card unificado do kanban: pode ser um lead do CRM ou um cliente da agência
 export interface CRMCard extends CRMLead {
   entity: "lead" | "client"
   // Valor unificado: proposal_value (lead) ou monthly_value (cliente)
   value: number
+  // Só para clientes: serviços com tipo e valores separados por recorrência
+  clientServices?: ClientService[]
+  recurringValue?: number
+  specificValue?: number
 }
 
 // Formata um número como moeda brasileira (R$)

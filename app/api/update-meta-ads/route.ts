@@ -25,8 +25,10 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'update_meta_ads_data',
+        action: 'update_ads_data',
         date_range: body.date_range,
+        platform: body.platform,
+        client_id: body.client_id,
         timestamp: new Date().toISOString(),
       }),
     })

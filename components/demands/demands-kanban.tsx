@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useMemo, useTransition, useRef } from 'react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -17,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown, SlidersHorizontal } from 'lucide-react'
+import { Play, Plus, Search, Calendar, User, GripVertical, Loader2, Pencil, Trash2, ChevronDown, Check, AlertTriangle, Film, Palette, ExternalLink, Clock, ArrowUpDown, SlidersHorizontal } from 'lucide-react'
 import { getDemands, updateDemandStatus, deleteDemand, type Demand } from '@/lib/data/demands'
 import { getClients } from '@/lib/data/clients'
 import { getUsers } from '@/lib/data/users'
@@ -34,6 +35,7 @@ type DemandStatus = Demand['status']
 
 const columns: { id: DemandStatus; title: string; color: string }[] = [
   { id: 'A Fazer', title: 'A Fazer', color: 'bg-muted' },
+  { id: 'Em Produção', title: 'Fazendo', color: 'bg-warning' },
   { id: 'Publicado', title: 'Feito', color: 'bg-success' },
 ]
 
@@ -123,7 +125,7 @@ function DemandDetailModal({
                 <Badge variant="outline" className={cn('text-xs', areaColors[demand.area])}>
                   {demand.area}
                 </Badge>
-                <Badge variant="secondary" className="text-xs">{demand.status}</Badge>
+                <Badge variant="secondary" className="text-xs">{demand.status === 'Em Produção' ? 'Fazendo' : demand.status}</Badge>
                 {overdue && (
                   <Badge variant="destructive" className="text-xs flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" />
@@ -323,13 +325,14 @@ export function DemandsKanban() {
     responsibleFilter: 'all',
     dateFrom: '',
     dateTo: '',
-    statusFilter: 'all' as 'all' | 'a-fazer' | 'feito' | 'atrasado',
+    statusFilter: 'all' as 'all' | 'a-fazer' | 'fazendo' | 'feito' | 'atrasado',
     sortOption: 'none' as 'none' | 'deadline-asc' | 'deadline-desc',
     groupBy: 'status' as 'status' | 'cliente',
   })
 
   const [areaDropdownOpen, setAreaDropdownOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [mobileColumn, setMobileColumn] = useState<string | null>(null)
   const [reorganizeModes, setReorganizeModes] = useState<Record<string, boolean>>({})
   const [reorderDraggedId, setReorderDraggedId] = useState<string | null>(null)
   const [reorderDragOverId, setReorderDragOverId] = useState<string | null>(null)
@@ -365,6 +368,21 @@ export function DemandsKanban() {
     }
   }
 
+  const handleStart = (e: React.MouseEvent, demand: Demand) => {
+    e.stopPropagation()
+    if (demand.status !== 'A Fazer') return
+    setDemandItems((prev) =>
+      prev.map((d) => d.id === demand.id ? { ...d, status: 'Em Produção' } : d)
+    )
+    startTransition(async () => {
+      try {
+        await updateDemandStatus(demand.id, 'Em Produção')
+      } catch {
+        loadData()
+      }
+    })
+  }
+
   const handlePublish = (e: React.MouseEvent, demand: Demand) => {
     e.stopPropagation()
     if (demand.status === 'Publicado') return
@@ -387,7 +405,8 @@ export function DemandsKanban() {
       const overdue = isOverdue(demand.deadline, demand.status)
       const isFeito = demand.status === 'Publicado'
 
-      if (statusFilter === 'a-fazer' && isFeito) return false
+      if (statusFilter === 'a-fazer' && (isFeito || demand.status === 'Em Produção')) return false
+      if (statusFilter === 'fazendo' && demand.status !== 'Em Produção') return false
       if (statusFilter === 'feito' && !isFeito) return false
       if (statusFilter === 'atrasado' && (!overdue || isFeito)) return false
 
@@ -592,25 +611,26 @@ export function DemandsKanban() {
       />
 
       {/* Toggle filtros + nova demanda */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => setFiltersOpen((v) => !v)}
-          className="inline-flex items-center gap-2 rounded-md border border-border bg-secondary px-3 h-9 text-sm hover:bg-secondary/80 transition-colors"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-secondary px-2.5 sm:px-3 h-9 text-sm hover:bg-secondary/80 transition-colors"
+          aria-label={filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}
         >
           <SlidersHorizontal className="h-4 w-4" />
-          <span>{filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}</span>
+          <span className="hidden sm:inline">{filtersOpen ? 'Ocultar filtros' : 'Mostrar filtros'}</span>
           {activeFilterCount > 0 && (
             <Badge variant="secondary" className="text-xs px-1.5">
               {activeFilterCount}
             </Badge>
           )}
-          <ChevronDown className={cn('h-4 w-4 transition-transform', filtersOpen && 'rotate-180')} />
+          <ChevronDown className={cn('hidden sm:block h-4 w-4 transition-transform', filtersOpen && 'rotate-180')} />
         </button>
-        <div className="inline-flex items-center gap-1 rounded-md border border-border bg-secondary p-1 mr-auto">
+        <div className="inline-flex items-center gap-1 rounded-md border border-border bg-secondary p-1 mr-auto min-w-0 flex-1 sm:flex-none">
           {([
-            { value: 'status', label: 'A Fazer / Feito' },
-            { value: 'cliente', label: 'Por cliente' },
+            { value: 'status', label: 'Status', long: 'A Fazer / Feito' },
+            { value: 'cliente', label: 'Cliente', long: 'Por cliente' },
           ] as const).map((option) => {
             const active = (filters.groupBy || 'status') === option.value
             return (
@@ -619,18 +639,27 @@ export function DemandsKanban() {
                 type="button"
                 onClick={() => setFilter('groupBy', option.value)}
                 className={cn(
-                  'px-3 h-7 text-xs sm:text-sm rounded transition-colors whitespace-nowrap',
+                  'flex-1 sm:flex-none px-3 h-7 text-xs sm:text-sm rounded transition-colors whitespace-nowrap',
                   active
                     ? 'bg-card text-foreground font-medium shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                {option.label}
+                <span className="sm:hidden">{option.label}</span>
+                <span className="hidden sm:inline">{option.long}</span>
               </button>
             )
           })}
         </div>
-        <DemandFormDialog onSuccess={loadData} />
+        <DemandFormDialog
+          onSuccess={loadData}
+          trigger={
+            <Button className="shrink-0 gap-2 px-3" aria-label="Nova demanda">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Nova Demanda</span>
+            </Button>
+          }
+        />
       </div>
 
       {/* Filters */}
@@ -724,6 +753,7 @@ export function DemandsKanban() {
                 <SelectContent>
                   <SelectItem value="all">Todos status</SelectItem>
                   <SelectItem value="a-fazer">A Fazer</SelectItem>
+                  <SelectItem value="fazendo">Fazendo</SelectItem>
                   <SelectItem value="feito">Feito</SelectItem>
                   <SelectItem value="atrasado">Atrasado</SelectItem>
                 </SelectContent>
@@ -779,6 +809,32 @@ export function DemandsKanban() {
       </Card>
       )}
 
+      {/* Celular: abas para alternar entre as colunas */}
+      {(() => {
+        const activeId = boardColumns.some((c) => c.id === mobileColumn) ? mobileColumn : boardColumns[0]?.id
+        return (
+          <div className="sm:hidden -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {boardColumns.map((column) => (
+              <button
+                key={column.id}
+                type="button"
+                onClick={() => setMobileColumn(column.id)}
+                className={cn(
+                  'flex shrink-0 items-center gap-2 rounded-full border px-3 h-9 text-sm whitespace-nowrap transition-colors',
+                  column.id === activeId
+                    ? 'border-primary bg-primary/10 text-foreground font-medium'
+                    : 'border-border bg-secondary text-muted-foreground'
+                )}
+              >
+                <span className={cn('h-2.5 w-2.5 rounded-full', column.color)} />
+                {column.title}
+                <span className="text-xs text-muted-foreground">{column.demands.length}</span>
+              </button>
+            ))}
+          </div>
+        )
+      })()}
+
       {/* Kanban board */}
       <div className="flex gap-4 overflow-x-auto pb-4 items-start">
         {boardColumns.map((column) => {
@@ -788,7 +844,13 @@ export function DemandsKanban() {
           const isReorganizing = !!reorganizeModes[column.id]
 
           return (
-            <div key={column.id} className="flex-shrink-0 w-72">
+            <div
+              key={column.id}
+              className={cn(
+                'flex-shrink-0 w-full sm:w-72',
+                column.id !== (boardColumns.some((c) => c.id === mobileColumn) ? mobileColumn : boardColumns[0]?.id) && 'hidden sm:block'
+              )}
+            >
               <div className="flex items-center gap-2 mb-3 px-1">
                 <div className={cn('h-3 w-3 rounded-full', column.color)} />
                 <h3 className="font-semibold text-sm truncate" title={column.title}>{column.title}</h3>
@@ -944,6 +1006,18 @@ export function DemandsKanban() {
                                 </div>
                                 {isPublished ? 'Feito' : 'Marcar como feito'}
                               </button>
+
+                              {demand.status === 'A Fazer' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleStart(e, demand)}
+                                  title="Mover para Fazendo"
+                                  className="flex items-center gap-1 text-xs px-2 py-1 rounded text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors"
+                                >
+                                  <Play className="h-3 w-3" />
+                                  Começar
+                                </button>
+                              )}
 
                               <DemandFormDialog
                                 demand={demand}

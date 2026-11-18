@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { statusAfterClientDecision } from '@/lib/constants'
+import { ensureStageTask } from '@/lib/data/production-flow'
 
 // ─── Gerar link de aprovação para uma produção ───────────────────────────────
 export async function generateApprovalLink(productionId: string): Promise<string> {
@@ -189,7 +191,7 @@ export async function getClientPortalData(clientId: string): Promise<ClientPorta
   if (clientError || !client) return null
 
   // Só interessam ao cliente os conteúdos que passaram/estão no fluxo de aprovação.
-  const RELEVANT_STATUSES = ['Aprovação do Cliente', 'Solicitou Ajuste', 'Aprovado']
+  const RELEVANT_STATUSES = ['Aprovação da Ideia', 'Aprovação do Cliente', 'Solicitou Ajuste', 'Aprovado', 'Captação', 'Programado']
 
   // IMPORTANTE: não embutir production_comments/production_approvals aqui.
   // Essas tabelas têm RLS sem política de SELECT para anon, então o embed do
@@ -340,12 +342,19 @@ export async function submitApprovalResponse(params: {
 
   // Status geral: aprovado só se TODOS os elementos foram aprovados
   const allApproved = params.elements.every((el) => el.decision === 'aprovado')
-  const newStatus = allApproved ? 'Aprovado' : 'Solicitou Ajuste'
+  const { data: current } = await supabase
+    .from('productions')
+    .select('status')
+    .eq('id', params.productionId)
+    .maybeSingle()
+  const newStatus = statusAfterClientDecision(current?.status, allApproved)
 
   await supabase
     .from('productions')
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', params.productionId)
+
+  await ensureStageTask(params.productionId, newStatus)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

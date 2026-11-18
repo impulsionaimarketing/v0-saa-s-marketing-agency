@@ -43,6 +43,7 @@ const demandStatusColors: Record<string, string> = {
 
 const productionStatusColors: Record<string, string> = {
   'Planejamento': 'bg-muted text-muted-foreground',
+  'Aprovação da Ideia': 'bg-warning/10 text-warning',
   'Aprovação do Cliente': 'bg-warning/10 text-warning',
   'Captação': 'bg-chart-2/10 text-chart-2',
   'Edição': 'bg-chart-2/10 text-chart-2',

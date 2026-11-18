@@ -145,3 +145,19 @@
     display: none;
   }
 }
+
+/* Folha de documento (editor do cronograma mensal) */
+.doc-sheet .ProseMirror { outline: none; line-height: 1.6; font-size: 0.95rem; color: #111; }
+.doc-sheet .ProseMirror h1 { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.25rem; }
+.doc-sheet .ProseMirror h2 { font-size: 1.3rem; font-weight: 700; margin: 1.5rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #e5e5e5; }
+.doc-sheet .ProseMirror h3 { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 0.25rem; }
+.doc-sheet .ProseMirror p { margin: 0 0 0.5rem; }
+.doc-sheet .ProseMirror ul { list-style: disc; padding-left: 1.4rem; margin: 0 0 0.6rem; }
+.doc-sheet .ProseMirror ol { list-style: decimal; padding-left: 1.4rem; margin: 0 0 0.6rem; }
+.doc-sheet .ProseMirror li > p { margin: 0; }
+.doc-sheet .ProseMirror ul[data-type='taskList'] { list-style: none; padding-left: 0; }
+.doc-sheet .ProseMirror ul[data-type='taskList'] li { display: flex; gap: 0.5rem; align-items: flex-start; }
+.doc-sheet .ProseMirror ul[data-type='taskList'] li > label { margin-top: 0.2rem; }
+.doc-sheet .ProseMirror blockquote { border-left: 3px solid #d4d4d4; padding-left: 0.8rem; color: #525252; margin: 0.5rem 0; }
+.doc-sheet .ProseMirror hr { border: none; border-top: 1px solid #d4d4d4; margin: 1.2rem 0; }
+.doc-sheet .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #a3a3a3; float: left; height: 0; pointer-events: none; }

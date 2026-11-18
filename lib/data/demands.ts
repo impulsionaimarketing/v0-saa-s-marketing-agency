@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { sendWebhookNotification } from "@/lib/webhooks/send-notification"
-import { createLinkedProductionForDemand } from "@/lib/data/productions"
+import { notifyDemandAssigned } from "@/lib/push"
 
 export interface Demand {
   id: string
@@ -124,11 +124,10 @@ export async function createDemand(data: Partial<Demand>): Promise<Demand | null
     // Send webhook notification
     await sendWebhookNotification('demand.created', result)
 
-    // Auto-create a linked production for Arte/Vídeo demands so they
-    // automatically show up in the Produção tab.
-    if (result.area === 'Arte' || result.area === 'Vídeo') {
-      await createLinkedProductionForDemand(result as Demand)
-    }
+    // Demandas são só controle de trabalho do dia a dia: não criam produção.
+
+    // Avisa o responsável no celular
+    await notifyDemandAssigned(result as Demand)
 
     return result as Demand
   } catch (error) {
@@ -140,6 +139,9 @@ export async function createDemand(data: Partial<Demand>): Promise<Demand | null
 export async function updateDemand(id: string, data: Partial<Demand>): Promise<Demand | null> {
   try {
     const supabase = await createClient()
+
+    // Responsável antes da edição, para avisar só quando mudar
+    const { data: before } = await supabase.from('demands').select('responsible_id').eq('id', id).maybeSingle()
 
     const updateData: Record<string, unknown> = {}
     const fields: (keyof Demand)[] = ['name', 'description', 'client_id', 'area', 'responsible_id', 'deadline', 'status', 'priority']
@@ -173,24 +175,8 @@ export async function updateDemand(id: string, data: Partial<Demand>): Promise<D
       throw new Error("Failed to update demand")
     }
 
-    // Check if there's a production linked to this demand and sync
-    const { data: linkedProduction } = await supabase
-      .from('productions')
-      .select('id')
-      .eq('demand_id', id)
-      .single()
-
-    if (linkedProduction) {
-      console.log('[v0] Syncing demand changes to linked production:', linkedProduction.id)
-      await supabase
-        .from('productions')
-        .update({
-          responsible_id: data.responsible_id,
-          status: mapDemandStatusToProductionStatus(data.status),
-          post_date: data.deadline,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', linkedProduction.id)
+    if (result.responsible_id && result.responsible_id !== before?.responsible_id) {
+      await notifyDemandAssigned(result as Demand)
     }
 
     // Send webhook notification
@@ -203,17 +189,6 @@ export async function updateDemand(id: string, data: Partial<Demand>): Promise<D
   }
 }
 
-// Helper function to map demand status to production status
-function mapDemandStatusToProductionStatus(demandStatus?: string): string {
-  const statusMap: Record<string, string> = {
-    'A Fazer': 'Planejamento',
-    'Em Produção': 'Produção',
-    'Em Revisão': 'Revisão',
-    'Aprovado': 'Aprovado',
-    'Publicado': 'Publicado'
-  }
-  return demandStatus ? (statusMap[demandStatus] || 'Planejamento') : 'Planejamento'
-}
 
 export async function updateDemandStatus(id: string, status: Demand["status"]): Promise<Demand | null> {
   try {

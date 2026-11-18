@@ -66,6 +66,9 @@ interface ProductionDetailDrawerProps {
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   'Planejamento': { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200' },
   'Produção': { bg: 'bg-violet-100', text: 'text-violet-700', border: 'border-violet-200' },
+  'Aprovação da Ideia': { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
+  'Captação': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
+  'Edição': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
   'Aprovação do Cliente': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
   'Solicitou Ajuste': { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' },
   'Aprovado': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },

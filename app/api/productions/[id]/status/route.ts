@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendWebhookNotification } from '@/lib/webhooks/send-notification'
+import { ensureStageTask } from '@/lib/data/production-flow'
 
 export async function POST(
   request: NextRequest,
@@ -44,6 +45,8 @@ export async function POST(
       console.error('Error updating production status:', updateError)
       return NextResponse.json({ error: 'Falha ao atualizar status' }, { status: 500 })
     }
+
+    await ensureStageTask(productionId, newStatus)
 
     // Insert into production_status_history
     const { error: historyError } = await supabase

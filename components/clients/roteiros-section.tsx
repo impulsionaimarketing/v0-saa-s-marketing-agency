@@ -83,7 +83,7 @@ export function RoteirosSection({ clientId, month, year }: RoteirosSectionProps)
       loadData()
     } catch (error) {
       console.error('[v0] Error converting video to demand:', error)
-      alert('Erro ao converter roteiro em demanda')
+      alert('Erro ao enviar roteiro para a Produção')
     }
   }
 
@@ -111,7 +111,7 @@ export function RoteirosSection({ clientId, month, year }: RoteirosSectionProps)
       loadData()
     } catch (error) {
       console.error('[v0] Error converting arte to demand:', error)
-      alert('Erro ao converter briefing em demanda')
+      alert('Erro ao enviar briefing para a Produção')
     }
   }
 

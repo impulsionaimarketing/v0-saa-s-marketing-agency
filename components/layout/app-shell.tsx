@@ -1,5 +1,6 @@
 'use client'
 
+import { NotificationBanner } from '@/components/notifications/notification-banner'
 import React from "react"
 
 import { useState, createContext, useContext } from 'react'
@@ -55,6 +56,7 @@ export function AppShell({ children }: AppShellProps) {
             onMenuClick={() => setMobileOpen(true)}
           />
           <main className="p-3 sm:p-4 md:p-6">
+            <NotificationBanner />
             {children}
           </main>
         </div>
