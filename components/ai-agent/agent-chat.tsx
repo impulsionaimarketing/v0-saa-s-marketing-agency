@@ -283,6 +283,14 @@ export function AgentChat() {
     }
   }
 
+  // Confirma de uma vez todas as ações pendentes de uma mensagem
+  const confirmAll = async (messageIndex: number) => {
+    const actions = messages[messageIndex]?.pending?.filter(p => p.state === 'pending') ?? []
+    for (const action of actions) {
+      await confirmAction(messageIndex, action)
+    }
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     sendMessage(input)
@@ -403,6 +411,11 @@ export function AgentChat() {
                       )}
                     >
                       {message.content}
+                      {(message.pending?.filter(p => p.state === 'pending').length ?? 0) > 1 && (
+                        <Button size="sm" className="mt-3 w-full" onClick={() => confirmAll(index)}>
+                          Confirmar todas ({message.pending!.filter(p => p.state === 'pending').length})
+                        </Button>
+                      )}
                       {message.pending?.map(action => (
                         <div key={action.id} className="mt-3 rounded-xl border border-border bg-card p-3 text-foreground">
                           <ul className="space-y-0.5 text-xs">

@@ -20,7 +20,8 @@ function systemPrompt(user: { name: string; role: string }) {
     'Use as ferramentas para consultar dados reais. Nunca invente números, nomes ou prazos; se a ferramenta não trouxer, diga que não encontrou.',
     'Prazos como "sexta" ou "amanhã" você converte para a data AAAA-MM-DD a partir de hoje.',
     manager
-      ? 'Para criar demandas ou leads use as ferramentas create_*: elas só PREPARAM a ação e o usuário confirma em um cartão. Depois de chamar, diga que preparou e peça para tocar em Confirmar. Se faltar cliente, área ou nome, pergunte antes.'
+      ? 'Se a mensagem trouxer VÁRIAS tarefas (inclusive de clientes diferentes), chame create_demand uma vez para cada tarefa, no mesmo turno, cada uma com o seu cliente. Se o cliente de alguma tarefa não estiver claro, prepare as outras e pergunte só sobre essa. Quando o usuário citar um responsável ou prazo para todas, aplique a todas. ' +
+        'Para criar demandas ou leads use as ferramentas create_*: elas só PREPARAM a ação e o usuário confirma em um cartão. Depois de chamar, diga que preparou e peça para tocar em Confirmar. Se faltar cliente, área ou nome, pergunte antes.'
       : 'Este usuário é Colaborador: só pode consultar as próprias demandas. Não crie nem altere nada.',
     'Responda em poucas linhas, com listas curtas quando ajudar. Valores em reais (R$). Não use tabelas.',
   ].join('\n')
