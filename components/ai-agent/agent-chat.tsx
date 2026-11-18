@@ -38,6 +38,27 @@ const quickSuggestions = [
   'Criar uma demanda',
 ]
 
+// Formatação simples das respostas: **negrito**, `código`, títulos (#) e listas com "-" ou "*"
+function FormattedText({ text }: { text: string }) {
+  const cleaned = text
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '• ')
+  const parts = cleaned.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+          return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
+        }
+        if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+          return <code key={i} className="rounded bg-background/60 px-1 text-[0.85em]">{part.slice(1, -1)}</code>
+        }
+        return <span key={i}>{part}</span>
+      })}
+    </>
+  )
+}
+
 export function AgentChat() {
   const [isOpen, setIsOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -323,7 +344,7 @@ export function AgentChat() {
             "animate-in slide-in-from-bottom-4 fade-in duration-300",
             isFullscreen 
               ? "inset-0 rounded-none" 
-              : "bottom-24 right-6 w-[380px] h-[520px] rounded-2xl max-sm:inset-4 max-sm:w-auto max-sm:h-auto max-sm:bottom-20"
+              : "bottom-24 right-6 w-[380px] h-[520px] max-h-[calc(100dvh-7rem)] rounded-2xl max-sm:inset-4 max-sm:w-auto max-sm:h-auto max-sm:max-h-none max-sm:bottom-20"
           )}
         >
           {/* Header */}
@@ -362,7 +383,7 @@ export function AgentChat() {
           </div>
 
           {/* Messages Area */}
-          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+          <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
                 <div className="flex items-center justify-center size-12 rounded-full bg-primary/10">
@@ -410,7 +431,7 @@ export function AgentChat() {
                           : 'bg-muted text-foreground rounded-bl-md'
                       )}
                     >
-                      {message.content}
+                      {message.role === 'assistant' ? <FormattedText text={message.content} /> : message.content}
                       {(message.pending?.filter(p => p.state === 'pending').length ?? 0) > 1 && (
                         <Button size="sm" className="mt-3 w-full" onClick={() => confirmAll(index)}>
                           Confirmar todas ({message.pending!.filter(p => p.state === 'pending').length})
@@ -456,7 +477,7 @@ export function AgentChat() {
                 )}
               </div>
             )}
-          </ScrollArea>
+          </div>
 
           {/* Input Area */}
           <div className="p-3 border-t border-border bg-card">
