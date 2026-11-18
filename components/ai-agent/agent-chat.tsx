@@ -7,10 +7,20 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { Sparkles, X, Send, Mic, Bot, Maximize2, Minimize2, Loader2 } from 'lucide-react'
 
+interface PendingAction {
+  id: string
+  tool: string
+  args: Record<string, any>
+  summary: string[]
+  state?: 'pending' | 'running' | 'done' | 'cancelled' | 'error'
+  result?: string
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
+  pending?: PendingAction[]
 }
 
 // Extend Window interface for SpeechRecognition
@@ -22,10 +32,10 @@ declare global {
 }
 
 const quickSuggestions = [
-  'Quais demandas estão pendentes?',
-  'Criar nova demanda',
-  'Ver clientes ativos',
-  'Resumo do cronograma',
+  'Quais demandas estão atrasadas?',
+  'Quanto gastamos em anúncios este mês?',
+  'O que está em Captação na Produção?',
+  'Criar uma demanda',
 ]
 
 export function AgentChat() {
@@ -45,6 +55,7 @@ export function AgentChat() {
   const animationFrameRef = useRef<number | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const transcriptRef = useRef<string>('')
+  const sendRef = useRef<((text: string) => void) | null>(null)
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -198,10 +209,9 @@ export function AgentChat() {
     setTimeout(() => {
       setIsProcessingAudio(false)
       if (capturedTranscript) {
-        // Put text in input field instead of sending directly
-        setInput(prev => prev ? prev + ' ' + capturedTranscript : capturedTranscript)
-        // Focus input so user can edit
-        inputRef.current?.focus()
+        // Comando de voz: envia direto. Criar algo continua pedindo confirmação no cartão.
+        if (sendRef.current) sendRef.current(capturedTranscript)
+        else setInput(capturedTranscript)
       }
       transcriptRef.current = ''
     }, 300)
@@ -216,27 +226,23 @@ export function AgentChat() {
     setIsLoading(true)
 
     try {
-      const response = await fetch(
-        'https://n8n.impulsionaimarketing.com.br/webhook/agente-ia',
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: text,
-            history: messages.slice(-6).map(m => ({
-              role: m.role,
-              content: m.content
-            }))
-          })
-        }
-      )
+      const response = await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...messages, userMessage].slice(-8).map(m => ({ role: m.role, content: m.content })),
+        }),
+      })
 
       const data = await response.json()
 
       const aiMessage: Message = {
         role: 'assistant',
-        content: data.response || data.output || data.text || 'Não consegui processar sua solicitação.',
-        timestamp: new Date()
+        content: data.reply || data.error || 'Não consegui processar sua solicitação.',
+        timestamp: new Date(),
+        pending: Array.isArray(data.pending) && data.pending.length
+          ? data.pending.map((p: PendingAction) => ({ ...p, state: 'pending' as const }))
+          : undefined,
       }
       setMessages(prev => [...prev, aiMessage])
     } catch (error) {
@@ -248,6 +254,32 @@ export function AgentChat() {
       }])
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  sendRef.current = sendMessage
+
+  const updatePending = (messageIndex: number, actionId: string, patch: Partial<PendingAction>) => {
+    setMessages(prev => prev.map((m, i) =>
+      i === messageIndex && m.pending
+        ? { ...m, pending: m.pending.map(p => (p.id === actionId ? { ...p, ...patch } : p)) }
+        : m
+    ))
+  }
+
+  const confirmAction = async (messageIndex: number, action: PendingAction) => {
+    updatePending(messageIndex, action.id, { state: 'running' })
+    try {
+      const res = await fetch('/api/agent/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tool: action.tool, args: action.args }),
+      })
+      const data = await res.json()
+      if (data.success) updatePending(messageIndex, action.id, { state: 'done', result: data.message })
+      else updatePending(messageIndex, action.id, { state: 'error', result: data.error || 'Não foi possível executar.' })
+    } catch {
+      updatePending(messageIndex, action.id, { state: 'error', result: 'Erro de conexão.' })
     }
   }
 
@@ -371,6 +403,27 @@ export function AgentChat() {
                       )}
                     >
                       {message.content}
+                      {message.pending?.map(action => (
+                        <div key={action.id} className="mt-3 rounded-xl border border-border bg-card p-3 text-foreground">
+                          <ul className="space-y-0.5 text-xs">
+                            {action.summary.map((line, i) => <li key={i}>{line}</li>)}
+                          </ul>
+                          {action.state === 'pending' || action.state === 'running' ? (
+                            <div className="mt-3 flex gap-2">
+                              <Button size="sm" className="flex-1" disabled={action.state === 'running'} onClick={() => confirmAction(index, action)}>
+                                {action.state === 'running' ? <Loader2 className="size-4 animate-spin" /> : 'Confirmar'}
+                              </Button>
+                              <Button size="sm" variant="outline" disabled={action.state === 'running'} onClick={() => updatePending(index, action.id, { state: 'cancelled' })}>
+                                Cancelar
+                              </Button>
+                            </div>
+                          ) : (
+                            <p className={cn('mt-2 text-xs font-medium', action.state === 'done' ? 'text-success' : action.state === 'error' ? 'text-destructive' : 'text-muted-foreground')}>
+                              {action.state === 'done' ? `✓ ${action.result}` : action.state === 'error' ? `Erro: ${action.result}` : 'Cancelado'}
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
