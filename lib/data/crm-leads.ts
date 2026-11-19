@@ -51,27 +51,41 @@ export async function createCRMLead(data: {
   source?: string | null
   notes?: string | null
   proposal_value?: number
+  recurring_value?: number
+  specific_value?: number
   services?: string[]
   status?: CRMStatus
 }): Promise<CRMLead | null> {
   try {
     const supabase = await createSupabaseClient()
 
-    const { data: result, error } = await supabase
+    const hasSplit = data.recurring_value !== undefined || data.specific_value !== undefined
+    const recurring = Number(data.recurring_value) || 0
+    const specific = Number(data.specific_value) || 0
+    const base = {
+      name: data.name,
+      phone: data.phone || null,
+      email: data.email || null,
+      company: data.company || null,
+      source: data.source || null,
+      notes: data.notes || null,
+      // proposal_value continua sendo o total (recorrente + específico)
+      proposal_value: hasSplit ? recurring + specific : data.proposal_value ?? 0,
+      services: data.services ?? [],
+      status: data.status || "lead_novo",
+    }
+
+    const row: Record<string, unknown> = hasSplit ? { ...base, recurring_value: recurring, specific_value: specific } : base
+    let { data: result, error } = await supabase
       .from("crm_leads")
-      .insert({
-        name: data.name,
-        phone: data.phone || null,
-        email: data.email || null,
-        company: data.company || null,
-        source: data.source || null,
-        notes: data.notes || null,
-        proposal_value: data.proposal_value ?? 0,
-        services: data.services ?? [],
-        status: data.status || "lead_novo",
-      })
+      .insert(row)
       .select("*")
       .single()
+
+    // Banco ainda sem as colunas novas: grava só o total
+    if (error && hasSplit && /recurring_value|specific_value/.test(error.message)) {
+      ;({ data: result, error } = await supabase.from("crm_leads").insert(base).select("*").single())
+    }
 
     if (error) {
       console.error("[v0] Error creating CRM lead:", error)
@@ -92,12 +106,23 @@ export async function updateCRMLead(
   try {
     const supabase = await createSupabaseClient()
 
-    const { data: result, error } = await supabase
+    const payload: Record<string, unknown> = { ...data, updated_at: new Date().toISOString() }
+    if (data.recurring_value !== undefined || data.specific_value !== undefined) {
+      payload.proposal_value = (Number(data.recurring_value) || 0) + (Number(data.specific_value) || 0)
+    }
+
+    let { data: result, error } = await supabase
       .from("crm_leads")
-      .update({ ...data, updated_at: new Date().toISOString() })
+      .update(payload)
       .eq("id", id)
       .select("*")
       .single()
+
+    // Banco ainda sem as colunas novas: atualiza só o total
+    if (error && /recurring_value|specific_value/.test(error.message)) {
+      const { recurring_value, specific_value, ...rest } = payload
+      ;({ data: result, error } = await supabase.from("crm_leads").update(rest).eq("id", id).select("*").single())
+    }
 
     if (error) {
       console.error("[v0] Error updating CRM lead:", error)
@@ -216,12 +241,21 @@ export async function getCRMCards(): Promise<CRMCard[]> {
       console.error("[v0] Error fetching clients for CRM:", clientsResult.error)
     }
 
-    const leadCards: CRMCard[] = (leadsResult.data || []).map((lead: any) => ({
-      ...(lead as CRMLead),
-      services: Array.isArray(lead.services) ? lead.services : [],
-      entity: "lead",
-      value: Number(lead.proposal_value) || 0,
-    }))
+    const leadCards: CRMCard[] = (leadsResult.data || []).map((lead: any) => {
+      const proposal = Number(lead.proposal_value) || 0
+      let recurringValue = Number(lead.recurring_value) || 0
+      const specificValue = Number(lead.specific_value) || 0
+      // Lead antigo, sem divisão: o valor da proposta conta como recorrente
+      if (recurringValue === 0 && specificValue === 0) recurringValue = proposal
+      return {
+        ...(lead as CRMLead),
+        services: Array.isArray(lead.services) ? lead.services : [],
+        entity: "lead",
+        value: recurringValue + specificValue,
+        recurringValue,
+        specificValue,
+      } as CRMCard
+    })
 
     const clientCards: CRMCard[] = (clientsResult.data || []).map(clientToCRMCard)
 

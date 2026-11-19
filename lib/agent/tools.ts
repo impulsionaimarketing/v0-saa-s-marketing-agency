@@ -91,7 +91,8 @@ export function toolDefinitions(user: AgentUser) {
       phone: { type: 'string' },
       company: { type: 'string' },
       services: { type: 'array', items: { type: 'string', enum: [...CRM_SERVICES] } },
-      proposal_value: { type: 'number' },
+      recurring_value: { type: 'number', description: 'Valor recorrente (por mês) em reais' },
+      specific_value: { type: 'number', description: 'Valor específico (pontual, uma vez) em reais' },
       notes: { type: 'string' },
     }, ['name']),
   ]
@@ -153,7 +154,7 @@ export async function runTool(
         if (!isManager(user)) return { error: 'sem permissão' }
         const leads = await getCRMLeads({ status: args.status })
         return clip(leads.map((l) => ({
-          nome: l.name, empresa: l.company, telefone: l.phone, status: l.status, valor_proposta: l.proposal_value, servicos: l.services,
+          nome: l.name, empresa: l.company, telefone: l.phone, status: l.status, valor_recorrente: l.recurring_value ?? l.proposal_value, valor_especifico: l.specific_value ?? 0, servicos: l.services,
         })))
       }
 
@@ -218,7 +219,8 @@ export async function runTool(
             phone: args.phone ?? null,
             company: args.company ?? null,
             services: Array.isArray(args.services) ? args.services : [],
-            proposal_value: Number(args.proposal_value) || 0,
+            recurring_value: Number(args.recurring_value) || 0,
+            specific_value: Number(args.specific_value) || 0,
             notes: args.notes ?? null,
           },
           summary: [
@@ -226,7 +228,8 @@ export async function runTool(
             ...(args.company ? [`Empresa: ${args.company}`] : []),
             ...(args.phone ? [`Telefone: ${args.phone}`] : []),
             ...(Array.isArray(args.services) && args.services.length ? [`Serviços: ${args.services.join(', ')}`] : []),
-            ...(args.proposal_value ? [`Valor da proposta: R$ ${Number(args.proposal_value).toLocaleString('pt-BR')}`] : []),
+            ...(args.recurring_value ? [`Valor recorrente: R$ ${Number(args.recurring_value).toLocaleString('pt-BR')}/mês`] : []),
+            ...(args.specific_value ? [`Valor específico: R$ ${Number(args.specific_value).toLocaleString('pt-BR')}`] : []),
           ],
         }
         pending.push(action)
@@ -270,7 +273,8 @@ export async function executeAction(user: AgentUser, tool: string, args: Record<
       phone: args.phone || null,
       company: args.company || null,
       services: Array.isArray(args.services) ? args.services : [],
-      proposal_value: Number(args.proposal_value) || 0,
+      recurring_value: Number(args.recurring_value) || 0,
+      specific_value: Number(args.specific_value) || 0,
       notes: args.notes || null,
       source: 'Assistente',
     })

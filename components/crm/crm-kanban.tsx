@@ -156,12 +156,16 @@ function LeadDetailModal({
                 <p className="font-medium">{lead.source}</p>
               </div>
             )}
-            {lead.value > 0 && (
+            {(lead.recurringValue || 0) > 0 && (
               <div>
-                <p className="text-xs text-muted-foreground mb-1">
-                  {lead.entity === 'client' ? 'Valor Mensal' : 'Valor da Proposta'}
-                </p>
-                <p className="font-semibold text-primary">{formatCurrencyBRL(lead.entity === 'client' ? (lead.recurringValue ?? lead.value) : lead.value)}</p>
+                <p className="text-xs text-muted-foreground mb-1">Valor recorrente (mês)</p>
+                <p className="font-semibold text-primary">{formatCurrencyBRL(lead.recurringValue || 0)}</p>
+              </div>
+            )}
+            {(lead.specificValue || 0) > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Valor específico (pontual)</p>
+                <p className="font-semibold text-primary">{formatCurrencyBRL(lead.specificValue || 0)}</p>
               </div>
             )}
             <div>
@@ -329,10 +333,11 @@ function LeadCard({
           )}
         </div>
 
-        {lead.value > 0 && (
-          <p className="text-sm font-semibold text-primary mt-2">
-            {formatCurrencyBRL(lead.value)}
-          </p>
+        {((lead.recurringValue || 0) > 0 || (lead.specificValue || 0) > 0) && (
+          <div className="mt-2 space-y-0.5 text-sm font-semibold text-primary">
+            {(lead.recurringValue || 0) > 0 && <p>↻ {formatCurrencyBRL(lead.recurringValue || 0)}/mês</p>}
+            {(lead.specificValue || 0) > 0 && <p>{formatCurrencyBRL(lead.specificValue || 0)} pontual</p>}
+          </div>
         )}
 
         {lead.services && lead.services.length > 0 && (

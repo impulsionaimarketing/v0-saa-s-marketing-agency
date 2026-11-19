@@ -48,6 +48,15 @@ interface CRMLeadFormDialogControlledProps {
   onSuccess?: () => void
 }
 
+// Lead antigo (sem divisão de valores): a proposta conta como recorrente
+function initialRecurring(lead?: { recurring_value?: number; specific_value?: number; proposal_value?: number } | null) {
+  if (!lead) return ''
+  const recurring = Number(lead.recurring_value) || 0
+  if (recurring > 0) return String(recurring)
+  if (Number(lead.specific_value) > 0) return ''
+  return lead.proposal_value ? String(lead.proposal_value) : ''
+}
+
 export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: CRMLeadFormDialogProps) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
@@ -59,7 +68,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
     company: '',
     source: '',
     notes: '',
-    proposal_value: '',
+    recurring_value: '',
+    specific_value: '',
     services: [] as string[],
     status: (defaultStatus || 'lead_novo') as CRMStatus,
   })
@@ -73,7 +83,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         company: lead?.company || '',
         source: lead?.source || '',
         notes: lead?.notes || '',
-        proposal_value: lead?.proposal_value ? String(lead.proposal_value) : '',
+        recurring_value: initialRecurring(lead),
+        specific_value: lead?.specific_value ? String(lead.specific_value) : '',
         services: lead?.services || [],
         status: lead?.status || defaultStatus || 'lead_novo',
       })
@@ -101,7 +112,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
-          proposal_value: Number(formData.proposal_value) || 0,
+          recurring_value: Number(formData.recurring_value) || 0,
+          specific_value: Number(formData.specific_value) || 0,
           services: formData.services,
           status: formData.status,
         }
@@ -123,7 +135,8 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             company: '',
             source: '',
             notes: '',
-            proposal_value: '',
+            recurring_value: '',
+            specific_value: '',
             services: [],
             status: defaultStatus || 'lead_novo',
           })
@@ -216,19 +229,44 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="proposal_value">Valor da Proposta (R$)</Label>
-              <Input
-                id="proposal_value"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.proposal_value}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
-                }
-                placeholder="0,00"
-                className="bg-secondary border-border"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="recurring_value">Valor recorrente (R$/mês)</Label>
+                  <Input
+                    id="recurring_value"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.recurring_value}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, recurring_value: e.target.value }))
+                    }
+                    placeholder="0,00"
+                    className="bg-secondary border-border"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="specific_value">Valor específico (R$ pontual)</Label>
+                  <Input
+                    id="specific_value"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.specific_value}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, specific_value: e.target.value }))
+                    }
+                    placeholder="0,00"
+                    className="bg-secondary border-border"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Total da proposta:{' '}
+                <span className="font-medium text-foreground">
+                  R$ {((Number(formData.recurring_value) || 0) + (Number(formData.specific_value) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </p>
             </div>
 
             <div className="grid gap-2">
@@ -335,7 +373,8 @@ export function CRMLeadFormDialogControlled({
     company: '',
     source: '',
     notes: '',
-    proposal_value: '',
+    recurring_value: '',
+    specific_value: '',
     services: [] as string[],
     status: 'lead_novo' as CRMStatus,
   })
@@ -349,7 +388,8 @@ export function CRMLeadFormDialogControlled({
         company: lead.company || '',
         source: lead.source || '',
         notes: lead.notes || '',
-        proposal_value: lead.proposal_value ? String(lead.proposal_value) : '',
+        recurring_value: initialRecurring(lead),
+        specific_value: lead.specific_value ? String(lead.specific_value) : '',
         services: lead.services || [],
         status: lead.status || 'lead_novo',
       })
@@ -377,7 +417,8 @@ export function CRMLeadFormDialogControlled({
           company: formData.company || null,
           source: formData.source || null,
           notes: formData.notes || null,
-          proposal_value: Number(formData.proposal_value) || 0,
+          recurring_value: Number(formData.recurring_value) || 0,
+          specific_value: Number(formData.specific_value) || 0,
           services: formData.services,
           status: formData.status,
         }
@@ -470,19 +511,44 @@ export function CRMLeadFormDialogControlled({
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="proposal_value-controlled">Valor da Proposta (R$)</Label>
-              <Input
-                id="proposal_value-controlled"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.proposal_value}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, proposal_value: e.target.value }))
-                }
-                placeholder="0,00"
-                className="bg-secondary border-border"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-2">
+                  <Label htmlFor="recurring_value-controlled">Valor recorrente (R$/mês)</Label>
+                  <Input
+                    id="recurring_value-controlled"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.recurring_value}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, recurring_value: e.target.value }))
+                    }
+                    placeholder="0,00"
+                    className="bg-secondary border-border"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="specific_value-controlled">Valor específico (R$ pontual)</Label>
+                  <Input
+                    id="specific_value-controlled"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.specific_value}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, specific_value: e.target.value }))
+                    }
+                    placeholder="0,00"
+                    className="bg-secondary border-border"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Total da proposta:{' '}
+                <span className="font-medium text-foreground">
+                  R$ {((Number(formData.recurring_value) || 0) + (Number(formData.specific_value) || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </p>
             </div>
 
             <div className="grid gap-2">
