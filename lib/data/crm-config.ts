@@ -1,6 +1,7 @@
 export type CRMStatus = 
   | "lead_novo"
   | "entrar_em_contato"
+  | "em_contato"
   | "proposta_enviada"
   | "contrato_ativo"
   | "contrato_pausado"
@@ -40,6 +41,7 @@ export const CRM_SERVICES = [
 export const CRM_STATUS_CONFIG: Record<CRMStatus, { label: string; color: string }> = {
   lead_novo: { label: "Lead Novo", color: "bg-chart-2/20 text-chart-2 border-chart-2/30" },
   entrar_em_contato: { label: "Entrar em Contato", color: "bg-warning/20 text-warning border-warning/30" },
+  em_contato: { label: "Em Contato", color: "bg-chart-3/20 text-chart-3 border-chart-3/30" },
   proposta_enviada: { label: "Proposta Enviada", color: "bg-chart-4/20 text-chart-4 border-chart-4/30" },
   contrato_ativo: { label: "Contrato Ativo", color: "bg-success/20 text-success border-success/30" },
   contrato_pausado: { label: "Contrato Pausado", color: "bg-muted-foreground/20 text-muted-foreground border-muted-foreground/30" },
@@ -49,6 +51,7 @@ export const CRM_STATUS_CONFIG: Record<CRMStatus, { label: string; color: string
 export const CRM_COLUMNS: { id: CRMStatus; title: string }[] = [
   { id: "lead_novo", title: "Lead Novo" },
   { id: "entrar_em_contato", title: "Entrar em Contato" },
+  { id: "em_contato", title: "Em Contato" },
   { id: "proposta_enviada", title: "Proposta Enviada" },
   { id: "contrato_ativo", title: "Contrato Ativo" },
   { id: "contrato_pausado", title: "Contrato Pausado" },

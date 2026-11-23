@@ -69,7 +69,7 @@ export function toolDefinitions(user: AgentUser) {
       status: { type: 'string', description: 'Etapa: Planejamento, Aprovação da Ideia, Captação, Edição, Aprovação do Cliente, Solicitou Ajuste, Programado, Publicado' },
     }),
     fn('list_leads', 'Lista leads do CRM.', {
-      status: { type: 'string', enum: ['lead_novo', 'entrar_em_contato', 'proposta_enviada', 'contrato_ativo', 'contrato_pausado', 'contrato_cancelado'] },
+      status: { type: 'string', enum: ['lead_novo', 'entrar_em_contato', 'em_contato', 'proposta_enviada', 'contrato_ativo', 'contrato_pausado', 'contrato_cancelado'] },
     }),
     fn('ads_summary', 'Resumo de tráfego pago (Meta e Google) por cliente em um período: investimento, resultados e custo por resultado.', {
       start_date: { type: 'string', description: 'AAAA-MM-DD' },
