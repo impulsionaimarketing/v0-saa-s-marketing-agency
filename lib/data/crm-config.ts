@@ -34,6 +34,7 @@ export const CRM_SERVICES = [
   "Edição de Vídeo",
   "Criação de Arte",
   "AtendeAí",
+  "Reformulação de Perfil",
 ] as const
 
 export const CRM_STATUS_CONFIG: Record<CRMStatus, { label: string; color: string }> = {
