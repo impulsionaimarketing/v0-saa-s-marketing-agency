@@ -1,5 +1,6 @@
 'use client'
 
+import { ResponsibleBadge } from './responsible-select'
 import React, { useState, useMemo, useTransition } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -168,6 +169,12 @@ function LeadDetailModal({
                 <p className="font-semibold text-primary">{formatCurrencyBRL(lead.specificValue || 0)}</p>
               </div>
             )}
+            {!isClient && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Responsável</p>
+                <ResponsibleBadge name={lead.responsible_name} className="text-sm" />
+              </div>
+            )}
             <div>
               <p className="text-xs text-muted-foreground mb-1">Criado em</p>
               <p className="font-medium flex items-center gap-1">
@@ -277,6 +284,7 @@ function LeadCard({
                   {lead.company}
                 </p>
               )}
+              {!isClient && <ResponsibleBadge name={lead.responsible_name} className="mt-1" />}
             </div>
           </div>
           {(

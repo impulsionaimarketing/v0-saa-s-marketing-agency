@@ -55,6 +55,7 @@ export async function createCRMLead(data: {
   specific_value?: number
   services?: string[]
   status?: CRMStatus
+  responsible_id?: string | null
 }): Promise<CRMLead | null> {
   try {
     const supabase = await createSupabaseClient()
@@ -75,7 +76,8 @@ export async function createCRMLead(data: {
       status: data.status || "lead_novo",
     }
 
-    const row: Record<string, unknown> = hasSplit ? { ...base, recurring_value: recurring, specific_value: specific } : base
+    const withResponsible: Record<string, unknown> = data.responsible_id ? { ...base, responsible_id: data.responsible_id } : base
+    const row: Record<string, unknown> = hasSplit ? { ...withResponsible, recurring_value: recurring, specific_value: specific } : withResponsible
     let { data: result, error } = await supabase
       .from("crm_leads")
       .insert(row)
@@ -85,6 +87,11 @@ export async function createCRMLead(data: {
     // Banco ainda sem as colunas novas: grava só o total
     if (error && hasSplit && /recurring_value|specific_value/.test(error.message)) {
       ;({ data: result, error } = await supabase.from("crm_leads").insert(base).select("*").single())
+    }
+    // Banco ainda sem a coluna de responsável: grava sem ela
+    if (error && /responsible_id/.test(error.message)) {
+      const { responsible_id, ...rest } = row
+      ;({ data: result, error } = await supabase.from("crm_leads").insert(rest).select("*").single())
     }
 
     if (error) {
@@ -121,6 +128,12 @@ export async function updateCRMLead(
     // Banco ainda sem as colunas novas: atualiza só o total
     if (error && /recurring_value|specific_value/.test(error.message)) {
       const { recurring_value, specific_value, ...rest } = payload
+      ;({ data: result, error } = await supabase.from("crm_leads").update(rest).eq("id", id).select("*").single())
+    }
+
+    // Banco ainda sem a coluna de responsável: atualiza sem ela
+    if (error && /responsible_id/.test(error.message)) {
+      const { responsible_id, ...rest } = payload
       ;({ data: result, error } = await supabase.from("crm_leads").update(rest).eq("id", id).select("*").single())
     }
 
@@ -225,10 +238,12 @@ export async function getCRMCards(): Promise<CRMCard[]> {
     }
 
     const clientCols = "id, name, contract_status, monthly_value, whatsapp_instances, created_at, updated_at"
-    const [leadsResult, clientsWithServices] = await Promise.all([
+    const [leadsResult, clientsWithServices, usersResult] = await Promise.all([
       supabase.from("crm_leads").select("*").order("created_at", { ascending: false }),
       supabase.from("clients").select(`${clientCols}, services`).order("name"),
+      supabase.from("users").select("id, name"),
     ])
+    const userNames = new Map<string, string>((usersResult.data || []).map((u: any) => [u.id, u.name]))
     // Se a coluna `services` ainda não existe no banco, volta ao select antigo
     const clientsResult = clientsWithServices.error
       ? await supabase.from("clients").select(clientCols).order("name")
@@ -249,6 +264,7 @@ export async function getCRMCards(): Promise<CRMCard[]> {
       if (recurringValue === 0 && specificValue === 0) recurringValue = proposal
       return {
         ...(lead as CRMLead),
+        responsible_name: lead.responsible_id ? userNames.get(lead.responsible_id) ?? null : null,
         services: Array.isArray(lead.services) ? lead.services : [],
         entity: "lead",
         value: recurringValue + specificValue,

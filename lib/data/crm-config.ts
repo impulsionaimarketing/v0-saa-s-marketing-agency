@@ -20,6 +20,8 @@ export interface CRMLead {
   specific_value?: number
   services: string[]
   status: CRMStatus
+  responsible_id?: string | null
+  responsible_name?: string | null
   created_at: string
   updated_at: string
 }

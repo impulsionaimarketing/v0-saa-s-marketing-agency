@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Loader2 } from 'lucide-react'
+import { ResponsibleSelect } from './responsible-select'
 import {
   createCRMLead,
   updateCRMLead,
@@ -71,6 +72,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
     recurring_value: '',
     specific_value: '',
     services: [] as string[],
+    responsible_id: '',
     status: (defaultStatus || 'lead_novo') as CRMStatus,
   })
 
@@ -86,6 +88,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
         recurring_value: initialRecurring(lead),
         specific_value: lead?.specific_value ? String(lead.specific_value) : '',
         services: lead?.services || [],
+        responsible_id: lead?.responsible_id || '',
         status: lead?.status || defaultStatus || 'lead_novo',
       })
     }
@@ -115,6 +118,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
           recurring_value: Number(formData.recurring_value) || 0,
           specific_value: Number(formData.specific_value) || 0,
           services: formData.services,
+          responsible_id: formData.responsible_id || null,
           status: formData.status,
         }
 
@@ -138,6 +142,7 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
             recurring_value: '',
             specific_value: '',
             services: [],
+            responsible_id: '',
             status: defaultStatus || 'lead_novo',
           })
         }
@@ -282,6 +287,11 @@ export function CRMLeadFormDialog({ lead, onSuccess, trigger, defaultStatus }: C
               />
             </div>
 
+            <ResponsibleSelect
+              value={formData.responsible_id}
+              onChange={(id) => setFormData((prev) => ({ ...prev, responsible_id: id }))}
+            />
+
             <div className="grid gap-2">
               <Label>Serviços desejados</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-md border border-border bg-secondary/40 p-3">
@@ -376,6 +386,7 @@ export function CRMLeadFormDialogControlled({
     recurring_value: '',
     specific_value: '',
     services: [] as string[],
+    responsible_id: '',
     status: 'lead_novo' as CRMStatus,
   })
 
@@ -391,6 +402,7 @@ export function CRMLeadFormDialogControlled({
         recurring_value: initialRecurring(lead),
         specific_value: lead.specific_value ? String(lead.specific_value) : '',
         services: lead.services || [],
+        responsible_id: lead.responsible_id || '',
         status: lead.status || 'lead_novo',
       })
     }
@@ -420,6 +432,7 @@ export function CRMLeadFormDialogControlled({
           recurring_value: Number(formData.recurring_value) || 0,
           specific_value: Number(formData.specific_value) || 0,
           services: formData.services,
+          responsible_id: formData.responsible_id || null,
           status: formData.status,
         }
 
@@ -563,6 +576,11 @@ export function CRMLeadFormDialogControlled({
                 className="bg-secondary border-border"
               />
             </div>
+
+            <ResponsibleSelect
+              value={formData.responsible_id}
+              onChange={(id) => setFormData((prev) => ({ ...prev, responsible_id: id }))}
+            />
 
             <div className="grid gap-2">
               <Label>Serviços desejados</Label>
