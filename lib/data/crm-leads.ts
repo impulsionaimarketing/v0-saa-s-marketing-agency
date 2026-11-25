@@ -4,6 +4,80 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import type { CRMLead, CRMStatus, CRMCard, ClientService } from "@/lib/data/crm-config"
 import { CONTRACT_STATUS_TO_CRM, CRM_TO_CONTRACT_STATUS } from "@/lib/data/crm-config"
 
+const normName = (s: unknown) =>
+  String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
+
+// Lead que fechou contrato vira cliente na tabela `clients` (aparece na aba Clientes).
+// Idempotente: se já existe cliente com o mesmo nome, só reaproveita e ativa o contrato.
+async function convertLeadToClient(supabase: any, lead: any): Promise<string | null> {
+  const clientName = String(lead.company || lead.name || "").trim()
+  if (!clientName) return null
+
+  const { data: allClients } = await supabase.from("clients").select("id, name")
+  const existing = (allClients || []).find((c: any) => normName(c.name) === normName(clientName))
+
+  let clientId: string | undefined = existing?.id
+  if (clientId) {
+    await supabase
+      .from("clients")
+      .update({ contract_status: "Ativo", status: "Ativo", updated_at: new Date().toISOString() })
+      .eq("id", clientId)
+  } else {
+    const names: string[] = Array.isArray(lead.services) ? lead.services : []
+    const recurring = Number(lead.recurring_value) || 0
+    const specific = Number(lead.specific_value) || 0
+    // Lead antigo sem divisão de valores: a proposta conta como recorrente
+    const monthly = recurring > 0 || specific > 0 ? recurring : Number(lead.proposal_value) || 0
+    const kind = monthly > 0 ? "recorrente" : "especifico"
+    const services = names.map((name) => ({
+      name,
+      kind,
+      value: names.length === 1 ? monthly || specific : 0,
+    }))
+
+    const base = {
+      name: clientName,
+      type: "Serviço",
+      plan: names.join(", ") || null,
+      monthly_value: monthly,
+      contract_status: "Ativo",
+      month_status: "green",
+      status: "Ativo",
+      contract_start_date: new Date().toISOString().slice(0, 10),
+    }
+
+    let { data: created, error } = await supabase
+      .from("clients")
+      .insert(services.length > 0 ? { ...base, services } : base)
+      .select("id")
+      .single()
+    // Banco ainda sem a coluna de serviços: cria sem ela
+    if (error && services.length > 0 && /services/.test(error.message)) {
+      ;({ data: created, error } = await supabase.from("clients").insert(base).select("id").single())
+    }
+    if (error || !created) {
+      console.error("[v0] Error converting lead to client:", error)
+      throw new Error(error?.message || "Não foi possível criar o cliente")
+    }
+    clientId = created.id
+  }
+
+  // Vínculo para o lead sair do funil (coluna criada pela migração crm_leads_converted.sql)
+  const { error: linkError } = await supabase
+    .from("crm_leads")
+    .update({ converted_client_id: clientId, updated_at: new Date().toISOString() })
+    .eq("id", lead.id)
+  if (linkError) console.warn("[v0] Lead sem vínculo (rode crm_leads_converted.sql):", linkError.message)
+
+  return clientId ?? null
+}
+
+async function convertLeadById(leadId: string): Promise<void> {
+  const supabase = await createSupabaseClient()
+  const { data: lead } = await supabase.from("crm_leads").select("*").eq("id", leadId).maybeSingle()
+  if (lead && !lead.converted_client_id) await convertLeadToClient(supabase, lead)
+}
+
 export async function getCRMLeads(filters?: {
   status?: CRMStatus | "all"
   search?: string
@@ -99,6 +173,8 @@ export async function createCRMLead(data: {
       throw new Error(error.message)
     }
 
+    if (result?.status === "contrato_ativo") await convertLeadById(result.id)
+
     return result as CRMLead
   } catch (error) {
     console.error("[v0] Error creating CRM lead:", error)
@@ -141,6 +217,8 @@ export async function updateCRMLead(
       console.error("[v0] Error updating CRM lead:", error)
       throw new Error(error.message)
     }
+
+    if (data.status === "contrato_ativo") await convertLeadById(id)
 
     return result as CRMLead
   } catch (error) {
@@ -256,7 +334,35 @@ export async function getCRMCards(): Promise<CRMCard[]> {
       console.error("[v0] Error fetching clients for CRM:", clientsResult.error)
     }
 
-    const leadCards: CRMCard[] = (leadsResult.data || []).map((lead: any) => {
+    // Leads em Contrato Ativo que ainda não viraram cliente (ex.: movidos antes desta regra)
+    const clientNames = new Set((clientsResult.data || []).map((c: any) => normName(c.name)))
+    let clientsChanged = false
+    for (const lead of leadsResult.data || []) {
+      if (lead.status === "contrato_ativo" && !lead.converted_client_id) {
+        try {
+          const id = await convertLeadToClient(supabase, lead)
+          if (id) {
+            lead.converted_client_id = id
+            clientsChanged = true
+          }
+        } catch (error) {
+          console.error("[v0] Error syncing contract lead:", error)
+        }
+      }
+    }
+    let clientRows: any[] = clientsResult.data || []
+    if (clientsChanged) {
+      const refreshed = await supabase.from("clients").select(clientCols + (clientsWithServices.error ? "" : ", services")).order("name")
+      if (!refreshed.error) clientRows = refreshed.data || []
+    }
+
+    const visibleLeads = (leadsResult.data || []).filter(
+      (lead: any) =>
+        !lead.converted_client_id &&
+        !(lead.status === "contrato_ativo" && clientNames.has(normName(lead.company || lead.name))),
+    )
+
+    const leadCards: CRMCard[] = visibleLeads.map((lead: any) => {
       const proposal = Number(lead.proposal_value) || 0
       let recurringValue = Number(lead.recurring_value) || 0
       const specificValue = Number(lead.specific_value) || 0
@@ -273,7 +379,7 @@ export async function getCRMCards(): Promise<CRMCard[]> {
       } as CRMCard
     })
 
-    const clientCards: CRMCard[] = (clientsResult.data || []).map(clientToCRMCard)
+    const clientCards: CRMCard[] = clientRows.map(clientToCRMCard)
 
     return [...clientCards, ...leadCards]
   } catch (error) {
@@ -313,4 +419,5 @@ export async function updateCRMCardStatus(
   }
 
   await updateCRMLeadStatus(id, newStatus)
+  if (newStatus === "contrato_ativo") await convertLeadById(id)
 }

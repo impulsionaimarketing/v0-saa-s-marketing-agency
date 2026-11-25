@@ -493,6 +493,10 @@ export function CRMKanban({ initialCards = [] }: CRMKanbanProps) {
       startTransition(async () => {
         try {
           await updateCRMCardStatus(card.id, card.entity, newStatus)
+          if (card.entity === 'lead' && newStatus === 'contrato_ativo') {
+            toast.success('Contrato fechado: o cliente foi criado e já aparece na aba Clientes.')
+            loadLeads()
+          }
         } catch {
           // Rollback on error
           loadLeads()
